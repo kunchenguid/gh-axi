@@ -1,7 +1,10 @@
-# gh-axi
+<h1 align="center">gh-axi</h1>
 
-[![X](https://img.shields.io/badge/X-@kunchenguid-black?logo=x)](https://x.com/kunchenguid)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/BW4aJuQhTf)
+<p align="center">
+  <a href="https://www.npmjs.com/package/gh-axi"><img alt="npm" src="https://img.shields.io/npm/v/gh-axi?style=flat-square" /></a>
+  <a href="https://x.com/kunchenguid"><img alt="X" src="https://img.shields.io/badge/X-@kunchenguid-black?style=flat-square" /></a>
+  <a href="https://discord.gg/BW4aJuQhTf"><img alt="Discord" src="https://img.shields.io/discord/1439901831038763092?style=flat-square&label=discord" /></a>
+</p>
 
 GitHub CLI for agents — designed with [AXI](https://github.com/kunchenguid/axi) (Agent eXperience Interface).
 
