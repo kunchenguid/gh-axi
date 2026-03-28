@@ -1,5 +1,8 @@
 # gh-axi
 
+[![X](https://img.shields.io/badge/X-@kunchenguid-black?logo=x)](https://x.com/kunchenguid)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/BW4aJuQhTf)
+
 GitHub CLI for agents — designed with [AXI](https://github.com/kunchenguid/axi) (Agent eXperience Interface).
 
 Wraps the official `gh` cli with token-efficient TOON output, contextual next-step suggestions, and structured error handling.
