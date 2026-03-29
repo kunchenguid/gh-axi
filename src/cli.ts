@@ -1,7 +1,8 @@
 import { resolveRepo, type RepoContext } from './context.js';
-import { AxiError } from './errors.js';
+import { AxiError, exitCodeForError } from './errors.js';
 import { renderError } from './toon.js';
-import { homeCommand } from './commands/home.js';
+import { ensureHooks } from './hooks.js';
+import { homeCommand, sessionStartCommand } from './commands/home.js';
 import { issueCommand, ISSUE_HELP } from './commands/issue.js';
 import { prCommand, PR_HELP } from './commands/pr.js';
 import { runCommand, RUN_HELP } from './commands/run.js';
@@ -12,11 +13,15 @@ import { labelCommand, LABEL_HELP } from './commands/label.js';
 import { searchCommand, SEARCH_HELP } from './commands/search.js';
 import { apiCommand, API_HELP } from './commands/api.js';
 
-const TOP_HELP = `usage: gh-axi [command] [flags]
+export const TOP_HELP = `usage: gh-axi [command] [flags]
 commands[10]:
   (none)=dashboard, issue, pr, run, workflow, release, repo, label, search, api
 flags[2]:
   -R/--repo <OWNER/NAME>, --help
+examples:
+  gh-axi
+  gh-axi issue list --state open
+  gh-axi pr view 42
 `;
 
 const COMMAND_HELP: Record<string, string> = {
@@ -46,6 +51,9 @@ const COMMANDS: Record<string, CommandFn> = {
 };
 
 export async function main(argv: string[]): Promise<void> {
+  // Fire-and-forget: install/repair ambient context hooks
+  ensureHooks();
+
   // Extract global flags
   const args = [...argv];
   let repoFlag: string | undefined;
@@ -57,6 +65,14 @@ export async function main(argv: string[]): Promise<void> {
       args.splice(i, 2);
       i--;
     }
+  }
+
+  // Extract --session-start flag
+  let sessionStart = false;
+  const sessionIdx = args.indexOf('--session-start');
+  if (sessionIdx !== -1) {
+    sessionStart = true;
+    args.splice(sessionIdx, 1);
   }
 
   // Top-level --help
@@ -72,6 +88,16 @@ export async function main(argv: string[]): Promise<void> {
     // No command = home dashboard
     if (args.includes('--help')) {
       process.stdout.write(TOP_HELP);
+      return;
+    }
+    if (sessionStart) {
+      const ctx = resolveRepo(repoFlag);
+      try {
+        const output = await sessionStartCommand(ctx);
+        process.stdout.write(output + '\n');
+      } catch (err) {
+        writeError(err);
+      }
       return;
     }
     const ctx = resolveRepo(repoFlag);
@@ -96,11 +122,11 @@ export async function main(argv: string[]): Promise<void> {
   const handler = COMMANDS[command];
   if (!handler) {
     process.stdout.write(
-      renderError(`Unknown command: ${command}`, 'UNKNOWN', [
+      renderError(`Unknown command: ${command}`, 'VALIDATION_ERROR', [
         'Run `gh-axi --help` to see available commands',
       ]) + '\n',
     );
-    process.exitCode = 1;
+    process.exitCode = 2;
     return;
   }
 
@@ -120,5 +146,5 @@ function writeError(err: unknown): void {
     const message = err instanceof Error ? err.message : String(err);
     process.stdout.write(renderError(message, 'UNKNOWN') + '\n');
   }
-  process.exitCode = 1;
+  process.exitCode = exitCodeForError(err);
 }

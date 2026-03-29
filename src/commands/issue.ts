@@ -2,8 +2,10 @@ import type { RepoContext } from '../context.js';
 import { ghJson, ghExec, ghRaw } from '../gh.js';
 import { AxiError } from '../errors.js';
 import { getSuggestions } from '../suggestions.js';
-import { getFlag, hasFlag, getPositional, requireNumber } from '../args.js';
+import { getFlag, hasFlag, getPositional, requireNumber, takeFlag } from '../args.js';
 import { truncateBody } from '../body.js';
+import { parseFields, type ExtraFieldSpec } from '../fields.js';
+import { formatCountLine } from '../format.js';
 import {
   field,
   pluck,
@@ -49,7 +51,7 @@ export const ISSUE_HELP = `usage: gh-axi issue <subcommand> [flags]
 subcommands[13]:
   list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>
 flags{list}:
-  --state <open|closed|all>, --label <name>, --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30)
+  --state <open|closed|all>, --label <name>, --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
   --comments, --full (show complete body without truncation)
 flags{create}:
@@ -61,7 +63,12 @@ flags{close}:
 flags{comment}:
   --body <text> (required)
 flags{transfer}:
-  --repo <owner/name> (required)`;
+  --repo <owner/name> (required)
+examples:
+  gh-axi issue list --state closed --label bug
+  gh-axi issue view 42 --comments
+  gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
+  gh-axi issue close 42 --reason completed`;
 
 
 
@@ -137,6 +144,19 @@ const transferResultSchema: FieldDef[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Extra fields for --fields support
+// ---------------------------------------------------------------------------
+
+const ISSUE_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
+  body: { jsonKey: 'body', def: field('body') },
+  closedAt: { jsonKey: 'closedAt', def: relativeTime('closedAt', 'closed_at') },
+  labels: { jsonKey: 'labels', def: joinArray('labels', 'name', 'labels') },
+  milestone: { jsonKey: 'milestone', def: pluck('milestone', 'title', 'milestone') },
+  updatedAt: { jsonKey: 'updatedAt', def: relativeTime('updatedAt', 'updated_at') },
+  url: { jsonKey: 'url', def: field('url') },
+};
+
+// ---------------------------------------------------------------------------
 // Subcommand handlers
 // ---------------------------------------------------------------------------
 
@@ -144,6 +164,8 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
   if (hasFlag(args, '--search')) {
     throw new AxiError('issue list does not support --search. Use `gh-axi search issues "<query>"` instead for full-text search with total counts.', 'VALIDATION_ERROR');
   }
+  const fieldsArg = takeFlag(args, '--fields');
+  const { extraDefs, extraJsonKeys } = parseFields(fieldsArg, ISSUE_LIST_EXTRA_FIELDS);
   const state = getFlag(args, '--state');
   const label = getFlag(args, '--label');
   const assignee = getFlag(args, '--assignee');
@@ -153,7 +175,9 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
   const limitRaw = getFlag(args, '--limit');
   const limit = limitRaw ? parseInt(limitRaw, 10) : 30;
 
-  const ghArgs = ['issue', 'list', '--json', 'number,title,state,author,createdAt', '--limit', String(limit)];
+  const baseJsonFields = 'number,title,state,author,createdAt';
+  const jsonFields = extraJsonKeys.length > 0 ? baseJsonFields + ',' + extraJsonKeys.join(',') : baseJsonFields;
+  const ghArgs = ['issue', 'list', '--json', jsonFields, '--limit', String(limit)];
   if (state) ghArgs.push('--state', state);
   if (label) ghArgs.push('--label', label);
   if (assignee) ghArgs.push('--assignee', assignee);
@@ -165,30 +189,24 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
   const isEmpty = items.length === 0;
 
   // If we hit the limit, fetch the true totalCount via GraphQL
-  let countLine: string;
-  if (items.length === limit) {
-    let totalCount: number | null = null;
-    if (ctx) {
-      try {
-        const ghState = (state ?? 'open').toUpperCase();
-        const query = `{ repository(owner:"${ctx.owner}", name:"${ctx.name}") { issues(states:[${ghState}]) { totalCount } } }`;
-        const gqlResult = await ghRaw(['api', 'graphql', '-f', `query=${query}`]);
-        if (gqlResult.exitCode === 0) {
-          const parsed = JSON.parse(gqlResult.stdout);
-          totalCount = parsed?.data?.repository?.issues?.totalCount ?? null;
-        }
-      } catch {
-        // fall back to old behavior
+  let totalCount: number | undefined;
+  if (items.length === limit && ctx) {
+    try {
+      const ghState = (state ?? 'open').toUpperCase();
+      const query = `{ repository(owner:"${ctx.owner}", name:"${ctx.name}") { issues(states:[${ghState}]) { totalCount } } }`;
+      const gqlResult = await ghRaw(['api', 'graphql', '-f', `query=${query}`]);
+      if (gqlResult.exitCode === 0) {
+        const parsed = JSON.parse(gqlResult.stdout);
+        totalCount = parsed?.data?.repository?.issues?.totalCount ?? undefined;
       }
+    } catch {
+      // fall back to limit-based message
     }
-    countLine = totalCount !== null
-      ? `count: ${items.length} of ${totalCount} total`
-      : `count: ${items.length} (showing first ${items.length}; run \`gh-axi repo view\` for total count)`;
-  } else {
-    countLine = `count: ${items.length}`;
   }
+  const countLine = formatCountLine({ count: items.length, limit, totalCount });
 
-  const blocks: string[] = [countLine, renderList('issues', items, listSchema)];
+  const extendedSchema = extraDefs.length > 0 ? [...listSchema, ...extraDefs] : listSchema;
+  const blocks: string[] = [countLine, renderList('issues', items, extendedSchema)];
   const help = getSuggestions({ domain: 'issue', action: 'list', isEmpty, repo: ctx });
   blocks.push(renderHelp(help));
 
@@ -211,9 +229,6 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   if (withComments && Array.isArray(item.comments)) {
     blocks.push(renderList('comments', item.comments as Record<string, unknown>[], commentResultSchema.filter((d) => ('key' in d ? d.key !== 'number' : true))));
   }
-
-  const help = getSuggestions({ domain: 'issue', action: 'view', state, id: num, repo: ctx });
-  blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }

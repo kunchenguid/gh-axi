@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // Mock all command modules
 vi.mock('../src/commands/home.js', () => ({
   homeCommand: vi.fn().mockResolvedValue('home output'),
+  sessionStartCommand: vi.fn().mockResolvedValue('session-start output'),
 }));
 vi.mock('../src/commands/issue.js', () => ({
   issueCommand: vi.fn().mockResolvedValue('issue output'),
@@ -40,6 +41,9 @@ vi.mock('../src/commands/api.js', () => ({
   apiCommand: vi.fn().mockResolvedValue('api output'),
   API_HELP: 'api help',
 }));
+vi.mock('../src/hooks.js', () => ({
+  ensureHooks: vi.fn(),
+}));
 
 // Mock resolveRepo to avoid git calls
 vi.mock('../src/context.js', () => ({
@@ -47,11 +51,12 @@ vi.mock('../src/context.js', () => ({
 }));
 
 import { main } from '../src/cli.js';
+import { AxiError } from '../src/errors.js';
 import { issueCommand } from '../src/commands/issue.js';
 import { repoCommand } from '../src/commands/repo.js';
 import { labelCommand } from '../src/commands/label.js';
 import { apiCommand } from '../src/commands/api.js';
-import { homeCommand } from '../src/commands/home.js';
+import { homeCommand, sessionStartCommand } from '../src/commands/home.js';
 import { resolveRepo } from '../src/context.js';
 
 describe('main CLI', () => {
@@ -60,6 +65,7 @@ describe('main CLI', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(homeCommand).mockResolvedValue('home output');
+    vi.mocked(sessionStartCommand).mockResolvedValue('session-start output');
     vi.mocked(issueCommand).mockResolvedValue('issue output');
     vi.mocked(repoCommand).mockResolvedValue('repo output');
     vi.mocked(labelCommand).mockResolvedValue('label output');
@@ -111,10 +117,10 @@ describe('main CLI', () => {
     expect(writeSpy).toHaveBeenCalledWith('issue help');
   });
 
-  it('shows error for unknown command', async () => {
+  it('returns exit code 2 for unknown command (usage error)', async () => {
     await main(['notacommand']);
     expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown command: notacommand'));
-    expect(process.exitCode).toBe(1);
+    expect(process.exitCode).toBe(2);
   });
 
   it('extracts --repo flag and passes to resolveRepo', async () => {
@@ -128,10 +134,63 @@ describe('main CLI', () => {
     expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith('owner/name');
   });
 
-  it('sets exitCode on command error', async () => {
+  it('sets exitCode 1 on generic command error', async () => {
     vi.mocked(homeCommand).mockRejectedValue(new Error('boom'));
     await main([]);
     expect(process.exitCode).toBe(1);
     expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('boom'));
+  });
+
+  it('returns exit code 2 for VALIDATION_ERROR (missing required flag)', async () => {
+    vi.mocked(issueCommand).mockRejectedValue(
+      new AxiError('--title is required', 'VALIDATION_ERROR'),
+    );
+    await main(['issue', 'create']);
+    expect(process.exitCode).toBe(2);
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('--title is required'));
+  });
+
+  it('returns exit code 1 for NOT_FOUND error', async () => {
+    vi.mocked(issueCommand).mockRejectedValue(
+      new AxiError('Issue #999 does not exist', 'NOT_FOUND'),
+    );
+    await main(['issue', 'view', '999']);
+    expect(process.exitCode).toBe(1);
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Issue #999'));
+  });
+
+  it('returns exit code 1 for AUTH_REQUIRED error', async () => {
+    vi.mocked(issueCommand).mockRejectedValue(
+      new AxiError('GitHub auth required', 'AUTH_REQUIRED'),
+    );
+    await main(['issue', 'list']);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('returns exit code 1 for FORBIDDEN error', async () => {
+    vi.mocked(issueCommand).mockRejectedValue(
+      new AxiError('Insufficient permissions', 'FORBIDDEN'),
+    );
+    await main(['issue', 'list']);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('routes to sessionStartCommand when --session-start flag is given', async () => {
+    await main(['--session-start']);
+    expect(vi.mocked(sessionStartCommand)).toHaveBeenCalledWith(expect.any(Object));
+    expect(vi.mocked(homeCommand)).not.toHaveBeenCalled();
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('session-start output'));
+  });
+
+  it('passes repo context to sessionStartCommand with -R flag', async () => {
+    await main(['-R', 'owner/name', '--session-start']);
+    expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith('owner/name');
+    expect(vi.mocked(sessionStartCommand)).toHaveBeenCalledWith(expect.any(Object));
+  });
+
+  it('does not route --session-start when used with a subcommand', async () => {
+    await main(['issue', '--session-start']);
+    expect(vi.mocked(sessionStartCommand)).not.toHaveBeenCalled();
+    expect(vi.mocked(issueCommand)).toHaveBeenCalled();
   });
 });

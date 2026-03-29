@@ -11,6 +11,7 @@ import {
   renderError,
   type FieldDef,
 } from '../toon.js';
+import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
 export const LABEL_HELP = `usage: gh-axi label <subcommand> [flags]
@@ -21,7 +22,11 @@ flags{list}:
 flags{create}:
   --name <text> (required), --color <hex> (required, without #), --description <text>
 flags{edit}:
-  --name, --color, --description`;
+  --name, --color, --description
+examples:
+  gh-axi label list
+  gh-axi label create --name "priority:high" --color ff0000 --description "High priority"
+  gh-axi label delete "priority:low"`;
 
 const listSchema: FieldDef[] = [
   field('name'),
@@ -40,10 +45,8 @@ async function listLabels(args: string[], ctx?: RepoContext): Promise<string> {
   const labels = await ghJson<Record<string, unknown>[]>(ghArgs, ctx);
   const isEmpty = labels.length === 0;
 
-  // Add a count line so agents don't need to count rows
-  const countLine = labels.length === Number(limit)
-    ? `count: ${labels.length} (showing first ${labels.length}; run \`gh-axi repo view\` for total count)`
-    : `count: ${labels.length}`;
+  const limitNum = Number(limit);
+  const countLine = formatCountLine({ count: labels.length, limit: limitNum });
 
   const suggestions = getSuggestions({ domain: 'label', action: 'list', isEmpty, repo: ctx });
   return renderOutput([

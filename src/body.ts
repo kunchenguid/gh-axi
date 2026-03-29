@@ -35,7 +35,7 @@ export function truncateBody(body: unknown, maxLen = 500): string {
   if (cleaned.length <= maxLen) {
     // Cleanup made it fit, but content was modified — offer --full for the original
     if (cleaned !== body) {
-      return cleaned + '\n(cleaned from ' + body.length + ' chars — use --full to see original)';
+      return cleaned + '\n(cleaned, ' + body.length + ' chars original — use --full to see original)';
     }
     return cleaned;
   }

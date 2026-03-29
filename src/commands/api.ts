@@ -10,7 +10,11 @@ description: Make an authenticated GitHub API request. Defaults to GET if no met
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
 flags[3]:
-  --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate`;
+  --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate
+examples:
+  gh-axi api /repos/{owner}/{repo}
+  gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
+  gh-axi api /repos/{owner}/{repo}/pulls --paginate`;
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
 
@@ -71,12 +75,19 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     const cleaned = stripNoisyFields(data);
     return encode(cleaned);
   } catch {
-    // Not JSON — return raw output (truncated if too long)
+    // Not JSON — wrap in TOON envelope with truncation metadata
     const trimmed = raw.trim();
-    if (trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT) {
-      return trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT) + '\n... (truncated)';
+    const truncated = trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
+    const result: Record<string, unknown> = {
+      api_response: {
+        body: truncated ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT) : trimmed,
+        truncated,
+      },
+    };
+    if (truncated) {
+      (result.api_response as Record<string, unknown>).original_length = trimmed.length;
     }
-    return trimmed;
+    return encode(result);
   }
 }
 

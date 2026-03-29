@@ -15,6 +15,7 @@ import {
   renderError,
   type FieldDef,
 } from '../toon.js';
+import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
 const DEFAULT_SEARCH_LIMIT = '1000';
@@ -28,7 +29,11 @@ flags{common}:
 flags{prs}:
   --draft, --review
 flags{repos}:
-  --language, --stars (e.g. ">100")`;
+  --language, --stars (e.g. ">100")
+examples:
+  gh-axi search issues "login bug" --repo octo/repo --state open
+  gh-axi search prs "feat" --author alice --sort updated
+  gh-axi search repos "cli tool" --language Go --stars ">50"`;
 
 const issueSchema: FieldDef[] = [
   field('number'),
@@ -126,11 +131,12 @@ async function searchIssues(args: string[], ctx?: RepoContext): Promise<string> 
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);
-  const countLine = results.length === limitNum
-    ? `count: ${results.length}+ (GitHub search API limit reached)`
-    : results.length > DISPLAY_LIMIT
-    ? `count: ${results.length} (showing first ${DISPLAY_LIMIT})`
-    : `count: ${results.length}`;
+  const countLine = formatCountLine({
+    count: results.length,
+    limit: limitNum,
+    apiLimitHit: results.length === limitNum,
+    displayLimit: DISPLAY_LIMIT,
+  });
   const suggestions = getSuggestions({ domain: 'search', action: 'issues', repo: ctx });
   return renderOutput([
     countLine,
@@ -170,11 +176,12 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);
-  const countLine = results.length === limitNum
-    ? `count: ${results.length}+ (GitHub search API limit reached)`
-    : results.length > DISPLAY_LIMIT
-    ? `count: ${results.length} (showing first ${DISPLAY_LIMIT})`
-    : `count: ${results.length}`;
+  const countLine = formatCountLine({
+    count: results.length,
+    limit: limitNum,
+    apiLimitHit: results.length === limitNum,
+    displayLimit: DISPLAY_LIMIT,
+  });
   const suggestions = getSuggestions({ domain: 'search', action: 'prs', repo: ctx });
   return renderOutput([
     countLine,
@@ -203,9 +210,18 @@ async function searchRepos(args: string[], ctx?: RepoContext): Promise<string> {
   if (sort) ghArgs.push('--sort', sort);
 
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
+  const limitNum = parseInt(limit, 10);
+  const displayed = results.slice(0, DISPLAY_LIMIT);
+  const countLine = formatCountLine({
+    count: results.length,
+    limit: limitNum,
+    apiLimitHit: results.length === limitNum,
+    displayLimit: DISPLAY_LIMIT,
+  });
   const suggestions = getSuggestions({ domain: 'search', action: 'repos', repo: ctx });
   return renderOutput([
-    renderList('repos', results, repoSchema),
+    countLine,
+    renderList('repos', displayed, repoSchema),
     renderHelp(suggestions),
   ]);
 }
@@ -230,9 +246,18 @@ async function searchCommits(args: string[], ctx?: RepoContext): Promise<string>
   if (sort) ghArgs.push('--sort', sort);
 
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
+  const limitNum = parseInt(limit, 10);
+  const displayed = results.slice(0, DISPLAY_LIMIT);
+  const countLine = formatCountLine({
+    count: results.length,
+    limit: limitNum,
+    apiLimitHit: results.length === limitNum,
+    displayLimit: DISPLAY_LIMIT,
+  });
   const suggestions = getSuggestions({ domain: 'search', action: 'commits', repo: ctx });
   return renderOutput([
-    renderList('commits', results, commitSchema),
+    countLine,
+    renderList('commits', displayed, commitSchema),
     renderHelp(suggestions),
   ]);
 }
@@ -265,9 +290,18 @@ async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
   if (language) ghArgs.push('--language', language);
 
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
+  const limitNum = parseInt(limit, 10);
+  const displayed = results.slice(0, DISPLAY_LIMIT);
+  const countLine = formatCountLine({
+    count: results.length,
+    limit: limitNum,
+    apiLimitHit: results.length === limitNum,
+    displayLimit: DISPLAY_LIMIT,
+  });
   const suggestions = getSuggestions({ domain: 'search', action: 'code', repo: ctx });
   return renderOutput([
-    renderList('results', results, codeSchema),
+    countLine,
+    renderList('results', displayed, codeSchema),
     renderHelp(suggestions),
   ]);
 }

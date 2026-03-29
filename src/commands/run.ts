@@ -2,7 +2,8 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag, hasFlag } from '../args.js';
+import { getFlag, hasFlag, takeFlag } from '../args.js';
+import { parseFields, type ExtraFieldSpec } from '../fields.js';
 import {
   field,
   lower,
@@ -14,19 +15,24 @@ import {
   renderError,
   type FieldDef,
 } from '../toon.js';
+import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
 export const RUN_HELP = `usage: gh-axi run <subcommand> [flags]
 subcommands[7]:
   list, view <id>, watch <id>, rerun <id>, cancel <id>, delete <id>, download <id>
 flags{list}:
-  --workflow, --branch, --status, --event, --user, --commit, --limit (default 10)
+  --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c>
 flags{view}:
   --log, --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
 flags{rerun}:
   --failed, --debug, --job
 flags{download}:
-  --name, --dir`;
+  --name, --dir
+examples:
+  gh-axi run list --workflow ci.yml --status failure
+  gh-axi run view 123456 --log-failed
+  gh-axi run rerun 123456 --failed`;
 
 const listSchema: FieldDef[] = [
   field('databaseId', 'id'),
@@ -55,12 +61,41 @@ const jobSchema: FieldDef[] = [
   lower('conclusion'),
 ];
 
+const RUN_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
+  headSha: { jsonKey: 'headSha', def: field('headSha', 'sha') },
+  number: { jsonKey: 'number', def: field('number') },
+  url: { jsonKey: 'url', def: field('url') },
+  updatedAt: { jsonKey: 'updatedAt', def: relativeTime('updatedAt', 'updated_at') },
+};
+
+const RUN_LIST_BASE_JSON = 'databaseId,displayTitle,status,conclusion,workflowName,headBranch,event,createdAt';
+
+const LOG_TRUNCATE_LIMIT = 20000;
+
+function wrapLogOutput(run: string, mode: string, output: string): string {
+  const truncated = output.length > LOG_TRUNCATE_LIMIT;
+  const result: Record<string, unknown> = {
+    run_log: {
+      run,
+      mode,
+      output: truncated ? output.slice(0, LOG_TRUNCATE_LIMIT) : output,
+      truncated,
+    },
+  };
+  if (truncated) {
+    (result.run_log as Record<string, unknown>).original_length = output.length;
+  }
+  return encode(result);
+}
 
 async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
+  const fieldsArg = takeFlag(args, '--fields');
+  const { extraDefs, extraJsonKeys } = parseFields(fieldsArg, RUN_LIST_EXTRA_FIELDS);
   const limit = getFlag(args, '--limit') ?? '10';
+  const jsonFields = extraJsonKeys.length > 0 ? RUN_LIST_BASE_JSON + ',' + extraJsonKeys.join(',') : RUN_LIST_BASE_JSON;
   const ghArgs = [
     'run', 'list',
-    '--json', 'databaseId,displayTitle,status,conclusion,workflowName,headBranch,event,createdAt',
+    '--json', jsonFields,
     '--limit', limit,
   ];
   const workflow = getFlag(args, '--workflow');
@@ -79,13 +114,12 @@ async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
   const runs = await ghJson<Record<string, unknown>[]>(ghArgs, ctx);
   const isEmpty = runs.length === 0;
   const limitNum = Number(limit);
-  const countLine = runs.length === limitNum
-    ? `count: ${runs.length} (showing first ${runs.length}; run \`gh-axi repo view\` for total count)`
-    : `count: ${runs.length}`;
+  const countLine = formatCountLine({ count: runs.length, limit: limitNum });
+  const extendedSchema = extraDefs.length > 0 ? [...listSchema, ...extraDefs] : listSchema;
   const suggestions = getSuggestions({ domain: 'run', action: 'list', isEmpty, repo: ctx });
   return renderOutput([
     countLine,
-    renderList('runs', runs, listSchema),
+    renderList('runs', runs, extendedSchema),
     renderHelp(suggestions),
   ]);
 }
@@ -97,19 +131,18 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
 
   // Handle log modes
   if (hasFlag(args, '--log') || hasFlag(args, '--verbose')) {
-    return ghExec(['run', 'view', id, '--log'], ctx);
+    const output = await ghExec(['run', 'view', id, '--log'], ctx);
+    return wrapLogOutput(id, 'log', output);
   }
   if (hasFlag(args, '--log-failed')) {
-    return ghExec(['run', 'view', id, '--log-failed'], ctx);
+    const output = await ghExec(['run', 'view', id, '--log-failed'], ctx);
+    return wrapLogOutput(id, 'log-failed', output);
   }
 
   const run = await ghJson<Record<string, unknown>>(
     ['run', 'view', id, '--json', 'databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs'],
     ctx,
   );
-
-  const state = run.status === 'completed' ? 'completed' : 'in_progress';
-  const suggestions = getSuggestions({ domain: 'run', action: 'view', state, id, repo: ctx });
 
   const blocks: string[] = [renderDetail('run', run, viewSchema)];
 
@@ -126,7 +159,6 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
     blocks.push(renderList('jobs', jobs, jobSchema));
   }
 
-  blocks.push(renderHelp(suggestions));
   return renderOutput(blocks);
 }
 
@@ -137,8 +169,7 @@ async function watchRun(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghArgs = ['run', 'watch', id, '--exit-status'];
   const output = await ghExec(ghArgs, ctx);
-  const suggestions = getSuggestions({ domain: 'run', action: 'watch', id, repo: ctx });
-  return renderOutput([output.trim(), renderHelp(suggestions)]);
+  return encode({ run_watch: { run: id, output: output.trim() } });
 }
 
 async function rerunRun(args: string[], ctx?: RepoContext): Promise<string> {

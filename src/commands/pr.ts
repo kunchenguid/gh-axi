@@ -3,14 +3,18 @@ import type { RepoContext } from '../context.js';
 import { ghJson, ghExec, ghRaw } from '../gh.js';
 import { AxiError } from '../errors.js';
 import { truncateBody } from '../body.js';
+import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 import { takeFlag, takeBoolFlag, takeNumber } from '../args.js';
+import { parseFields, type ExtraFieldSpec } from '../fields.js';
 import {
   field,
   pluck,
   lower,
   boolYesNo,
   mapEnum,
+  relativeTime,
+  joinArray,
   custom,
   renderList,
   renderDetail,
@@ -92,6 +96,15 @@ const listSchema: FieldDef[] = [
 
 const LIST_JSON_FIELDS = 'number,title,state,author,isDraft,reviewDecision';
 
+const PR_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
+  body: { jsonKey: 'body', def: field('body') },
+  createdAt: { jsonKey: 'createdAt', def: relativeTime('createdAt', 'created') },
+  labels: { jsonKey: 'labels', def: joinArray('labels', 'name', 'labels') },
+  milestone: { jsonKey: 'milestone', def: pluck('milestone', 'title', 'milestone') },
+  mergedAt: { jsonKey: 'mergedAt', def: relativeTime('mergedAt', 'merged_at') },
+  url: { jsonKey: 'url', def: field('url') },
+};
+
 const viewSchema: FieldDef[] = [
   field('number'),
   field('title'),
@@ -133,7 +146,7 @@ export const PR_HELP = `usage: gh-axi pr <subcommand> [flags]
 subcommands[15]:
   list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, revert <number>
 flags{list}:
-  --state <open|closed|all>, --label, --assignee, --author, --base, --head, --draft, --limit <n> (default 30)
+  --state <open|closed|all>, --label, --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
   --comments, --full (show complete body without truncation)
 flags{create}:
@@ -143,7 +156,11 @@ flags{merge}:
 flags{review}:
   --approve, --request-changes, --comment, --body
 flags{checks}:
-  (none)`;
+  (none)
+examples:
+  gh-axi pr list --state open --label bug
+  gh-axi pr view 42 --comments
+  gh-axi pr merge 42 --squash --delete-branch`;
 
 // ---------------------------------------------------------------------------
 // Subcommands
@@ -153,6 +170,8 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
   if (args.includes('--search')) {
     throw new AxiError('pr list does not support --search. Use `gh-axi search prs "<query>"` instead for full-text search with total counts.', 'VALIDATION_ERROR');
   }
+  const fieldsArg = takeFlag(args, '--fields');
+  const { extraDefs, extraJsonKeys } = parseFields(fieldsArg, PR_LIST_EXTRA_FIELDS);
   const state = takeFlag(args, '--state') ?? 'open';
   const label = takeFlag(args, '--label');
   const assignee = takeFlag(args, '--assignee');
@@ -162,7 +181,8 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
   const draft = takeBoolFlag(args, '--draft');
   const limit = takeFlag(args, '--limit') ?? '30';
 
-  const ghArgs = ['pr', 'list', '--json', LIST_JSON_FIELDS, '--state', state, '--limit', limit];
+  const jsonFields = extraJsonKeys.length > 0 ? LIST_JSON_FIELDS + ',' + extraJsonKeys.join(',') : LIST_JSON_FIELDS;
+  const ghArgs = ['pr', 'list', '--json', jsonFields, '--state', state, '--limit', limit];
   if (label) ghArgs.push('--label', label);
   if (assignee) ghArgs.push('--assignee', assignee);
   if (author) ghArgs.push('--author', author);
@@ -175,33 +195,27 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
   const limitNum = Number(limit);
 
   // If we hit the limit, fetch the true totalCount via GraphQL
-  let countLine: string;
-  if (items.length === limitNum) {
-    let totalCount: number | null = null;
-    if (ctx) {
-      try {
-        const ghState = state.toUpperCase();
-        const statesFilter = ghState === 'ALL' ? '' : `states:[${ghState === 'CLOSED' ? 'CLOSED,MERGED' : ghState}]`;
-        const query = `{ repository(owner:"${ctx.owner}", name:"${ctx.name}") { pullRequests(${statesFilter}) { totalCount } } }`;
-        const gqlResult = await ghRaw(['api', 'graphql', '-f', `query=${query}`]);
-        if (gqlResult.exitCode === 0) {
-          const parsed = JSON.parse(gqlResult.stdout);
-          totalCount = parsed?.data?.repository?.pullRequests?.totalCount ?? null;
-        }
-      } catch {
-        // fall back to old behavior
+  let totalCount: number | undefined;
+  if (items.length === limitNum && ctx) {
+    try {
+      const ghState = state.toUpperCase();
+      const statesFilter = ghState === 'ALL' ? '' : `states:[${ghState === 'CLOSED' ? 'CLOSED,MERGED' : ghState}]`;
+      const query = `{ repository(owner:"${ctx.owner}", name:"${ctx.name}") { pullRequests(${statesFilter}) { totalCount } } }`;
+      const gqlResult = await ghRaw(['api', 'graphql', '-f', `query=${query}`]);
+      if (gqlResult.exitCode === 0) {
+        const parsed = JSON.parse(gqlResult.stdout);
+        totalCount = parsed?.data?.repository?.pullRequests?.totalCount ?? undefined;
       }
+    } catch {
+      // fall back to limit-based message
     }
-    countLine = totalCount !== null
-      ? `count: ${items.length} of ${totalCount} total`
-      : `count: ${items.length} (showing first ${items.length}; run \`gh-axi repo view\` for total count)`;
-  } else {
-    countLine = `count: ${items.length}`;
   }
+  const countLine = formatCountLine({ count: items.length, limit: limitNum, totalCount });
+  const extendedSchema = extraDefs.length > 0 ? [...listSchema, ...extraDefs] : listSchema;
 
   return renderOutput([
     countLine,
-    renderList('pull_requests', items, listSchema),
+    renderList('pull_requests', items, extendedSchema),
     renderHelp(getSuggestions({ domain: 'pr', action: 'list', isEmpty, repo: ctx })),
   ]);
 }
@@ -233,10 +247,8 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
 
-  const state = (pr.state ?? '').toLowerCase();
   return renderOutput([
     renderDetail('pull_request', pr, schema),
-    renderHelp(getSuggestions({ domain: 'pr', action: 'view', id: num, state, repo: ctx })),
   ]);
 }
 
@@ -442,10 +454,25 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
+const DIFF_TRUNCATE_LIMIT = 20000;
+
 async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
+  const full = takeBoolFlag(args, '--full');
   const num = takeNumber(args, 'PR');
   const diff = await ghExec(['pr', 'diff', String(num)], ctx);
-  return diff;
+
+  const shouldTruncate = !full && diff.length > DIFF_TRUNCATE_LIMIT;
+  const result: Record<string, unknown> = {
+    pr_diff: {
+      number: num,
+      diff: shouldTruncate ? diff.slice(0, DIFF_TRUNCATE_LIMIT) : diff,
+      truncated: shouldTruncate,
+    },
+  };
+  if (shouldTruncate) {
+    (result.pr_diff as Record<string, unknown>).original_length = diff.length;
+  }
+  return encode(result);
 }
 
 async function prCheckout(args: string[], ctx?: RepoContext): Promise<string> {

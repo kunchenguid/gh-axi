@@ -16,6 +16,7 @@ import {
   renderError,
   type FieldDef,
 } from '../toon.js';
+import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
 export const REPO_HELP = `usage: gh-axi repo <subcommand> [flags]
@@ -28,7 +29,11 @@ flags{edit}:
 flags{fork}:
   --clone, --remote
 flags{list}:
-  --limit <n> (default 30), --visibility, --language, --archived`;
+  --limit <n> (default 30), --visibility, --language, --archived
+examples:
+  gh-axi repo view
+  gh-axi repo create my-project --public --description "A new project"
+  gh-axi repo list --visibility public --language TypeScript`;
 
 const viewSchema: FieldDef[] = [
   field('name'),
@@ -59,10 +64,8 @@ async function viewRepo(args: string[], ctx?: RepoContext): Promise<string> {
   ghArgs.push('--json', 'name,description,defaultBranchRef,stargazerCount,forkCount,issues,pullRequests,visibility,primaryLanguage');
   const repo = await ghJson<Record<string, unknown>>(ghArgs); // Don't pass ctx — we handle repo arg ourselves
 
-  const suggestions = getSuggestions({ domain: 'repo', action: 'view', repo: ctx });
   return renderOutput([
     renderDetail('repo', repo, viewSchema),
-    renderHelp(suggestions),
   ]);
 }
 
@@ -160,8 +163,11 @@ async function listRepos(args: string[], ctx?: RepoContext): Promise<string> {
 
   const repos = await ghJson<Record<string, unknown>[]>(ghArgs);
   const isEmpty = repos.length === 0;
+  const limitNum = Number(limit);
+  const countLine = formatCountLine({ count: repos.length, limit: limitNum });
   const suggestions = getSuggestions({ domain: 'repo', action: 'list', isEmpty, repo: ctx });
   return renderOutput([
+    countLine,
     renderList('repos', repos, listSchema),
     renderHelp(suggestions),
   ]);

@@ -51,6 +51,52 @@ describe('issueCommand', () => {
       expect(result).toContain('Bug report');
       expect(result).toContain('Feature request');
     });
+
+    it('uses default compact --json fields when --fields is not passed', async () => {
+      mockedGhJson.mockResolvedValue([]);
+      await issueCommand(['list'], ctx);
+
+      const callArgs = mockedGhJson.mock.calls[0][0] as string[];
+      const jsonIdx = callArgs.indexOf('--json');
+      const jsonValue = callArgs[jsonIdx + 1];
+      // Default fields should NOT include body, closedAt, etc.
+      expect(jsonValue).not.toContain('body');
+      expect(jsonValue).not.toContain('closedAt');
+      expect(jsonValue).toContain('number');
+      expect(jsonValue).toContain('title');
+    });
+
+    it('extends --json and schema when --fields is passed', async () => {
+      mockedGhJson.mockResolvedValue([
+        { number: 1, title: 'Bug', state: 'OPEN', author: { login: 'alice' }, createdAt: '2024-01-01T00:00:00Z', body: 'details here', labels: [{ name: 'bug' }] },
+      ]);
+
+      const result = await issueCommand(['list', '--fields', 'body,labels'], ctx);
+
+      // The gh --json arg should include the extra fields
+      const callArgs = mockedGhJson.mock.calls[0][0] as string[];
+      const jsonIdx = callArgs.indexOf('--json');
+      const jsonValue = callArgs[jsonIdx + 1];
+      expect(jsonValue).toContain('body');
+      expect(jsonValue).toContain('labels');
+
+      // Output should contain the extra field data
+      expect(result).toContain('details here');
+      expect(result).toContain('bug');
+    });
+
+    it('throws VALIDATION_ERROR for unknown --fields', async () => {
+      await expect(
+        issueCommand(['list', '--fields', 'nonexistent'], ctx),
+      ).rejects.toThrow(AxiError);
+
+      try {
+        await issueCommand(['list', '--fields', 'nonexistent'], ctx);
+      } catch (e) {
+        expect((e as AxiError).code).toBe('VALIDATION_ERROR');
+        expect((e as AxiError).message).toContain('nonexistent');
+      }
+    });
   });
 
   describe('view', () => {
@@ -70,6 +116,15 @@ describe('issueCommand', () => {
       expect(result).toContain('Critical bug');
       expect(result).toContain('open');
       expect(result).toContain('alice');
+    });
+
+    it('omits help suggestions from detail view', async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42, title: 'Bug', state: 'OPEN', author: { login: 'alice' },
+        createdAt: '2024-01-01T00:00:00Z', body: 'body',
+      });
+      const result = await issueCommand(['view', '42'], ctx);
+      expect(result).not.toMatch(/^help\[/m);
     });
   });
 

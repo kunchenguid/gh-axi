@@ -69,6 +69,16 @@ describe('repoCommand', () => {
       const callArgs = mockedGhJson.mock.calls[0][0];
       expect(callArgs).toContain('octo/repo');
     });
+
+    it('omits help suggestions from detail view', async () => {
+      mockedGhJson.mockResolvedValue({
+        name: 'repo', description: 'test', defaultBranchRef: { name: 'main' },
+        stargazerCount: 0, forkCount: 0, issues: { totalCount: 0 },
+        pullRequests: { totalCount: 0 }, visibility: 'PUBLIC', primaryLanguage: { name: 'Go' },
+      });
+      const result = await repoCommand(['view'], ctx);
+      expect(result).not.toMatch(/^help\[/m);
+    });
   });
 
   describe('create', () => {
@@ -98,6 +108,50 @@ describe('repoCommand', () => {
       expect(mockedGhExec).toHaveBeenCalledWith(
         expect.arrayContaining(['--public']),
       );
+    });
+  });
+
+  describe('list', () => {
+    it('emits count line with number of repos', async () => {
+      mockedGhJson.mockResolvedValue([
+        { name: 'repo-a', description: 'First', visibility: 'PUBLIC', primaryLanguage: { name: 'TypeScript' }, stargazerCount: 10, updatedAt: '2024-01-01T00:00:00Z' },
+        { name: 'repo-b', description: 'Second', visibility: 'PRIVATE', primaryLanguage: { name: 'Go' }, stargazerCount: 5, updatedAt: '2024-01-02T00:00:00Z' },
+      ]);
+
+      const result = await repoCommand(['list'], ctx);
+
+      expect(result).toContain('count: 2');
+    });
+
+    it('emits count: 0 when no repos exist', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      const result = await repoCommand(['list'], ctx);
+
+      expect(result).toContain('count: 0');
+    });
+
+    it('shows truncation hint when result count equals default limit', async () => {
+      // Default limit is 30
+      const items = Array.from({ length: 30 }, (_, i) => ({
+        name: `repo-${i}`, description: '', visibility: 'PUBLIC', primaryLanguage: null, stargazerCount: 0, updatedAt: '2024-01-01T00:00:00Z',
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await repoCommand(['list'], ctx);
+
+      expect(result).toContain('showing first 30');
+    });
+
+    it('shows truncation hint when custom limit is hit', async () => {
+      const items = Array.from({ length: 10 }, (_, i) => ({
+        name: `repo-${i}`, description: '', visibility: 'PUBLIC', primaryLanguage: null, stargazerCount: 0, updatedAt: '2024-01-01T00:00:00Z',
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await repoCommand(['list', '--limit', '10'], ctx);
+
+      expect(result).toContain('showing first 10');
     });
   });
 

@@ -108,8 +108,9 @@ describe('truncateBody', () => {
     const body = prefix + longUrl;
     // body is ~127 chars, after cleaning URL becomes [long URL removed] (~35 chars)
     const result = truncateBody(body, 100);
-    // Should contain "cleaned from" since cleaning made it fit
-    expect(result).toContain('cleaned from');
+    // Should use standardized cleaned phrasing
+    expect(result).toContain('cleaned,');
+    expect(result).toContain('chars original');
     expect(result).toContain('use --full to see original');
   });
 
@@ -124,5 +125,22 @@ describe('truncateBody', () => {
     const text = 'x'.repeat(501);
     const result = truncateBody(text);
     expect(result).toContain('truncated');
+  });
+
+  it('uses standardized truncation phrasing', () => {
+    const text = 'x'.repeat(600);
+    const result = truncateBody(text, 500);
+    // Exact phrasing: "... (truncated, N chars total — use --full to see complete body)"
+    expect(result).toContain('... (truncated, 600 chars total');
+    expect(result).toContain('use --full to see complete body)');
+  });
+
+  it('uses standardized cleaned phrasing', () => {
+    const longUrl = 'https://example.com/' + 'a'.repeat(100);
+    const prefix = 'Check ';
+    const body = prefix + longUrl;
+    const result = truncateBody(body, 100);
+    // Exact phrasing: "(cleaned, N chars original — use --full to see original)"
+    expect(result).toMatch(/\(cleaned, \d+ chars original/);
   });
 });

@@ -99,6 +99,14 @@ export function mapGhError(stderr: string, exitCode: number): AxiError {
   return new AxiError(stderr.trim().split('\n')[0] || `gh exited with code ${exitCode}`, 'UNKNOWN');
 }
 
+/** Map an error to the appropriate process exit code: 2 for usage errors, 1 for everything else. */
+export function exitCodeForError(err: unknown): number {
+  if (err instanceof AxiError && err.code === 'VALIDATION_ERROR') {
+    return 2;
+  }
+  return 1;
+}
+
 export function ghNotInstalledError(): AxiError {
   return new AxiError(
     'gh CLI is not installed — see https://cli.github.com',

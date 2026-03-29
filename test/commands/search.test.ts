@@ -69,5 +69,112 @@ describe('searchCommand', () => {
       expect(result).toContain('octo/repo');
       expect(result).toContain('A test repo');
     });
+
+    it('emits count line', async () => {
+      mockedGhJson.mockResolvedValue([
+        { fullName: 'octo/repo1', description: '', stargazersCount: 10, forksCount: 1, language: 'TypeScript', updatedAt: '2024-01-01T00:00:00Z' },
+        { fullName: 'octo/repo2', description: '', stargazersCount: 5, forksCount: 0, language: 'Go', updatedAt: '2024-01-02T00:00:00Z' },
+      ]);
+
+      const result = await searchCommand(['repos', 'test'], ctx);
+
+      expect(result).toContain('count: 2');
+    });
+
+    it('shows display-limited hint when results exceed display limit', async () => {
+      // DISPLAY_LIMIT is 30; create 35 results
+      const items = Array.from({ length: 35 }, (_, i) => ({
+        fullName: `octo/repo-${i}`, description: '', stargazersCount: 0, forksCount: 0, language: null, updatedAt: '2024-01-01T00:00:00Z',
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await searchCommand(['repos', 'test'], ctx);
+
+      expect(result).toContain('count: 35');
+      expect(result).toContain('showing first 30');
+    });
+
+    it('shows API limit hint when result count equals search limit', async () => {
+      // Default search limit is 1000
+      const items = Array.from({ length: 1000 }, (_, i) => ({
+        fullName: `octo/repo-${i}`, description: '', stargazersCount: 0, forksCount: 0, language: null, updatedAt: '2024-01-01T00:00:00Z',
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await searchCommand(['repos', 'test'], ctx);
+
+      expect(result).toContain('1000+');
+    });
+  });
+
+  describe('searchCommits', () => {
+    it('emits count line', async () => {
+      mockedGhJson.mockResolvedValue([
+        { sha: 'abc123', commit: { message: 'fix bug', author: { date: '2024-01-01T00:00:00Z' } }, repository: { fullName: 'octo/repo' }, author: { login: 'alice' } },
+      ]);
+
+      const result = await searchCommand(['commits', 'fix'], ctx);
+
+      expect(result).toContain('count: 1');
+    });
+
+    it('shows display-limited hint when results exceed display limit', async () => {
+      const items = Array.from({ length: 35 }, (_, i) => ({
+        sha: `abc${i}`, commit: { message: `commit ${i}`, author: { date: '2024-01-01T00:00:00Z' } }, repository: { fullName: 'octo/repo' }, author: { login: 'alice' },
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await searchCommand(['commits', 'fix'], ctx);
+
+      expect(result).toContain('count: 35');
+      expect(result).toContain('showing first 30');
+    });
+
+    it('shows API limit hint when result count equals search limit', async () => {
+      const items = Array.from({ length: 1000 }, (_, i) => ({
+        sha: `abc${i}`, commit: { message: `commit ${i}`, author: { date: '2024-01-01T00:00:00Z' } }, repository: { fullName: 'octo/repo' }, author: { login: 'alice' },
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await searchCommand(['commits', 'fix'], ctx);
+
+      expect(result).toContain('1000+');
+    });
+  });
+
+  describe('searchCode', () => {
+    it('emits count line', async () => {
+      mockedGhJson.mockResolvedValue([
+        { path: 'src/main.ts', repository: { fullName: 'octo/repo' }, textMatches: [{ type: 'FileContent' }] },
+        { path: 'src/utils.ts', repository: { fullName: 'octo/repo' }, textMatches: [{ type: 'FileContent' }] },
+      ]);
+
+      const result = await searchCommand(['code', 'function'], ctx);
+
+      expect(result).toContain('count: 2');
+    });
+
+    it('shows display-limited hint when results exceed display limit', async () => {
+      const items = Array.from({ length: 35 }, (_, i) => ({
+        path: `src/file${i}.ts`, repository: { fullName: 'octo/repo' }, textMatches: [{ type: 'FileContent' }],
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await searchCommand(['code', 'function'], ctx);
+
+      expect(result).toContain('count: 35');
+      expect(result).toContain('showing first 30');
+    });
+
+    it('shows API limit hint when result count equals search limit', async () => {
+      const items = Array.from({ length: 1000 }, (_, i) => ({
+        path: `src/file${i}.ts`, repository: { fullName: 'octo/repo' }, textMatches: [{ type: 'FileContent' }],
+      }));
+      mockedGhJson.mockResolvedValue(items);
+
+      const result = await searchCommand(['code', 'function'], ctx);
+
+      expect(result).toContain('1000+');
+    });
   });
 });

@@ -31,7 +31,11 @@ flags{create}:
 flags{edit}:
   --title, --notes, --draft, --prerelease
 flags{download}:
-  --pattern, --dir`;
+  --pattern, --dir
+examples:
+  gh-axi release list --exclude-drafts
+  gh-axi release view v1.2.0 --full
+  gh-axi release create v1.3.0 --generate-notes --draft`;
 
 const listSchema: FieldDef[] = [
   field('tagName', 'tag'),
@@ -94,11 +98,7 @@ async function viewRelease(args: string[], ctx?: RepoContext): Promise<string> {
     ctx,
   );
 
-  const suggestions = getSuggestions({ domain: 'release', action: 'view', id: tag, repo: ctx });
-  const blocks: string[] = [renderDetail('release', release, full ? viewSchemaFull : viewSchema)];
-
-  blocks.push(renderHelp(suggestions));
-  return renderOutput(blocks);
+  return renderOutput([renderDetail('release', release, full ? viewSchemaFull : viewSchema)]);
 }
 
 async function createRelease(args: string[], ctx?: RepoContext): Promise<string> {
@@ -159,6 +159,23 @@ async function deleteRelease(args: string[], ctx?: RepoContext): Promise<string>
   const positionals = args.filter((a) => !a.startsWith('--'));
   const tag = positionals[1];
   if (!tag) throw new AxiError('Tag is required: gh-axi release delete <tag>', 'VALIDATION_ERROR');
+
+  // Idempotent: check if release exists before deleting
+  try {
+    await ghJson<Record<string, unknown>>(
+      ['release', 'view', tag, '--json', 'tagName'],
+      ctx,
+    );
+  } catch (err) {
+    if (err instanceof AxiError && err.code === 'NOT_FOUND') {
+      const suggestions = getSuggestions({ domain: 'release', action: 'delete', id: tag, repo: ctx });
+      return renderOutput([
+        encode({ delete: 'already_deleted', tag }),
+        renderHelp(suggestions),
+      ]);
+    }
+    throw err;
+  }
 
   await ghExec(['release', 'delete', tag, '--yes'], ctx);
   const suggestions = getSuggestions({ domain: 'release', action: 'delete', id: tag, repo: ctx });

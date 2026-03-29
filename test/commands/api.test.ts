@@ -89,21 +89,27 @@ describe('apiCommand', () => {
     expect(result).toContain('alice');
   });
 
-  it('returns raw output when response is not JSON', async () => {
+  it('wraps non-JSON output in TOON envelope', async () => {
     mockedGhExec.mockResolvedValue('plain text response');
 
     const result = await apiCommand(['/some/endpoint']);
 
-    expect(result).toBe('plain text response');
+    // Should be wrapped in a TOON object, not raw text
+    expect(result).toContain('api_response:');
+    expect(result).toContain('plain text response');
+    expect(result).toContain('truncated: false');
   });
 
-  it('truncates long non-JSON output', async () => {
+  it('wraps truncated non-JSON output in TOON envelope with truncation metadata', async () => {
     const longText = 'x'.repeat(5000);
     mockedGhExec.mockResolvedValue(longText);
 
     const result = await apiCommand(['/some/endpoint']);
 
-    expect(result).toContain('... (truncated)');
+    expect(result).toContain('api_response:');
+    expect(result).toContain('truncated: true');
+    expect(result).toContain('original_length: 5000');
+    // The body itself should be truncated
     expect(result.length).toBeLessThan(5000);
   });
 });

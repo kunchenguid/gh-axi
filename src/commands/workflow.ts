@@ -13,6 +13,7 @@ import {
   renderError,
   type FieldDef,
 } from '../toon.js';
+import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
 export const WORKFLOW_HELP = `usage: gh-axi workflow <subcommand> [flags]
@@ -21,7 +22,11 @@ subcommands[5]:
 flags{list}:
   --limit <n> (default 20), --all
 flags{run}:
-  --ref <git-ref>, --field <key=val> (repeatable)`;
+  --ref <git-ref>, --field <key=val> (repeatable)
+examples:
+  gh-axi workflow list
+  gh-axi workflow run ci.yml --ref main
+  gh-axi workflow disable 12345`;
 
 const listSchema: FieldDef[] = [
   field('id'),
@@ -38,6 +43,18 @@ const viewSchema: FieldDef[] = [
 ];
 
 
+async function findWorkflow(id: string, ctx?: RepoContext): Promise<Record<string, unknown>> {
+  const workflows = await ghJson<Record<string, unknown>[]>(
+    ['workflow', 'list', '--json', 'id,name,state,path', '--all'],
+    ctx,
+  );
+  const match = workflows.find(
+    (w) => String(w.id) === id || w.name === id || (typeof w.name === 'string' && w.name.toLowerCase() === id.toLowerCase()),
+  );
+  if (!match) throw new AxiError(`Workflow "${id}" not found`, 'NOT_FOUND');
+  return match;
+}
+
 async function listWorkflows(args: string[], ctx?: RepoContext): Promise<string> {
   const limit = getFlag(args, '--limit') ?? '20';
   const ghArgs = [
@@ -49,8 +66,11 @@ async function listWorkflows(args: string[], ctx?: RepoContext): Promise<string>
 
   const workflows = await ghJson<Record<string, unknown>[]>(ghArgs, ctx);
   const isEmpty = workflows.length === 0;
+  const limitNum = Number(limit);
+  const countLine = formatCountLine({ count: workflows.length, limit: limitNum });
   const suggestions = getSuggestions({ domain: 'workflow', action: 'list', isEmpty, repo: ctx });
   return renderOutput([
+    countLine,
     renderList('workflows', workflows, listSchema),
     renderHelp(suggestions),
   ]);
@@ -61,23 +81,9 @@ async function viewWorkflow(args: string[], ctx?: RepoContext): Promise<string> 
   const id = positionals[1];
   if (!id) throw new AxiError('Workflow ID or name is required: gh-axi workflow view <id|name>', 'VALIDATION_ERROR');
 
-  // gh workflow view doesn't support --json, so list all and filter
-  const workflows = await ghJson<Record<string, unknown>[]>(
-    ['workflow', 'list', '--json', 'id,name,state,path', '--all'],
-    ctx,
-  );
+  const match = await findWorkflow(id, ctx);
 
-  const match = workflows.find(
-    (w) => String(w.id) === id || w.name === id || (typeof w.name === 'string' && w.name.toLowerCase() === id.toLowerCase()),
-  );
-
-  if (!match) throw new AxiError(`Workflow "${id}" not found`, 'NOT_FOUND');
-
-  const suggestions = getSuggestions({ domain: 'workflow', action: 'view', id, repo: ctx });
-  return renderOutput([
-    renderDetail('workflow', match, viewSchema),
-    renderHelp(suggestions),
-  ]);
+  return renderOutput([renderDetail('workflow', match, viewSchema)]);
 }
 
 async function runWorkflow(args: string[], ctx?: RepoContext): Promise<string> {
@@ -106,7 +112,17 @@ async function enableWorkflow(args: string[], ctx?: RepoContext): Promise<string
   const id = positionals[1];
   if (!id) throw new AxiError('Workflow ID or name is required: gh-axi workflow enable <id|name>', 'VALIDATION_ERROR');
 
-  // Idempotent: enable regardless of current state
+  // Idempotent: check current state before enabling
+  const match = await findWorkflow(id, ctx);
+
+  if (match.state === 'active') {
+    const suggestions = getSuggestions({ domain: 'workflow', action: 'enable', id, repo: ctx });
+    return renderOutput([
+      encode({ enable: 'already_enabled', workflow: id }),
+      renderHelp(suggestions),
+    ]);
+  }
+
   await ghExec(['workflow', 'enable', id], ctx);
   const suggestions = getSuggestions({ domain: 'workflow', action: 'enable', id, repo: ctx });
   return renderOutput([
@@ -120,7 +136,17 @@ async function disableWorkflow(args: string[], ctx?: RepoContext): Promise<strin
   const id = positionals[1];
   if (!id) throw new AxiError('Workflow ID or name is required: gh-axi workflow disable <id|name>', 'VALIDATION_ERROR');
 
-  // Idempotent: disable regardless of current state
+  // Idempotent: check current state before disabling
+  const match = await findWorkflow(id, ctx);
+
+  if (match.state === 'disabled_manually') {
+    const suggestions = getSuggestions({ domain: 'workflow', action: 'disable', id, repo: ctx });
+    return renderOutput([
+      encode({ disable: 'already_disabled', workflow: id }),
+      renderHelp(suggestions),
+    ]);
+  }
+
   await ghExec(['workflow', 'disable', id], ctx);
   const suggestions = getSuggestions({ domain: 'workflow', action: 'disable', id, repo: ctx });
   return renderOutput([

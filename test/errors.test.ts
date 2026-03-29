@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AxiError, mapGhError, ghNotInstalledError } from '../src/errors.js';
+import { AxiError, mapGhError, ghNotInstalledError, exitCodeForError } from '../src/errors.js';
 
 describe('AxiError', () => {
   it('has correct code and message', () => {
@@ -119,5 +119,47 @@ describe('ghNotInstalledError', () => {
     expect(err).toBeInstanceOf(AxiError);
     expect(err.code).toBe('GH_NOT_INSTALLED');
     expect(err.message).toContain('gh CLI');
+  });
+});
+
+describe('exitCodeForError', () => {
+  it('returns 2 for VALIDATION_ERROR', () => {
+    const err = new AxiError('missing flag', 'VALIDATION_ERROR');
+    expect(exitCodeForError(err)).toBe(2);
+  });
+
+  it('returns 1 for NOT_FOUND', () => {
+    const err = new AxiError('not found', 'NOT_FOUND');
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it('returns 1 for REPO_NOT_FOUND', () => {
+    const err = new AxiError('repo not found', 'REPO_NOT_FOUND');
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it('returns 1 for AUTH_REQUIRED', () => {
+    const err = new AxiError('auth required', 'AUTH_REQUIRED');
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it('returns 1 for FORBIDDEN', () => {
+    const err = new AxiError('forbidden', 'FORBIDDEN');
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it('returns 1 for GH_NOT_INSTALLED', () => {
+    const err = new AxiError('gh missing', 'GH_NOT_INSTALLED');
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it('returns 1 for UNKNOWN', () => {
+    const err = new AxiError('unknown', 'UNKNOWN');
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it('returns 1 for non-AxiError', () => {
+    const err = new Error('generic error');
+    expect(exitCodeForError(err)).toBe(1);
   });
 });

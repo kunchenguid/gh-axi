@@ -74,5 +74,14 @@ describe('releaseCommand', () => {
       expect(result).toContain('Release 1.0');
       expect(result).toContain('alice');
     });
+
+    it('omits help suggestions from detail view', async () => {
+      mockedGhJson.mockResolvedValue({
+        tagName: 'v1.0.0', name: 'Release 1.0', publishedAt: '2024-01-01T00:00:00Z',
+        author: { login: 'alice' }, body: 'notes',
+      });
+      const result = await releaseCommand(['view', 'v1.0.0'], ctx);
+      expect(result).not.toMatch(/^help\[/m);
+    });
   });
 });
