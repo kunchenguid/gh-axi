@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.5...gh-axi-v0.1.6) (2026-04-01)
+
+
+### Bug Fixes
+
+* **hooks:** align Codex hook install ([#3](https://github.com/kunchenguid/gh-axi/issues/3)) ([fcb11a3](https://github.com/kunchenguid/gh-axi/commit/fcb11a3920f04f7aa3061e794ab661aa099d715e))
+
 ## [0.1.5](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.4...gh-axi-v0.1.5) (2026-03-29)
 
 
