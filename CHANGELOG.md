@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* **session:** remove the dedicated `--session-start` mode and have installed
+  hooks invoke `gh-axi` directly; legacy `--session-start` invocations now act
+  as a no-op for backward compatibility
+
 ## [0.1.7](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.6...gh-axi-v0.1.7) (2026-04-01)
 
 

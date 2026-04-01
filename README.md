@@ -22,6 +22,10 @@ npm install -g gh-axi
 
 Requires Node 20+ and [`gh`](https://cli.github.com/) authenticated via `gh auth login`.
 
+Running `gh-axi` also installs or repairs Claude Code and Codex `SessionStart`
+hooks. Those hooks now invoke `gh-axi` directly; legacy `--session-start`
+invocations are still accepted as a no-op for backward compatibility.
+
 ## Usage
 
 ```bash
