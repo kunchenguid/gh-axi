@@ -88,7 +88,7 @@ function ensureClaudeHook(exePath: string): void {
   const matcherBlocks = ensureSessionStartBlocks(
     ensureHookCollection(settings),
   );
-  const hookCommand = `${exePath} --session-start`;
+  const hookCommand = exePath;
 
   // Find existing gh-axi matcher block (by looking for gh-axi in any nested hook command)
   const existingIdx = matcherBlocks.findIndex(
@@ -132,7 +132,7 @@ function ensureCodexHook(exePath: string): void {
 
   const hooks = ensureHookCollection(config);
   let changed = false;
-  const hookCommand = `${exePath} --session-start`;
+  const hookCommand = exePath;
 
   // Migrate our legacy lowercase key if present.
   if (Array.isArray(hooks.session_start)) {

@@ -39,11 +39,6 @@ const prSchema: FieldDef[] = [
   ),
 ];
 
-/* Compact schemas for session-start — fewer fields for minimal token usage */
-const compactIssueSchema: FieldDef[] = [field("number"), field("title")];
-
-const compactPrSchema: FieldDef[] = [field("number"), field("title")];
-
 export async function homeCommand(
   _args: string[],
   ctx?: RepoContext,
@@ -102,41 +97,6 @@ export async function homeCommand(
     repo: ctx,
   });
   blocks.push(renderHelp([...hints, ...suggestions]));
-
-  return renderOutput(blocks);
-}
-
-/**
- * Compact session-start dashboard — minimal repo context for agent session init.
- * Skips bin/description, help suggestions, and verbose count lines.
- * Uses compact schemas with fewer fields per entity.
- */
-export async function sessionStartCommand(ctx?: RepoContext): Promise<string> {
-  const [issues, prs] = await Promise.all([
-    ghJson<Record<string, unknown>[]>(
-      ["issue", "list", "--json", "number,title", "--limit", "3"],
-      ctx,
-    ).catch(() => [] as Record<string, unknown>[]),
-    ghJson<Record<string, unknown>[]>(
-      ["pr", "list", "--json", "number,title", "--limit", "3"],
-      ctx,
-    ).catch(() => [] as Record<string, unknown>[]),
-  ]);
-
-  const blocks: string[] = [];
-
-  if (ctx) {
-    blocks.push(encode({ repo: ctx.nwo }));
-  }
-
-  blocks.push(
-    issues.length
-      ? renderList("issues", issues, compactIssueSchema)
-      : "issues: 0 open",
-  );
-  blocks.push(
-    prs.length ? renderList("prs", prs, compactPrSchema) : "prs: 0 open",
-  );
 
   return renderOutput(blocks);
 }

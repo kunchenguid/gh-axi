@@ -2,7 +2,7 @@ import { resolveRepo, type RepoContext } from './context.js';
 import { AxiError, exitCodeForError } from './errors.js';
 import { renderError } from './toon.js';
 import { ensureHooks } from './hooks.js';
-import { homeCommand, sessionStartCommand } from './commands/home.js';
+import { homeCommand } from './commands/home.js';
 import { issueCommand, ISSUE_HELP } from './commands/issue.js';
 import { prCommand, PR_HELP } from './commands/pr.js';
 import { runCommand, RUN_HELP } from './commands/run.js';
@@ -67,14 +67,6 @@ export async function main(argv: string[]): Promise<void> {
     }
   }
 
-  // Extract --session-start flag
-  let sessionStart = false;
-  const sessionIdx = args.indexOf('--session-start');
-  if (sessionIdx !== -1) {
-    sessionStart = true;
-    args.splice(sessionIdx, 1);
-  }
-
   // Top-level --help
   if (args.includes('--help') && args.length === 1) {
     process.stdout.write(TOP_HELP);
@@ -88,16 +80,6 @@ export async function main(argv: string[]): Promise<void> {
     // No command = home dashboard
     if (args.includes('--help')) {
       process.stdout.write(TOP_HELP);
-      return;
-    }
-    if (sessionStart) {
-      const ctx = resolveRepo(repoFlag);
-      try {
-        const output = await sessionStartCommand(ctx);
-        process.stdout.write(output + '\n');
-      } catch (err) {
-        writeError(err);
-      }
       return;
     }
     const ctx = resolveRepo(repoFlag);

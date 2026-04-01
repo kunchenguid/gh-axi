@@ -3,7 +3,6 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // Mock all command modules
 vi.mock('../src/commands/home.js', () => ({
   homeCommand: vi.fn().mockResolvedValue('home output'),
-  sessionStartCommand: vi.fn().mockResolvedValue('session-start output'),
 }));
 vi.mock('../src/commands/issue.js', () => ({
   issueCommand: vi.fn().mockResolvedValue('issue output'),
@@ -56,7 +55,7 @@ import { issueCommand } from '../src/commands/issue.js';
 import { repoCommand } from '../src/commands/repo.js';
 import { labelCommand } from '../src/commands/label.js';
 import { apiCommand } from '../src/commands/api.js';
-import { homeCommand, sessionStartCommand } from '../src/commands/home.js';
+import { homeCommand } from '../src/commands/home.js';
 import { resolveRepo } from '../src/context.js';
 
 describe('main CLI', () => {
@@ -65,7 +64,6 @@ describe('main CLI', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(homeCommand).mockResolvedValue('home output');
-    vi.mocked(sessionStartCommand).mockResolvedValue('session-start output');
     vi.mocked(issueCommand).mockResolvedValue('issue output');
     vi.mocked(repoCommand).mockResolvedValue('repo output');
     vi.mocked(labelCommand).mockResolvedValue('label output');
@@ -175,22 +173,10 @@ describe('main CLI', () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it('routes to sessionStartCommand when --session-start flag is given', async () => {
+  it('treats --session-start as an unknown command', async () => {
     await main(['--session-start']);
-    expect(vi.mocked(sessionStartCommand)).toHaveBeenCalledWith(expect.any(Object));
     expect(vi.mocked(homeCommand)).not.toHaveBeenCalled();
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('session-start output'));
-  });
-
-  it('passes repo context to sessionStartCommand with -R flag', async () => {
-    await main(['-R', 'owner/name', '--session-start']);
-    expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith('owner/name');
-    expect(vi.mocked(sessionStartCommand)).toHaveBeenCalledWith(expect.any(Object));
-  });
-
-  it('does not route --session-start when used with a subcommand', async () => {
-    await main(['issue', '--session-start']);
-    expect(vi.mocked(sessionStartCommand)).not.toHaveBeenCalled();
-    expect(vi.mocked(issueCommand)).toHaveBeenCalled();
+    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown command: --session-start'));
+    expect(process.exitCode).toBe(2);
   });
 });
