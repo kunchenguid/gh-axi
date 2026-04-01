@@ -46,6 +46,13 @@ describe('ensureHooks', () => {
     return call ? JSON.parse(call[1]) : null;
   }
 
+  function getCodexWritten(): any {
+    const call = (mockedFs.writeFileSync as any).mock.calls.find(
+      (c: any[]) => c[0] === path.join(FAKE_HOME, '.codex', 'hooks.json'),
+    );
+    return call ? JSON.parse(call[1]) : null;
+  }
+
   describe('Claude Code hooks (~/.claude/settings.json)', () => {
     it('creates settings.json with SessionStart hook when ~/.claude dir exists but no settings file', () => {
       mockedFs.existsSync.mockImplementation((p) => {
@@ -211,21 +218,26 @@ describe('ensureHooks', () => {
         'utf-8',
       );
 
-      const written = JSON.parse(
-        (mockedFs.writeFileSync as any).mock.calls.find(
-          (c: any[]) => c[0] === path.join(FAKE_HOME, '.codex', 'hooks.json'),
-        )[1],
-      );
-      expect(written.hooks.session_start).toBeInstanceOf(Array);
-      expect(written.hooks.session_start[0].command).toContain(FAKE_EXE);
+      const written = getCodexWritten();
+      expect(written.hooks.SessionStart).toBeInstanceOf(Array);
+      expect(written.hooks.SessionStart.length).toBe(1);
+      expect(written.hooks.SessionStart[0].matcher).toBe('');
+      expect(written.hooks.SessionStart[0].hooks).toBeInstanceOf(Array);
+      expect(written.hooks.SessionStart[0].hooks[0].type).toBe('command');
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(`${FAKE_EXE} --session-start`);
     });
 
     it('updates hook when exe path is stale in Codex config', () => {
       const staleExe = '/old/path/gh-axi';
       const existingHooks = {
         hooks: {
-          session_start: [
-            { command: `${staleExe}` },
+          SessionStart: [
+            {
+              matcher: '',
+              hooks: [
+                { type: 'command', command: `${staleExe} --session-start`, timeout: 10 },
+              ],
+            },
           ],
         },
       };
@@ -244,20 +256,21 @@ describe('ensureHooks', () => {
 
       ensureHooks();
 
-      const written = JSON.parse(
-        (mockedFs.writeFileSync as any).mock.calls.find(
-          (c: any[]) => c[0] === path.join(FAKE_HOME, '.codex', 'hooks.json'),
-        )[1],
-      );
-      expect(written.hooks.session_start[0].command).toContain(FAKE_EXE);
-      expect(written.hooks.session_start[0].command).not.toContain(staleExe);
+      const written = getCodexWritten();
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(`${FAKE_EXE} --session-start`);
+      expect(written.hooks.SessionStart[0].hooks[0].command).not.toContain(staleExe);
     });
 
     it('is a no-op when Codex hook already has correct exe path', () => {
       const existingHooks = {
         hooks: {
-          session_start: [
-            { command: `${FAKE_EXE}` },
+          SessionStart: [
+            {
+              matcher: '',
+              hooks: [
+                { type: 'command', command: `${FAKE_EXE} --session-start`, timeout: 10 },
+              ],
+            },
           ],
         },
       };
@@ -280,6 +293,69 @@ describe('ensureHooks', () => {
         (c: any[]) => c[0] === path.join(FAKE_HOME, '.codex', 'hooks.json'),
       );
       expect(codexWrites.length).toBe(0);
+    });
+
+    it('preserves other SessionStart matcher blocks when adding gh-axi hook', () => {
+      const existingHooks = {
+        hooks: {
+          SessionStart: [
+            {
+              matcher: '',
+              hooks: [
+                { type: 'command', command: '/some/other/tool' },
+              ],
+            },
+          ],
+        },
+      };
+
+      mockedFs.existsSync.mockImplementation((p) => {
+        if (p === path.join(FAKE_HOME, '.codex')) return true;
+        if (p === path.join(FAKE_HOME, '.codex', 'hooks.json')) return true;
+        return false;
+      });
+      mockedFs.readFileSync.mockImplementation((p) => {
+        if (p === path.join(FAKE_HOME, '.codex', 'hooks.json')) {
+          return JSON.stringify(existingHooks);
+        }
+        throw new Error('ENOENT');
+      });
+
+      ensureHooks();
+
+      const written = getCodexWritten();
+      expect(written.hooks.SessionStart.length).toBe(2);
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe('/some/other/tool');
+      expect(written.hooks.SessionStart[1].hooks[0].command).toBe(`${FAKE_EXE} --session-start`);
+    });
+
+    it('migrates legacy lowercase session_start entries to SessionStart matcher blocks', () => {
+      const existingHooks = {
+        hooks: {
+          session_start: [
+            { command: `${FAKE_EXE}` },
+          ],
+        },
+      };
+
+      mockedFs.existsSync.mockImplementation((p) => {
+        if (p === path.join(FAKE_HOME, '.codex')) return true;
+        if (p === path.join(FAKE_HOME, '.codex', 'hooks.json')) return true;
+        return false;
+      });
+      mockedFs.readFileSync.mockImplementation((p) => {
+        if (p === path.join(FAKE_HOME, '.codex', 'hooks.json')) {
+          return JSON.stringify(existingHooks);
+        }
+        throw new Error('ENOENT');
+      });
+
+      ensureHooks();
+
+      const written = getCodexWritten();
+      expect(written.hooks.session_start).toBeUndefined();
+      expect(written.hooks.SessionStart).toBeInstanceOf(Array);
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(`${FAKE_EXE} --session-start`);
     });
 
     it('skips Codex hooks when ~/.codex directory does not exist', () => {

@@ -95,28 +95,68 @@ function ensureCodexHook(exePath: string): void {
   if (!config.hooks) {
     config.hooks = {};
   }
-  if (!Array.isArray(config.hooks.session_start)) {
-    config.hooks.session_start = [];
+  let changed = false;
+  const hookCommand = `${exePath} --session-start`;
+
+  // Migrate our legacy lowercase key if present.
+  if (Array.isArray(config.hooks.session_start)) {
+    const filteredLegacyHooks = config.hooks.session_start.filter(
+      (h: any) => !(typeof h.command === 'string' && h.command.includes(HOOK_ID)),
+    );
+
+    if (filteredLegacyHooks.length !== config.hooks.session_start.length) {
+      changed = true;
+    }
+
+    if (filteredLegacyHooks.length > 0) {
+      config.hooks.session_start = filteredLegacyHooks;
+    } else {
+      delete config.hooks.session_start;
+    }
   }
 
-  const hooks: any[] = config.hooks.session_start;
+  if (!Array.isArray(config.hooks.SessionStart)) {
+    config.hooks.SessionStart = [];
+  }
 
-  const existingIdx = hooks.findIndex(
-    (h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID),
+  const matcherBlocks: any[] = config.hooks.SessionStart;
+  const existingIdx = matcherBlocks.findIndex(
+    (block: any) =>
+      Array.isArray(block.hooks) &&
+      block.hooks.some((h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID)),
   );
 
-  const hookEntry = {
-    command: exePath,
+  const matcherBlock = {
+    matcher: '',
+    hooks: [
+      {
+        type: 'command' as const,
+        command: hookCommand,
+        timeout: 10,
+      },
+    ],
   };
 
   if (existingIdx >= 0) {
-    if (hooks[existingIdx].command === exePath) {
-      return; // no-op
+    const existingHook = matcherBlocks[existingIdx].hooks?.find(
+      (h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID),
+    );
+    if (
+      existingHook?.command === hookCommand &&
+      matcherBlocks[existingIdx]?.matcher === '' &&
+      existingHook?.type === 'command'
+    ) {
+      if (!changed) return; // no-op
+    } else {
+      matcherBlocks[existingIdx] = matcherBlock;
+      changed = true;
     }
-    hooks[existingIdx] = hookEntry;
   } else {
-    hooks.push(hookEntry);
+    matcherBlocks.push(matcherBlock);
+    changed = true;
   }
+
+  if (!changed) return;
 
   writeFileSync(hooksPath, JSON.stringify(config, null, 2), 'utf-8');
 }
