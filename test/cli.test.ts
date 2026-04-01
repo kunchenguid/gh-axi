@@ -173,10 +173,8 @@ describe('main CLI', () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it('treats --session-start as an unknown command', async () => {
+  it('strips --session-start and falls through to dashboard', async () => {
     await main(['--session-start']);
-    expect(vi.mocked(homeCommand)).not.toHaveBeenCalled();
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown command: --session-start'));
-    expect(process.exitCode).toBe(2);
+    expect(vi.mocked(homeCommand)).toHaveBeenCalled();
   });
 });
