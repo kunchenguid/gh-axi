@@ -4,15 +4,69 @@
  * Failures are non-fatal — errors log to stderr and never throw.
  */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 /** Marker used to identify our hook entries in config files. */
-const HOOK_ID = 'gh-axi';
+const HOOK_ID = "gh-axi";
+
+type HookCommand = {
+  type?: string;
+  command?: string;
+  timeout?: number;
+};
+
+type MatcherBlock = {
+  matcher?: string | null;
+  hooks?: HookCommand[];
+};
+
+type HookCollection = {
+  SessionStart?: MatcherBlock[];
+  session_start?: HookCommand[];
+};
+
+type HookConfig = {
+  hooks?: HookCollection;
+  [key: string]: unknown;
+};
 
 function getExePath(): string {
   return process.argv[1];
+}
+
+function ensureHookCollection(config: HookConfig): HookCollection {
+  if (!config.hooks) {
+    config.hooks = {};
+  }
+
+  return config.hooks;
+}
+
+function ensureSessionStartBlocks(hooks: HookCollection): MatcherBlock[] {
+  if (!Array.isArray(hooks.SessionStart)) {
+    hooks.SessionStart = [];
+  }
+
+  return hooks.SessionStart;
+}
+
+function isManagedHook(hook: HookCommand | undefined): boolean {
+  return typeof hook?.command === "string" && hook.command.includes(HOOK_ID);
+}
+
+function createMatcherBlock(command: string): MatcherBlock {
+  return {
+    matcher: "",
+    hooks: [
+      {
+        type: "command",
+        command,
+        timeout: 10,
+      },
+    ],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -20,50 +74,32 @@ function getExePath(): string {
 // ---------------------------------------------------------------------------
 
 function ensureClaudeHook(exePath: string): void {
-  const claudeDir = join(homedir(), '.claude');
+  const claudeDir = join(homedir(), ".claude");
   if (!existsSync(claudeDir)) return;
 
-  const settingsPath = join(claudeDir, 'settings.json');
-  let settings: Record<string, any> = {};
+  const settingsPath = join(claudeDir, "settings.json");
+  let settings: HookConfig = {};
 
   if (existsSync(settingsPath)) {
-    const raw = readFileSync(settingsPath, 'utf-8');
-    settings = JSON.parse(raw);
+    const raw = readFileSync(settingsPath, "utf-8");
+    settings = JSON.parse(raw) as HookConfig;
   }
 
-  if (!settings.hooks) {
-    settings.hooks = {};
-  }
-  if (!Array.isArray(settings.hooks.SessionStart)) {
-    settings.hooks.SessionStart = [];
-  }
-
-  const matcherBlocks: any[] = settings.hooks.SessionStart;
+  const matcherBlocks = ensureSessionStartBlocks(
+    ensureHookCollection(settings),
+  );
   const hookCommand = `${exePath} --session-start`;
 
   // Find existing gh-axi matcher block (by looking for gh-axi in any nested hook command)
   const existingIdx = matcherBlocks.findIndex(
-    (block: any) =>
-      Array.isArray(block.hooks) &&
-      block.hooks.some((h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID)),
+    (block) => Array.isArray(block.hooks) && block.hooks.some(isManagedHook),
   );
 
-  const matcherBlock = {
-    matcher: '',
-    hooks: [
-      {
-        type: 'command' as const,
-        command: hookCommand,
-        timeout: 10,
-      },
-    ],
-  };
+  const matcherBlock = createMatcherBlock(hookCommand);
 
   if (existingIdx >= 0) {
     // Check if command is already correct
-    const existingHook = matcherBlocks[existingIdx].hooks?.find(
-      (h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID),
-    );
+    const existingHook = matcherBlocks[existingIdx].hooks?.find(isManagedHook);
     if (existingHook?.command === hookCommand) {
       return; // no-op
     }
@@ -73,7 +109,7 @@ function ensureClaudeHook(exePath: string): void {
     matcherBlocks.push(matcherBlock);
   }
 
-  writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+  writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
 }
 
 // ---------------------------------------------------------------------------
@@ -83,82 +119,67 @@ function ensureClaudeHook(exePath: string): void {
 // ---------------------------------------------------------------------------
 
 function ensureCodexHook(exePath: string): void {
-  const codexDir = join(homedir(), '.codex');
+  const codexDir = join(homedir(), ".codex");
   if (!existsSync(codexDir)) return;
 
-  const hooksPath = join(codexDir, 'hooks.json');
-  let config: Record<string, any> = {};
+  const hooksPath = join(codexDir, "hooks.json");
+  let config: HookConfig = {};
 
   if (existsSync(hooksPath)) {
-    const raw = readFileSync(hooksPath, 'utf-8');
-    config = JSON.parse(raw);
+    const raw = readFileSync(hooksPath, "utf-8");
+    config = JSON.parse(raw) as HookConfig;
   }
 
-  if (!config.hooks) {
-    config.hooks = {};
-  }
+  const hooks = ensureHookCollection(config);
   let changed = false;
   const hookCommand = `${exePath} --session-start`;
 
   // Migrate our legacy lowercase key if present.
-  if (Array.isArray(config.hooks.session_start)) {
-    const filteredLegacyHooks = config.hooks.session_start.filter(
-      (h: any) => !(typeof h.command === 'string' && h.command.includes(HOOK_ID)),
+  if (Array.isArray(hooks.session_start)) {
+    const filteredLegacyHooks = hooks.session_start.filter(
+      (hook) => !isManagedHook(hook),
     );
 
-    if (filteredLegacyHooks.length !== config.hooks.session_start.length) {
+    if (filteredLegacyHooks.length !== hooks.session_start.length) {
       changed = true;
     }
 
     if (filteredLegacyHooks.length > 0) {
-      config.hooks.session_start = filteredLegacyHooks;
+      hooks.session_start = filteredLegacyHooks;
     } else {
-      delete config.hooks.session_start;
+      delete hooks.session_start;
     }
   }
 
-  if (!Array.isArray(config.hooks.SessionStart)) {
-    config.hooks.SessionStart = [];
-  }
-
-  const matcherBlocks: any[] = config.hooks.SessionStart;
+  const matcherBlocks = ensureSessionStartBlocks(hooks);
   const existingIdx = matcherBlocks.findIndex(
-    (block: any) =>
-      Array.isArray(block.hooks) &&
-      block.hooks.some((h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID)),
+    (block) => Array.isArray(block.hooks) && block.hooks.some(isManagedHook),
   );
 
-  const matcherBlock = {
-    matcher: '',
-    hooks: [
-      {
-        type: 'command' as const,
-        command: hookCommand,
-        timeout: 10,
-      },
-    ],
-  };
+  const matcherBlock = createMatcherBlock(hookCommand);
 
   if (existingIdx >= 0) {
     const existingBlock = matcherBlocks[existingIdx];
-    const existingHook = existingBlock.hooks?.find(
-      (h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID),
-    );
+    const existingHook = existingBlock.hooks?.find(isManagedHook);
     const matcher = existingBlock?.matcher;
-    const matcherIsMatchAll = matcher === '' || matcher === '*' || matcher == null;
+    const matcherIsMatchAll =
+      matcher === "" || matcher === "*" || matcher == null;
     if (
       existingHook?.command === hookCommand &&
       matcherIsMatchAll &&
-      existingHook?.type === 'command'
+      existingHook?.type === "command"
     ) {
       if (!changed) return; // no-op
     } else if (existingHook) {
       existingHook.command = hookCommand;
-      existingHook.type = 'command';
+      existingHook.type = "command";
       changed = true;
     } else {
+      if (!Array.isArray(existingBlock.hooks)) {
+        existingBlock.hooks = [];
+      }
       existingBlock.hooks.push({
-        type: 'command' as const,
+        type: "command",
         command: hookCommand,
         timeout: 10,
       });
@@ -171,7 +192,7 @@ function ensureCodexHook(exePath: string): void {
 
   if (!changed) return;
 
-  writeFileSync(hooksPath, JSON.stringify(config, null, 2), 'utf-8');
+  writeFileSync(hooksPath, JSON.stringify(config, null, 2), "utf-8");
 }
 
 // ---------------------------------------------------------------------------
