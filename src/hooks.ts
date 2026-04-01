@@ -138,17 +138,28 @@ function ensureCodexHook(exePath: string): void {
   };
 
   if (existingIdx >= 0) {
-    const existingHook = matcherBlocks[existingIdx].hooks?.find(
+    const existingBlock = matcherBlocks[existingIdx];
+    const existingHook = existingBlock.hooks?.find(
       (h: any) => typeof h.command === 'string' && h.command.includes(HOOK_ID),
     );
+    const matcher = existingBlock?.matcher;
+    const matcherIsMatchAll = matcher === '' || matcher === '*' || matcher == null;
     if (
       existingHook?.command === hookCommand &&
-      matcherBlocks[existingIdx]?.matcher === '' &&
+      matcherIsMatchAll &&
       existingHook?.type === 'command'
     ) {
       if (!changed) return; // no-op
+    } else if (existingHook) {
+      existingHook.command = hookCommand;
+      existingHook.type = 'command';
+      changed = true;
     } else {
-      matcherBlocks[existingIdx] = matcherBlock;
+      existingBlock.hooks.push({
+        type: 'command' as const,
+        command: hookCommand,
+        timeout: 10,
+      });
       changed = true;
     }
   } else {
