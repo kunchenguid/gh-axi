@@ -10,6 +10,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.8](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.7...gh-axi-v0.1.8) (2026-04-01)
+
+
+### Bug Fixes
+
+* normalize generic not-found errors ([#7](https://github.com/kunchenguid/gh-axi/issues/7)) ([e9336b9](https://github.com/kunchenguid/gh-axi/commit/e9336b9318c81e034adf354686e88becb77c0e1c))
+
 ## [0.1.7](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.6...gh-axi-v0.1.7) (2026-04-01)
 
 ### Features
