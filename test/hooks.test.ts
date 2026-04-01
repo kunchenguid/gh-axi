@@ -71,7 +71,7 @@ describe("ensureHooks", () => {
       expect(block.matcher).toBe("");
       expect(block.hooks).toBeInstanceOf(Array);
       expect(block.hooks[0].type).toBe("command");
-      expect(block.hooks[0].command).toBe(`${FAKE_EXE} --session-start`);
+      expect(block.hooks[0].command).toBe(FAKE_EXE);
       expect(block.hooks[0].timeout).toBe(10);
     });
 
@@ -92,9 +92,7 @@ describe("ensureHooks", () => {
 
       const written = getClaudeWritten();
       expect(written.permissions).toEqual({});
-      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(FAKE_EXE);
     });
 
     it("updates hook when exe path is stale", () => {
@@ -131,9 +129,7 @@ describe("ensureHooks", () => {
       ensureHooks();
 
       const written = getClaudeWritten();
-      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(FAKE_EXE);
       expect(written.hooks.SessionStart[0].hooks[0].command).not.toContain(
         staleExe,
       );
@@ -148,7 +144,7 @@ describe("ensureHooks", () => {
               hooks: [
                 {
                   type: "command",
-                  command: `${FAKE_EXE} --session-start`,
+                  command: FAKE_EXE,
                   timeout: 10,
                 },
               ],
@@ -213,9 +209,7 @@ describe("ensureHooks", () => {
       expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
         "/some/other/tool",
       );
-      expect(written.hooks.SessionStart[1].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[1].hooks[0].command).toBe(FAKE_EXE);
     });
   });
 
@@ -240,9 +234,7 @@ describe("ensureHooks", () => {
       expect(written.hooks.SessionStart[0].matcher).toBe("");
       expect(written.hooks.SessionStart[0].hooks).toBeInstanceOf(Array);
       expect(written.hooks.SessionStart[0].hooks[0].type).toBe("command");
-      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(FAKE_EXE);
     });
 
     it("updates hook when exe path is stale in Codex config", () => {
@@ -279,9 +271,7 @@ describe("ensureHooks", () => {
       ensureHooks();
 
       const written = getCodexWritten();
-      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(FAKE_EXE);
       expect(written.hooks.SessionStart[0].hooks[0].command).not.toContain(
         staleExe,
       );
@@ -296,7 +286,7 @@ describe("ensureHooks", () => {
               hooks: [
                 {
                   type: "command",
-                  command: `${FAKE_EXE} --session-start`,
+                  command: FAKE_EXE,
                   timeout: 10,
                 },
               ],
@@ -356,9 +346,7 @@ describe("ensureHooks", () => {
       expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
         "/some/other/tool",
       );
-      expect(written.hooks.SessionStart[1].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[1].hooks[0].command).toBe(FAKE_EXE);
     });
 
     it("migrates legacy lowercase session_start entries to SessionStart matcher blocks", () => {
@@ -385,9 +373,7 @@ describe("ensureHooks", () => {
       const written = getCodexWritten();
       expect(written.hooks.session_start).toBeUndefined();
       expect(written.hooks.SessionStart).toBeInstanceOf(Array);
-      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(
-        `${FAKE_EXE} --session-start`,
-      );
+      expect(written.hooks.SessionStart[0].hooks[0].command).toBe(FAKE_EXE);
     });
 
     it("skips Codex hooks when ~/.codex directory does not exist", () => {

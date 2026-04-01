@@ -1,17 +1,17 @@
-import { resolveRepo, type RepoContext } from './context.js';
-import { AxiError, exitCodeForError } from './errors.js';
-import { renderError } from './toon.js';
-import { ensureHooks } from './hooks.js';
-import { homeCommand, sessionStartCommand } from './commands/home.js';
-import { issueCommand, ISSUE_HELP } from './commands/issue.js';
-import { prCommand, PR_HELP } from './commands/pr.js';
-import { runCommand, RUN_HELP } from './commands/run.js';
-import { workflowCommand, WORKFLOW_HELP } from './commands/workflow.js';
-import { releaseCommand, RELEASE_HELP } from './commands/release.js';
-import { repoCommand, REPO_HELP } from './commands/repo.js';
-import { labelCommand, LABEL_HELP } from './commands/label.js';
-import { searchCommand, SEARCH_HELP } from './commands/search.js';
-import { apiCommand, API_HELP } from './commands/api.js';
+import { resolveRepo, type RepoContext } from "./context.js";
+import { AxiError, exitCodeForError } from "./errors.js";
+import { renderError } from "./toon.js";
+import { ensureHooks } from "./hooks.js";
+import { homeCommand } from "./commands/home.js";
+import { issueCommand, ISSUE_HELP } from "./commands/issue.js";
+import { prCommand, PR_HELP } from "./commands/pr.js";
+import { runCommand, RUN_HELP } from "./commands/run.js";
+import { workflowCommand, WORKFLOW_HELP } from "./commands/workflow.js";
+import { releaseCommand, RELEASE_HELP } from "./commands/release.js";
+import { repoCommand, REPO_HELP } from "./commands/repo.js";
+import { labelCommand, LABEL_HELP } from "./commands/label.js";
+import { searchCommand, SEARCH_HELP } from "./commands/search.js";
+import { apiCommand, API_HELP } from "./commands/api.js";
 
 export const TOP_HELP = `usage: gh-axi [command] [flags]
 commands[10]:
@@ -60,23 +60,21 @@ export async function main(argv: string[]): Promise<void> {
 
   // Extract --repo / -R
   for (let i = 0; i < args.length; i++) {
-    if ((args[i] === '--repo' || args[i] === '-R') && i + 1 < args.length) {
+    if ((args[i] === "--repo" || args[i] === "-R") && i + 1 < args.length) {
       repoFlag = args[i + 1];
       args.splice(i, 2);
       i--;
     }
   }
 
-  // Extract --session-start flag
-  let sessionStart = false;
-  const sessionIdx = args.indexOf('--session-start');
+  // Strip deprecated --session-start (kept as backward-compatible no-op)
+  const sessionIdx = args.indexOf("--session-start");
   if (sessionIdx !== -1) {
-    sessionStart = true;
     args.splice(sessionIdx, 1);
   }
 
   // Top-level --help
-  if (args.includes('--help') && args.length === 1) {
+  if (args.includes("--help") && args.length === 1) {
     process.stdout.write(TOP_HELP);
     return;
   }
@@ -86,24 +84,14 @@ export async function main(argv: string[]): Promise<void> {
 
   if (!command) {
     // No command = home dashboard
-    if (args.includes('--help')) {
+    if (args.includes("--help")) {
       process.stdout.write(TOP_HELP);
-      return;
-    }
-    if (sessionStart) {
-      const ctx = resolveRepo(repoFlag);
-      try {
-        const output = await sessionStartCommand(ctx);
-        process.stdout.write(output + '\n');
-      } catch (err) {
-        writeError(err);
-      }
       return;
     }
     const ctx = resolveRepo(repoFlag);
     try {
       const output = await homeCommand(args.slice(1), ctx);
-      process.stdout.write(output + '\n');
+      process.stdout.write(output + "\n");
     } catch (err) {
       writeError(err);
     }
@@ -111,7 +99,7 @@ export async function main(argv: string[]): Promise<void> {
   }
 
   // Command-level --help
-  if (args.includes('--help')) {
+  if (args.includes("--help")) {
     const help = COMMAND_HELP[command];
     if (help) {
       process.stdout.write(help);
@@ -122,9 +110,9 @@ export async function main(argv: string[]): Promise<void> {
   const handler = COMMANDS[command];
   if (!handler) {
     process.stdout.write(
-      renderError(`Unknown command: ${command}`, 'VALIDATION_ERROR', [
-        'Run `gh-axi --help` to see available commands',
-      ]) + '\n',
+      renderError(`Unknown command: ${command}`, "VALIDATION_ERROR", [
+        "Run `gh-axi --help` to see available commands",
+      ]) + "\n",
     );
     process.exitCode = 2;
     return;
@@ -133,7 +121,7 @@ export async function main(argv: string[]): Promise<void> {
   const ctx = resolveRepo(repoFlag);
   try {
     const output = await handler(args.slice(1), ctx);
-    process.stdout.write(output + '\n');
+    process.stdout.write(output + "\n");
   } catch (err) {
     writeError(err);
   }
@@ -141,10 +129,12 @@ export async function main(argv: string[]): Promise<void> {
 
 function writeError(err: unknown): void {
   if (err instanceof AxiError) {
-    process.stdout.write(renderError(err.message, err.code, err.suggestions) + '\n');
+    process.stdout.write(
+      renderError(err.message, err.code, err.suggestions) + "\n",
+    );
   } else {
     const message = err instanceof Error ? err.message : String(err);
-    process.stdout.write(renderError(message, 'UNKNOWN') + '\n');
+    process.stdout.write(renderError(message, "UNKNOWN") + "\n");
   }
   process.exitCode = exitCodeForError(err);
 }
