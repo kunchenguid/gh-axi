@@ -7,6 +7,8 @@
 - **session:** remove the dedicated `--session-start` mode and have installed
   hooks invoke `gh-axi` directly; legacy `--session-start` invocations now act
   as a no-op for backward compatibility
+- **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
+  instead of falling back to `UNKNOWN`
 
 ## [0.1.7](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.6...gh-axi-v0.1.7) (2026-04-01)
 
