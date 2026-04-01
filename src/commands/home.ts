@@ -89,7 +89,8 @@ export async function homeCommand(
   blocks.push(prs.length ? renderList("prs", prs, prSchema) : "prs: 0 open");
 
   const hints: string[] = [];
-  if (issues.length >= 3) hints.push("Run `gh-axi issue list` for full issue list");
+  if (issues.length >= 3)
+    hints.push("Run `gh-axi issue list` for full issue list");
   if (prs.length >= 3) hints.push("Run `gh-axi pr list` for full PR list");
   const suggestions = getSuggestions({
     domain: "home",
