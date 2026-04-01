@@ -83,6 +83,10 @@ const patterns: ErrorPattern[] = [
   },
 ];
 
+function firstErrorLine(stderr: string): string {
+  return stderr.trim().split('\n')[0] ?? '';
+}
+
 export function mapGhError(stderr: string, exitCode: number): AxiError {
   for (const { pattern, code, message, suggestions } of patterns) {
     const match = stderr.match(pattern);
@@ -92,11 +96,11 @@ export function mapGhError(stderr: string, exitCode: number): AxiError {
   }
 
   // Generic not-found for any 404-like message
-  if (stderr.includes('not found') || stderr.includes('Not Found')) {
-    return new AxiError(stderr.trim().split('\n')[0], 'NOT_FOUND');
+  if (/not found/i.test(stderr)) {
+    return new AxiError(firstErrorLine(stderr), 'NOT_FOUND');
   }
 
-  return new AxiError(stderr.trim().split('\n')[0] || `gh exited with code ${exitCode}`, 'UNKNOWN');
+  return new AxiError(firstErrorLine(stderr) || `gh exited with code ${exitCode}`, 'UNKNOWN');
 }
 
 /** Map an error to the appropriate process exit code: 2 for usage errors, 1 for everything else. */

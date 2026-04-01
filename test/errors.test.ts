@@ -94,6 +94,11 @@ describe('mapGhError', () => {
     expect(err.code).toBe('NOT_FOUND');
   });
 
+  it('returns NOT_FOUND for mixed-case not found messages', () => {
+    const err = mapGhError('resource NOT found', 1);
+    expect(err.code).toBe('NOT_FOUND');
+  });
+
   it('returns UNKNOWN for unrecognized errors', () => {
     const err = mapGhError('some random error', 1);
     expect(err.code).toBe('UNKNOWN');
