@@ -78,6 +78,8 @@ function ensureClaudeHook(exePath: string): void {
 
 // ---------------------------------------------------------------------------
 // Codex hooks: ~/.codex/hooks.json
+// Uses `hooks.SessionStart` matcher blocks and migrates legacy
+// `hooks.session_start` entries when present.
 // ---------------------------------------------------------------------------
 
 function ensureCodexHook(exePath: string): void {
