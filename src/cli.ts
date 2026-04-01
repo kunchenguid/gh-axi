@@ -67,6 +67,12 @@ export async function main(argv: string[]): Promise<void> {
     }
   }
 
+  // Strip deprecated --session-start (kept as backward-compatible no-op)
+  const sessionIdx = args.indexOf('--session-start');
+  if (sessionIdx !== -1) {
+    args.splice(sessionIdx, 1);
+  }
+
   // Top-level --help
   if (args.includes('--help') && args.length === 1) {
     process.stdout.write(TOP_HELP);
