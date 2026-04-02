@@ -12,6 +12,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.9](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.8...gh-axi-v0.1.9) (2026-04-02)
+
+
+### Bug Fixes
+
+* migrate gh-axi to axi-sdk-js ([#9](https://github.com/kunchenguid/gh-axi/issues/9)) ([137a759](https://github.com/kunchenguid/gh-axi/commit/137a759ba288ce7ac887c35a1710d90d307ea75e))
+
 ## [0.1.8](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.7...gh-axi-v0.1.8) (2026-04-01)
 
 
