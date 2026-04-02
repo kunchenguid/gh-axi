@@ -38,7 +38,8 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@toon-format/toon": "^2.1.0"
+    "@toon-format/toon": "^2.1.0",
+    "axi-sdk-js": "^0.1.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

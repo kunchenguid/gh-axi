@@ -1,6 +1,13 @@
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Mock all command modules
+const { runAxiCli } = vi.hoisted(() => ({
+  runAxiCli: vi.fn(),
+}));
+
+vi.mock("axi-sdk-js", () => ({
+  runAxiCli,
+}));
+
 vi.mock("../src/commands/home.js", () => ({
   homeCommand: vi.fn().mockResolvedValue("home output"),
 }));
@@ -40,11 +47,7 @@ vi.mock("../src/commands/api.js", () => ({
   apiCommand: vi.fn().mockResolvedValue("api output"),
   API_HELP: "api help",
 }));
-vi.mock("../src/hooks.js", () => ({
-  ensureHooks: vi.fn(),
-}));
 
-// Mock resolveRepo to avoid git calls
 vi.mock("../src/context.js", () => ({
   resolveRepo: vi.fn().mockReturnValue({
     owner: "octo",
@@ -54,160 +57,154 @@ vi.mock("../src/context.js", () => ({
   }),
 }));
 
-import { main } from "../src/cli.js";
-import { AxiError } from "../src/errors.js";
-import { issueCommand } from "../src/commands/issue.js";
-import { repoCommand } from "../src/commands/repo.js";
-import { labelCommand } from "../src/commands/label.js";
-import { apiCommand } from "../src/commands/api.js";
+import { main, TOP_HELP } from "../src/cli.js";
 import { homeCommand } from "../src/commands/home.js";
+import { issueCommand } from "../src/commands/issue.js";
 import { resolveRepo } from "../src/context.js";
 
 describe("main CLI", () => {
-  let writeSpy: ReturnType<typeof vi.spyOn>;
+  const originalArgv = [...process.argv];
 
   beforeEach(() => {
     vi.resetAllMocks();
+    process.argv = [...originalArgv];
     vi.mocked(homeCommand).mockResolvedValue("home output");
     vi.mocked(issueCommand).mockResolvedValue("issue output");
-    vi.mocked(repoCommand).mockResolvedValue("repo output");
-    vi.mocked(labelCommand).mockResolvedValue("label output");
-    vi.mocked(apiCommand).mockResolvedValue("api output");
     vi.mocked(resolveRepo).mockReturnValue({
       owner: "octo",
       name: "repo",
       nwo: "octo/repo",
       source: "git",
     });
-    writeSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
-    process.exitCode = undefined;
   });
 
   afterEach(() => {
-    writeSpy.mockRestore();
+    process.argv = [...originalArgv];
     process.exitCode = undefined;
   });
 
-  it("routes to home command when no command given", async () => {
-    await main([]);
-    expect(vi.mocked(homeCommand)).toHaveBeenCalled();
-    expect(writeSpy).toHaveBeenCalledWith(
-      expect.stringContaining("home output"),
+  it("delegates to axi-sdk-js runAxiCli without passing argv", async () => {
+    process.argv = ["node", "gh-axi", "issue", "list"];
+    await main();
+
+    expect(runAxiCli).toHaveBeenCalledTimes(1);
+    expect(runAxiCli).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description:
+          "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.",
+        topLevelHelp: TOP_HELP,
+      }),
     );
+    expect(vi.mocked(runAxiCli).mock.calls[0]?.[0]).not.toHaveProperty("argv");
   });
 
-  it("routes to issue command", async () => {
-    await main(["issue", "list"]);
-    expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(
-      ["list"],
-      expect.any(Object),
-    );
+  it("wires command help into the runtime", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    expect(options.getCommandHelp("issue")).toBe("issue help");
+    expect(options.getCommandHelp("missing")).toBeUndefined();
   });
 
-  it("routes to repo command", async () => {
-    await main(["repo", "view"]);
-    expect(vi.mocked(repoCommand)).toHaveBeenCalledWith(
-      ["view"],
-      expect.any(Object),
-    );
-  });
+  it("resolves repo context lazily from -R after the command", async () => {
+    await main();
 
-  it("routes to label command", async () => {
-    await main(["label", "list"]);
-    expect(vi.mocked(labelCommand)).toHaveBeenCalledWith(
-      ["list"],
-      expect.any(Object),
-    );
-  });
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const context = options.resolveContext({
+      command: "issue",
+      args: ["list", "-R", "owner/name"],
+    });
 
-  it("routes to api command", async () => {
-    await main(["api", "/repos/octo/repo"]);
-    expect(vi.mocked(apiCommand)).toHaveBeenCalledWith(
-      ["/repos/octo/repo"],
-      expect.any(Object),
-    );
-  });
-
-  it("outputs top-level help with --help flag", async () => {
-    await main(["--help"]);
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining("gh-axi"));
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining("commands"));
-  });
-
-  it("outputs command-level help with command --help", async () => {
-    await main(["issue", "--help"]);
-    expect(writeSpy).toHaveBeenCalledWith("issue help");
-  });
-
-  it("returns exit code 2 for unknown command (usage error)", async () => {
-    await main(["notacommand"]);
-    expect(writeSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Unknown command: notacommand"),
-    );
-    expect(process.exitCode).toBe(2);
-  });
-
-  it("extracts --repo flag and passes to resolveRepo", async () => {
-    await main(["-R", "owner/name", "issue", "list"]);
     expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith("owner/name");
-    expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(
-      ["list"],
-      expect.any(Object),
-    );
+    expect(context).toEqual(expect.objectContaining({ nwo: "octo/repo" }));
   });
 
-  it("extracts long --repo flag", async () => {
-    await main(["--repo", "owner/name", "repo", "view"]);
+  it("also accepts --repo as a repo-context alias after the command", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const context = options.resolveContext({
+      command: "issue",
+      args: ["list", "--repo", "owner/name"],
+    });
+
     expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith("owner/name");
+    expect(context).toEqual(expect.objectContaining({ nwo: "octo/repo" }));
   });
 
-  it("sets exitCode 1 on generic command error", async () => {
-    vi.mocked(homeCommand).mockRejectedValue(new Error("boom"));
-    await main([]);
-    expect(process.exitCode).toBe(1);
-    expect(writeSpy).toHaveBeenCalledWith(expect.stringContaining("boom"));
+  it("routes the home handler through resolved repo context", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.home([], ctx);
+
+    expect(vi.mocked(homeCommand)).toHaveBeenCalledWith([], ctx);
   });
 
-  it("returns exit code 2 for VALIDATION_ERROR (missing required flag)", async () => {
-    vi.mocked(issueCommand).mockRejectedValue(
-      new AxiError("--title is required", "VALIDATION_ERROR"),
-    );
-    await main(["issue", "create"]);
-    expect(process.exitCode).toBe(2);
-    expect(writeSpy).toHaveBeenCalledWith(
-      expect.stringContaining("--title is required"),
-    );
+  it("strips -R before invoking command handlers", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.issue(["list", "-R", "owner/name"], ctx);
+
+    expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(["list"], ctx);
   });
 
-  it("returns exit code 1 for NOT_FOUND error", async () => {
-    vi.mocked(issueCommand).mockRejectedValue(
-      new AxiError("Issue #999 does not exist", "NOT_FOUND"),
-    );
-    await main(["issue", "view", "999"]);
-    expect(process.exitCode).toBe(1);
-    expect(writeSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Issue #999"),
-    );
+  it("strips --repo before invoking handlers when used as repo context", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.issue(["list", "--repo", "owner/name"], ctx);
+
+    expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(["list"], ctx);
   });
 
-  it("returns exit code 1 for AUTH_REQUIRED error", async () => {
-    vi.mocked(issueCommand).mockRejectedValue(
-      new AxiError("GitHub auth required", "AUTH_REQUIRED"),
-    );
-    await main(["issue", "list"]);
-    expect(process.exitCode).toBe(1);
-  });
+  it("uses -R as repo context for issue transfer and preserves --to-repo", async () => {
+    await main();
 
-  it("returns exit code 1 for FORBIDDEN error", async () => {
-    vi.mocked(issueCommand).mockRejectedValue(
-      new AxiError("Insufficient permissions", "FORBIDDEN"),
-    );
-    await main(["issue", "list"]);
-    expect(process.exitCode).toBe(1);
-  });
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const context = options.resolveContext({
+      command: "issue",
+      args: ["transfer", "123", "-R", "source/repo", "--to-repo", "dest/repo"],
+    });
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "git",
+    };
 
-  it("strips --session-start and falls through to dashboard", async () => {
-    await main(["--session-start"]);
-    expect(vi.mocked(homeCommand)).toHaveBeenCalled();
+    expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith("source/repo");
+    expect(context).toEqual(expect.objectContaining({ nwo: "octo/repo" }));
+
+    await options.commands.issue(
+      ["transfer", "123", "-R", "source/repo", "--to-repo", "dest/repo"],
+      ctx,
+    );
+    expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(
+      ["transfer", "123", "--to-repo", "dest/repo"],
+      ctx,
+    );
   });
 });

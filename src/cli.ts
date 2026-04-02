@@ -1,7 +1,5 @@
+import { runAxiCli } from "axi-sdk-js";
 import { resolveRepo, type RepoContext } from "./context.js";
-import { AxiError, exitCodeForError } from "./errors.js";
-import { renderError } from "./toon.js";
-import { ensureHooks } from "./hooks.js";
 import { homeCommand } from "./commands/home.js";
 import { issueCommand, ISSUE_HELP } from "./commands/issue.js";
 import { prCommand, PR_HELP } from "./commands/pr.js";
@@ -13,14 +11,19 @@ import { labelCommand, LABEL_HELP } from "./commands/label.js";
 import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 
-export const TOP_HELP = `usage: gh-axi [command] [flags]
+const DESCRIPTION =
+  "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
+
+export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
 commands[10]:
   (none)=dashboard, issue, pr, run, workflow, release, repo, label, search, api
 flags[2]:
-  -R/--repo <OWNER/NAME>, --help
+  -R/--repo <OWNER/NAME> (after command), --help
 examples:
   gh-axi
   gh-axi issue list --state open
+  gh-axi issue list -R owner/name
+  gh-axi issue list --repo owner/name
   gh-axi pr view 42
 `;
 
@@ -39,102 +42,67 @@ const COMMAND_HELP: Record<string, string> = {
 type CommandFn = (args: string[], ctx?: RepoContext) => Promise<string>;
 
 const COMMANDS: Record<string, CommandFn> = {
-  issue: issueCommand,
-  pr: prCommand,
-  run: runCommand,
-  workflow: workflowCommand,
-  release: releaseCommand,
-  repo: repoCommand,
-  label: labelCommand,
-  search: searchCommand,
-  api: apiCommand,
+  issue: withRepoContext("issue", issueCommand),
+  pr: withRepoContext("pr", prCommand),
+  run: withRepoContext("run", runCommand),
+  workflow: withRepoContext("workflow", workflowCommand),
+  release: withRepoContext("release", releaseCommand),
+  repo: withRepoContext("repo", repoCommand),
+  label: withRepoContext("label", labelCommand),
+  search: withRepoContext("search", searchCommand),
+  api: withRepoContext("api", apiCommand),
 };
 
-export async function main(argv: string[]): Promise<void> {
-  // Fire-and-forget: install/repair ambient context hooks
-  ensureHooks();
-
-  // Extract global flags
-  const args = [...argv];
-  let repoFlag: string | undefined;
-
-  // Extract --repo / -R
-  for (let i = 0; i < args.length; i++) {
-    if ((args[i] === "--repo" || args[i] === "-R") && i + 1 < args.length) {
-      repoFlag = args[i + 1];
-      args.splice(i, 2);
-      i--;
-    }
-  }
-
-  // Strip deprecated --session-start (kept as backward-compatible no-op)
-  const sessionIdx = args.indexOf("--session-start");
-  if (sessionIdx !== -1) {
-    args.splice(sessionIdx, 1);
-  }
-
-  // Top-level --help
-  if (args.includes("--help") && args.length === 1) {
-    process.stdout.write(TOP_HELP);
-    return;
-  }
-
-  // Determine command
-  const command = args[0];
-
-  if (!command) {
-    // No command = home dashboard
-    if (args.includes("--help")) {
-      process.stdout.write(TOP_HELP);
-      return;
-    }
-    const ctx = resolveRepo(repoFlag);
-    try {
-      const output = await homeCommand(args.slice(1), ctx);
-      process.stdout.write(output + "\n");
-    } catch (err) {
-      writeError(err);
-    }
-    return;
-  }
-
-  // Command-level --help
-  if (args.includes("--help")) {
-    const help = COMMAND_HELP[command];
-    if (help) {
-      process.stdout.write(help);
-      return;
-    }
-  }
-
-  const handler = COMMANDS[command];
-  if (!handler) {
-    process.stdout.write(
-      renderError(`Unknown command: ${command}`, "VALIDATION_ERROR", [
-        "Run `gh-axi --help` to see available commands",
-      ]) + "\n",
-    );
-    process.exitCode = 2;
-    return;
-  }
-
-  const ctx = resolveRepo(repoFlag);
-  try {
-    const output = await handler(args.slice(1), ctx);
-    process.stdout.write(output + "\n");
-  } catch (err) {
-    writeError(err);
-  }
+export async function main(): Promise<void> {
+  await runAxiCli<RepoContext | undefined>({
+    description: DESCRIPTION,
+    topLevelHelp: TOP_HELP,
+    home: withRepoContext(undefined, homeCommand),
+    commands: COMMANDS,
+    getCommandHelp: (command) => COMMAND_HELP[command],
+    resolveContext: ({ command, args }) =>
+      resolveRepo(parseRepoContextArgs(command, args).repoFlag),
+  });
 }
 
-function writeError(err: unknown): void {
-  if (err instanceof AxiError) {
-    process.stdout.write(
-      renderError(err.message, err.code, err.suggestions) + "\n",
-    );
-  } else {
-    const message = err instanceof Error ? err.message : String(err);
-    process.stdout.write(renderError(message, "UNKNOWN") + "\n");
+function withRepoContext(
+  command: string | undefined,
+  handler: CommandFn,
+): CommandFn {
+  return (args, ctx) =>
+    handler(parseRepoContextArgs(command, args).strippedArgs, ctx);
+}
+
+function parseRepoContextArgs(
+  command: string | undefined,
+  args: string[],
+): { repoFlag: string | undefined; strippedArgs: string[] } {
+  const stripped: string[] = [];
+  let repoFlag: string | undefined;
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "-R" && index + 1 < args.length) {
+      repoFlag = args[index + 1];
+      index++;
+      continue;
+    }
+
+    if (arg === "--repo" && index + 1 < args.length) {
+      const value = args[index + 1];
+
+      repoFlag = value;
+
+      if (command === "search") {
+        stripped.push(arg, value);
+      }
+
+      index++;
+      continue;
+    }
+
+    stripped.push(arg);
   }
-  process.exitCode = exitCodeForError(err);
+
+  return { repoFlag, strippedArgs: stripped };
 }

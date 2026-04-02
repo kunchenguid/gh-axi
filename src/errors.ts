@@ -1,3 +1,5 @@
+import { AxiError, exitCodeForError } from "axi-sdk-js";
+
 export type ErrorCode =
   | "REPO_NOT_FOUND"
   | "NOT_FOUND"
@@ -7,16 +9,7 @@ export type ErrorCode =
   | "GH_NOT_INSTALLED"
   | "UNKNOWN";
 
-export class AxiError extends Error {
-  constructor(
-    message: string,
-    public readonly code: ErrorCode,
-    public readonly suggestions: string[] = [],
-  ) {
-    super(message);
-    this.name = "AxiError";
-  }
-}
+export { AxiError, exitCodeForError };
 
 interface ErrorPattern {
   pattern: RegExp;
@@ -110,14 +103,6 @@ export function mapGhError(stderr: string, exitCode: number): AxiError {
     firstErrorLine(stderr) || `gh exited with code ${exitCode}`,
     "UNKNOWN",
   );
-}
-
-/** Map an error to the appropriate process exit code: 2 for usage errors, 1 for everything else. */
-export function exitCodeForError(err: unknown): number {
-  if (err instanceof AxiError && err.code === "VALIDATION_ERROR") {
-    return 2;
-  }
-  return 1;
 }
 
 export function ghNotInstalledError(): AxiError {

@@ -23,8 +23,7 @@ npm install -g gh-axi
 Requires Node 20+ and [`gh`](https://cli.github.com/) authenticated via `gh auth login`.
 
 Running `gh-axi` also installs or repairs Claude Code and Codex `SessionStart`
-hooks. Those hooks now invoke `gh-axi` directly; legacy `--session-start`
-invocations are still accepted as a no-op for backward compatibility.
+hooks. Those hooks invoke `gh-axi` directly from the packaged production build.
 
 ## Usage
 
@@ -51,8 +50,18 @@ gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 
 ### Global flags
 
-- `-R, --repo OWNER/NAME` — target repository (auto-detected from git remote if omitted)
 - `--help` — show help for any command
+
+Repository targeting is command-first too:
+
+- `gh-axi issue list -R owner/name`
+- `gh-axi issue list --repo owner/name`
+- `gh-axi run list -R owner/name`
+- `gh-axi search issues "login bug" --repo owner/name`
+
+When a command also needs a destination repository, use a dedicated flag for it:
+
+- `gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`
 
 ## License
 
