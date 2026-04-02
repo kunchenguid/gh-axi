@@ -1,6 +1,4 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import os from 'node:os';
-
 vi.mock('../../src/gh.js', () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
@@ -14,49 +12,21 @@ import type { RepoContext } from '../../src/context.js';
 const mockedGhJson = vi.mocked(ghJson);
 
 describe('homeCommand', () => {
-  const origArgv1 = process.argv[1];
-
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
   afterEach(() => {
-    process.argv[1] = origArgv1;
+    vi.restoreAllMocks();
   });
 
-  it('starts with bin: showing the executable path', async () => {
-    process.argv[1] = '/usr/local/bin/gh-axi';
+  it('does not include bin or description header fields', async () => {
     mockedGhJson.mockResolvedValue([]);
 
     const result = await homeCommand([]);
-    const lines = result.split('\n');
 
-    expect(lines[0]).toMatch(/^bin:/);
-    expect(lines[0]).toContain('/usr/local/bin/gh-axi');
-  });
-
-  it('collapses home directory to ~ in bin path', async () => {
-    const home = os.homedir();
-    process.argv[1] = `${home}/.npm/bin/gh-axi`;
-    mockedGhJson.mockResolvedValue([]);
-
-    const result = await homeCommand([]);
-    const lines = result.split('\n');
-
-    expect(lines[0]).toMatch(/^bin:/);
-    expect(lines[0]).toContain('~/.npm/bin/gh-axi');
-    expect(lines[0]).not.toContain(home);
-  });
-
-  it('includes a description line after bin', async () => {
-    process.argv[1] = '/usr/local/bin/gh-axi';
-    mockedGhJson.mockResolvedValue([]);
-
-    const result = await homeCommand([]);
-    const lines = result.split('\n');
-
-    expect(lines[1]).toMatch(/^description:/);
-    expect(lines[1].length).toBeGreaterThan('description: '.length);
+    expect(result).not.toContain('bin:');
+    expect(result).not.toContain('description:');
   });
 
   it('returns output with issues and prs sections', async () => {

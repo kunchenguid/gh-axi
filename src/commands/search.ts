@@ -103,6 +103,10 @@ function extractQuery(args: string[]): string {
   return positionals.join(' ');
 }
 
+function getSearchRepo(args: string[], ctx?: RepoContext): string | undefined {
+  return getFlag(args, '--repo') ?? ctx?.nwo;
+}
+
 async function searchIssues(args: string[], ctx?: RepoContext): Promise<string> {
   const query = extractQuery(args);
   if (!query) throw new AxiError('Search query is required: gh-axi search issues <query>', 'VALIDATION_ERROR');
@@ -113,7 +117,7 @@ async function searchIssues(args: string[], ctx?: RepoContext): Promise<string> 
     '--json', 'number,title,repository,state,author,labels,createdAt',
     '--limit', limit,
   ];
-  const repo = getFlag(args, '--repo') ?? ctx?.nwo;
+  const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push('--repo', repo);
   const owner = getFlag(args, '--owner');
   if (owner) ghArgs.push('--owner', owner);
@@ -155,7 +159,7 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
     '--json', 'number,title,repository,state,author,createdAt',
     '--limit', limit,
   ];
-  const repo = getFlag(args, '--repo') ?? ctx?.nwo;
+  const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push('--repo', repo);
   const owner = getFlag(args, '--owner');
   if (owner) ghArgs.push('--owner', owner);
@@ -236,7 +240,7 @@ async function searchCommits(args: string[], ctx?: RepoContext): Promise<string>
     '--json', 'sha,commit,repository,author',
     '--limit', limit,
   ];
-  const repo = getFlag(args, '--repo');
+  const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push('--repo', repo);
   const owner = getFlag(args, '--owner');
   if (owner) ghArgs.push('--owner', owner);
@@ -282,7 +286,7 @@ async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
     '--json', 'path,repository,textMatches',
     '--limit', limit,
   ];
-  const repo = getFlag(args, '--repo');
+  const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push('--repo', repo);
   const owner = getFlag(args, '--owner');
   if (owner) ghArgs.push('--owner', owner);

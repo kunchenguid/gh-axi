@@ -180,4 +180,31 @@ describe('issueCommand', () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
+
+  describe('transfer', () => {
+    it('requires --to-repo', async () => {
+      await expect(
+        issueCommand(['transfer', '10'], ctx),
+      ).rejects.toThrow(AxiError);
+    });
+
+    it('transfers to the destination repo provided by --to-repo', async () => {
+      mockedGhExec.mockResolvedValue('');
+      mockedGhJson.mockResolvedValue({
+        number: 10,
+        url: 'https://github.com/dest/repo/issues/10',
+      });
+
+      const result = await issueCommand(['transfer', '10', '--to-repo', 'dest/repo'], ctx);
+
+      expect(result).toContain('dest/repo/issues/10');
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ['issue', 'transfer', '10', 'dest/repo'],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ['issue', 'view', '10', '--json', 'number,url', '--repo', 'dest/repo'],
+      );
+    });
+  });
 });

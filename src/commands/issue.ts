@@ -63,12 +63,13 @@ flags{close}:
 flags{comment}:
   --body <text> (required)
 flags{transfer}:
-  --repo <owner/name> (required)
+  --to-repo <owner/name> (required)
 examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
-  gh-axi issue close 42 --reason completed`;
+  gh-axi issue close 42 --reason completed
+  gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`;
 
 
 
@@ -483,8 +484,8 @@ async function unpinIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function transferIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = requireNumber(getPositional(args, 1), 'issue');
-  const destRepo = getFlag(args, '--repo');
-  if (!destRepo) throw new AxiError('--repo is required for transfer', 'VALIDATION_ERROR');
+  const destRepo = getFlag(args, '--to-repo');
+  if (!destRepo) throw new AxiError('--to-repo is required for transfer', 'VALIDATION_ERROR');
 
   await ghExec(['issue', 'transfer', String(num), destRepo], ctx);
 

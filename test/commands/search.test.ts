@@ -108,6 +108,16 @@ describe('searchCommand', () => {
   });
 
   describe('searchCommits', () => {
+    it('uses repo context when no explicit --repo flag is passed', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(['commits', 'fix'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(['--repo', 'octo/repo']),
+      );
+    });
+
     it('emits count line', async () => {
       mockedGhJson.mockResolvedValue([
         { sha: 'abc123', commit: { message: 'fix bug', author: { date: '2024-01-01T00:00:00Z' } }, repository: { fullName: 'octo/repo' }, author: { login: 'alice' } },
@@ -143,6 +153,16 @@ describe('searchCommand', () => {
   });
 
   describe('searchCode', () => {
+    it('uses repo context when no explicit --repo flag is passed', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(['code', 'function'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(['--repo', 'octo/repo']),
+      );
+    });
+
     it('emits count line', async () => {
       mockedGhJson.mockResolvedValue([
         { path: 'src/main.ts', repository: { fullName: 'octo/repo' }, textMatches: [{ type: 'FileContent' }] },

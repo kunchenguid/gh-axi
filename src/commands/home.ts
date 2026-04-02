@@ -1,4 +1,3 @@
-import os from "node:os";
 import type { RepoContext } from "../context.js";
 import { ghJson } from "../gh.js";
 import {
@@ -63,19 +62,6 @@ export async function homeCommand(
   ]);
 
   const blocks: string[] = [];
-
-  const home = os.homedir();
-  const execPath = process.argv[1] ?? "";
-  const bin = execPath.startsWith(home)
-    ? "~" + execPath.slice(home.length)
-    : execPath;
-  blocks.push(
-    encode({
-      bin,
-      description:
-        "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.",
-    }),
-  );
 
   if (ctx) {
     blocks.push(encode({ repo: ctx.nwo }));
