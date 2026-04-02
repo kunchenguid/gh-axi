@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+- **cli:** scope repository targeting to command arguments, keep `search --repo`
+  working, and rename issue transfer destination flag to `--to-repo`
 - **session:** remove the dedicated `--session-start` mode and have installed
   hooks invoke `gh-axi` directly; legacy `--session-start` invocations now act
   as a no-op for backward compatibility

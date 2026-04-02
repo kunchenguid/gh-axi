@@ -57,6 +57,11 @@ Repository targeting is command-first too:
 - `gh-axi issue list -R owner/name`
 - `gh-axi issue list --repo owner/name`
 - `gh-axi run list -R owner/name`
+- `gh-axi search issues "login bug" --repo owner/name`
+
+When a command also needs a destination repository, use a dedicated flag for it:
+
+- `gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`
 
 ## License
 
