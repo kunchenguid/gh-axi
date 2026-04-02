@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { runAxiCli } = vi.hoisted(() => ({
@@ -62,6 +63,10 @@ import { homeCommand } from "../src/commands/home.js";
 import { issueCommand } from "../src/commands/issue.js";
 import { resolveRepo } from "../src/context.js";
 
+const packageVersion = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
+) as { version: string };
+
 describe("main CLI", () => {
   const originalArgv = [...process.argv];
 
@@ -83,6 +88,38 @@ describe("main CLI", () => {
     process.exitCode = undefined;
   });
 
+  it("documents the top-level version flags in help output", () => {
+    expect(TOP_HELP).toContain("flags[3]:");
+    expect(TOP_HELP).toContain("-R/--repo <OWNER/NAME> (after command)");
+    expect(TOP_HELP).toContain("--help");
+    expect(TOP_HELP).toContain("-v/-V/--version");
+  });
+
+  it("passes bare top-level help argv through to axi-sdk-js", async () => {
+    const argv = ["--help"];
+    const stdout = { write: vi.fn() };
+
+    await main({ argv, stdout });
+
+    expect(runAxiCli).toHaveBeenCalledWith(
+      expect.objectContaining({ argv, stdout }),
+    );
+  });
+
+  it.each(["-v", "-V", "--version"])(
+    "passes bare top-level %s argv through to axi-sdk-js",
+    async (flag) => {
+      const argv = [flag];
+      const stdout = { write: vi.fn() };
+
+      await main({ argv, stdout });
+
+      expect(runAxiCli).toHaveBeenCalledWith(
+        expect.objectContaining({ argv, stdout }),
+      );
+    },
+  );
+
   it("delegates to axi-sdk-js runAxiCli without passing argv", async () => {
     process.argv = ["node", "gh-axi", "issue", "list"];
     await main();
@@ -92,6 +129,7 @@ describe("main CLI", () => {
       expect.objectContaining({
         description:
           "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.",
+        version: packageVersion.version,
         topLevelHelp: TOP_HELP,
       }),
     );

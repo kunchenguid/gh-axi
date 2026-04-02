@@ -51,6 +51,7 @@ gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 ### Global flags
 
 - `--help` — show help for any command
+- `-v`, `-V`, `--version` — show the installed `gh-axi` version
 
 Repository targeting is command-first too:
 
