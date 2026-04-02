@@ -1,7 +1,4 @@
-import {
-  AxiError,
-  exitCodeForError,
-} from "axi-sdk-js";
+import { AxiError, exitCodeForError } from "axi-sdk-js";
 
 export type ErrorCode =
   | "REPO_NOT_FOUND"

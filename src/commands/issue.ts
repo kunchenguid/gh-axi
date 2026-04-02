@@ -1,11 +1,17 @@
-import type { RepoContext } from '../context.js';
-import { ghJson, ghExec, ghRaw } from '../gh.js';
-import { AxiError } from '../errors.js';
-import { getSuggestions } from '../suggestions.js';
-import { getFlag, hasFlag, getPositional, requireNumber, takeFlag } from '../args.js';
-import { truncateBody } from '../body.js';
-import { parseFields, type ExtraFieldSpec } from '../fields.js';
-import { formatCountLine } from '../format.js';
+import type { RepoContext } from "../context.js";
+import { ghJson, ghExec, ghRaw } from "../gh.js";
+import { AxiError } from "../errors.js";
+import { getSuggestions } from "../suggestions.js";
+import {
+  getFlag,
+  hasFlag,
+  getPositional,
+  requireNumber,
+  takeFlag,
+} from "../args.js";
+import { truncateBody } from "../body.js";
+import { parseFields, type ExtraFieldSpec } from "../fields.js";
+import { formatCountLine } from "../format.js";
 import {
   field,
   pluck,
@@ -19,7 +25,7 @@ import {
   renderError,
   renderOutput,
   type FieldDef,
-} from '../toon.js';
+} from "../toon.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,90 +77,94 @@ examples:
   gh-axi issue close 42 --reason completed
   gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`;
 
-
-
 // ---------------------------------------------------------------------------
 // Field schemas
 // ---------------------------------------------------------------------------
 
 const listSchema: FieldDef[] = [
-  field('number'),
-  field('title'),
-  lower('state'),
-  pluck('author', 'login', 'author'),
-  relativeTime('createdAt', 'created'),
+  field("number"),
+  field("title"),
+  lower("state"),
+  pluck("author", "login", "author"),
+  relativeTime("createdAt", "created"),
 ];
 
 const viewSchema: FieldDef[] = [
-  field('number'),
-  field('title'),
-  lower('state'),
-  pluck('author', 'login', 'author'),
-  relativeTime('createdAt', 'created'),
-  custom('body', (item: Record<string, unknown>) => truncateBody(item.body, 500)),
+  field("number"),
+  field("title"),
+  lower("state"),
+  pluck("author", "login", "author"),
+  relativeTime("createdAt", "created"),
+  custom("body", (item: Record<string, unknown>) =>
+    truncateBody(item.body, 500),
+  ),
 ];
 
-const viewSchemaFull: FieldDef[] = viewSchema.map(f =>
-  'as' in f && f.as === 'body'
-    ? custom('body', (item: Record<string, unknown>) => typeof item.body === 'string' ? item.body : '')
+const viewSchemaFull: FieldDef[] = viewSchema.map((f) =>
+  "as" in f && f.as === "body"
+    ? custom("body", (item: Record<string, unknown>) =>
+        typeof item.body === "string" ? item.body : "",
+      )
     : f,
 );
 
 const createResultSchema: FieldDef[] = [
-  field('number'),
-  field('title'),
-  lower('state'),
-  field('url'),
+  field("number"),
+  field("title"),
+  lower("state"),
+  field("url"),
 ];
 
 const editResultSchema: FieldDef[] = [
-  field('number'),
-  field('title'),
-  lower('state'),
-  joinArray('labels', 'name', 'labels'),
-  joinArray('assignees', 'login', 'assignees'),
+  field("number"),
+  field("title"),
+  lower("state"),
+  joinArray("labels", "name", "labels"),
+  joinArray("assignees", "login", "assignees"),
 ];
 
-const stateResultSchema: FieldDef[] = [
-  field('number'),
-  lower('state'),
-];
+const stateResultSchema: FieldDef[] = [field("number"), lower("state")];
 
 const commentResultSchema: FieldDef[] = [
-  field('number', 'issue'),
-  pluck('author', 'login', 'author'),
-  relativeTime('createdAt', 'created'),
-  custom('body', (item: Record<string, unknown>) => truncateBody(item.body, 800)),
+  field("number", "issue"),
+  pluck("author", "login", "author"),
+  relativeTime("createdAt", "created"),
+  custom("body", (item: Record<string, unknown>) =>
+    truncateBody(item.body, 800),
+  ),
 ];
 
 const lockResultSchema: FieldDef[] = [
-  field('number'),
-  lower('state'),
-  field('locked'),
+  field("number"),
+  lower("state"),
+  field("locked"),
 ];
 
 const pinResultSchema: FieldDef[] = [
-  field('number'),
-  lower('state'),
-  field('isPinned', 'pinned'),
+  field("number"),
+  lower("state"),
+  field("isPinned", "pinned"),
 ];
 
-const transferResultSchema: FieldDef[] = [
-  field('number'),
-  field('url'),
-];
+const transferResultSchema: FieldDef[] = [field("number"), field("url")];
 
 // ---------------------------------------------------------------------------
 // Extra fields for --fields support
 // ---------------------------------------------------------------------------
 
 const ISSUE_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
-  body: { jsonKey: 'body', def: field('body') },
-  closedAt: { jsonKey: 'closedAt', def: relativeTime('closedAt', 'closed_at') },
-  labels: { jsonKey: 'labels', def: joinArray('labels', 'name', 'labels') },
-  milestone: { jsonKey: 'milestone', def: pluck('milestone', 'title', 'milestone') },
-  updatedAt: { jsonKey: 'updatedAt', def: relativeTime('updatedAt', 'updated_at') },
-  url: { jsonKey: 'url', def: field('url') },
+  body: { jsonKey: "body", def: field("body") },
+  closedAt: { jsonKey: "closedAt", def: relativeTime("closedAt", "closed_at") },
+  labels: { jsonKey: "labels", def: joinArray("labels", "name", "labels") },
+  milestone: {
+    jsonKey: "milestone",
+    def: pluck("milestone", "title", "milestone"),
+  },
+  updatedAt: {
+    jsonKey: "updatedAt",
+    def: relativeTime("updatedAt", "updated_at"),
+  },
+  url: { jsonKey: "url", def: field("url") },
 };
 
 // ---------------------------------------------------------------------------
@@ -162,29 +172,45 @@ const ISSUE_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
 // ---------------------------------------------------------------------------
 
 async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
-  if (hasFlag(args, '--search')) {
-    throw new AxiError('issue list does not support --search. Use `gh-axi search issues "<query>"` instead for full-text search with total counts.', 'VALIDATION_ERROR');
+  if (hasFlag(args, "--search")) {
+    throw new AxiError(
+      'issue list does not support --search. Use `gh-axi search issues "<query>"` instead for full-text search with total counts.',
+      "VALIDATION_ERROR",
+    );
   }
-  const fieldsArg = takeFlag(args, '--fields');
-  const { extraDefs, extraJsonKeys } = parseFields(fieldsArg, ISSUE_LIST_EXTRA_FIELDS);
-  const state = getFlag(args, '--state');
-  const label = getFlag(args, '--label');
-  const assignee = getFlag(args, '--assignee');
-  const author = getFlag(args, '--author');
-  const milestone = getFlag(args, '--milestone');
-  const sort = getFlag(args, '--sort');
-  const limitRaw = getFlag(args, '--limit');
+  const fieldsArg = takeFlag(args, "--fields");
+  const { extraDefs, extraJsonKeys } = parseFields(
+    fieldsArg,
+    ISSUE_LIST_EXTRA_FIELDS,
+  );
+  const state = getFlag(args, "--state");
+  const label = getFlag(args, "--label");
+  const assignee = getFlag(args, "--assignee");
+  const author = getFlag(args, "--author");
+  const milestone = getFlag(args, "--milestone");
+  const sort = getFlag(args, "--sort");
+  const limitRaw = getFlag(args, "--limit");
   const limit = limitRaw ? parseInt(limitRaw, 10) : 30;
 
-  const baseJsonFields = 'number,title,state,author,createdAt';
-  const jsonFields = extraJsonKeys.length > 0 ? baseJsonFields + ',' + extraJsonKeys.join(',') : baseJsonFields;
-  const ghArgs = ['issue', 'list', '--json', jsonFields, '--limit', String(limit)];
-  if (state) ghArgs.push('--state', state);
-  if (label) ghArgs.push('--label', label);
-  if (assignee) ghArgs.push('--assignee', assignee);
-  if (author) ghArgs.push('--author', author);
-  if (milestone) ghArgs.push('--milestone', milestone);
-  if (sort) ghArgs.push('--search', `sort:${sort}-desc`);
+  const baseJsonFields = "number,title,state,author,createdAt";
+  const jsonFields =
+    extraJsonKeys.length > 0
+      ? baseJsonFields + "," + extraJsonKeys.join(",")
+      : baseJsonFields;
+  const ghArgs = [
+    "issue",
+    "list",
+    "--json",
+    jsonFields,
+    "--limit",
+    String(limit),
+  ];
+  if (state) ghArgs.push("--state", state);
+  if (label) ghArgs.push("--label", label);
+  if (assignee) ghArgs.push("--assignee", assignee);
+  if (author) ghArgs.push("--author", author);
+  if (milestone) ghArgs.push("--milestone", milestone);
+  if (sort) ghArgs.push("--search", `sort:${sort}-desc`);
 
   const items = await ghJson<IssueListItem[]>(ghArgs, ctx);
   const isEmpty = items.length === 0;
@@ -193,9 +219,9 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
   let totalCount: number | undefined;
   if (items.length === limit && ctx) {
     try {
-      const ghState = (state ?? 'open').toUpperCase();
+      const ghState = (state ?? "open").toUpperCase();
       const query = `{ repository(owner:"${ctx.owner}", name:"${ctx.name}") { issues(states:[${ghState}]) { totalCount } } }`;
-      const gqlResult = await ghRaw(['api', 'graphql', '-f', `query=${query}`]);
+      const gqlResult = await ghRaw(["api", "graphql", "-f", `query=${query}`]);
       if (gqlResult.exitCode === 0) {
         const parsed = JSON.parse(gqlResult.stdout);
         totalCount = parsed?.data?.repository?.issues?.totalCount ?? undefined;
@@ -206,50 +232,70 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
   }
   const countLine = formatCountLine({ count: items.length, limit, totalCount });
 
-  const extendedSchema = extraDefs.length > 0 ? [...listSchema, ...extraDefs] : listSchema;
-  const blocks: string[] = [countLine, renderList('issues', items, extendedSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'list', isEmpty, repo: ctx });
+  const extendedSchema =
+    extraDefs.length > 0 ? [...listSchema, ...extraDefs] : listSchema;
+  const blocks: string[] = [
+    countLine,
+    renderList("issues", items, extendedSchema),
+  ];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "list",
+    isEmpty,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
-  const withComments = hasFlag(args, '--comments');
-  const full = hasFlag(args, '--full');
+  const num = requireNumber(getPositional(args, 1), "issue");
+  const withComments = hasFlag(args, "--comments");
+  const full = hasFlag(args, "--full");
 
-  const fields = 'number,title,state,author,createdAt,body' + (withComments ? ',comments' : '');
-  const ghArgs = ['issue', 'view', String(num), '--json', fields];
+  const fields =
+    "number,title,state,author,createdAt,body" +
+    (withComments ? ",comments" : "");
+  const ghArgs = ["issue", "view", String(num), "--json", fields];
 
   const item = await ghJson<Record<string, unknown>>(ghArgs, ctx);
-  const state = typeof item.state === 'string' ? item.state.toLowerCase() : undefined;
 
-  const blocks: string[] = [renderDetail('issue', item, full ? viewSchemaFull : viewSchema)];
+  const blocks: string[] = [
+    renderDetail("issue", item, full ? viewSchemaFull : viewSchema),
+  ];
 
   if (withComments && Array.isArray(item.comments)) {
-    blocks.push(renderList('comments', item.comments as Record<string, unknown>[], commentResultSchema.filter((d) => ('key' in d ? d.key !== 'number' : true))));
+    blocks.push(
+      renderList(
+        "comments",
+        item.comments as Record<string, unknown>[],
+        commentResultSchema.filter((d) =>
+          "key" in d ? d.key !== "number" : true,
+        ),
+      ),
+    );
   }
 
   return renderOutput(blocks);
 }
 
 async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const title = getFlag(args, '--title');
-  if (!title) throw new AxiError('--title is required', 'VALIDATION_ERROR');
+  const title = getFlag(args, "--title");
+  if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
-  const body = getFlag(args, '--body');
-  const assignee = getFlag(args, '--assignee');
-  const label = getFlag(args, '--label');
-  const milestone = getFlag(args, '--milestone');
-  const project = getFlag(args, '--project');
+  const body = getFlag(args, "--body");
+  const assignee = getFlag(args, "--assignee");
+  const label = getFlag(args, "--label");
+  const milestone = getFlag(args, "--milestone");
+  const project = getFlag(args, "--project");
 
-  const ghArgs = ['issue', 'create', '--title', title];
-  if (body) ghArgs.push('--body', body);
-  if (assignee) ghArgs.push('--assignee', assignee);
-  if (label) ghArgs.push('--label', label);
-  if (milestone) ghArgs.push('--milestone', milestone);
-  if (project) ghArgs.push('--project', project);
+  const ghArgs = ["issue", "create", "--title", title];
+  if (body) ghArgs.push("--body", body);
+  if (assignee) ghArgs.push("--assignee", assignee);
+  if (label) ghArgs.push("--label", label);
+  if (milestone) ghArgs.push("--milestone", milestone);
+  if (project) ghArgs.push("--project", project);
 
   // gh issue create outputs the URL; use --json to get structured data
   // Unfortunately gh issue create doesn't support --json, so we parse the URL
@@ -260,248 +306,465 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = numMatch ? parseInt(numMatch[1], 10) : 0;
 
   // Fetch the created issue for structured output
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,title,state,url'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,title,state,url"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, createResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'create', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, createResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "create",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
-  const title = getFlag(args, '--title');
-  const body = getFlag(args, '--body');
-  const addLabel = getFlag(args, '--add-label');
-  const removeLabel = getFlag(args, '--remove-label');
-  const addAssignee = getFlag(args, '--add-assignee');
-  const removeAssignee = getFlag(args, '--remove-assignee');
-  const milestone = getFlag(args, '--milestone');
+  const title = getFlag(args, "--title");
+  const body = getFlag(args, "--body");
+  const addLabel = getFlag(args, "--add-label");
+  const removeLabel = getFlag(args, "--remove-label");
+  const addAssignee = getFlag(args, "--add-assignee");
+  const removeAssignee = getFlag(args, "--remove-assignee");
+  const milestone = getFlag(args, "--milestone");
 
-  const ghArgs = ['issue', 'edit', String(num)];
-  if (title) ghArgs.push('--title', title);
-  if (body) ghArgs.push('--body', body);
-  if (addLabel) ghArgs.push('--add-label', addLabel);
-  if (removeLabel) ghArgs.push('--remove-label', removeLabel);
-  if (addAssignee) ghArgs.push('--add-assignee', addAssignee);
-  if (removeAssignee) ghArgs.push('--remove-assignee', removeAssignee);
-  if (milestone) ghArgs.push('--milestone', milestone);
+  const ghArgs = ["issue", "edit", String(num)];
+  if (title) ghArgs.push("--title", title);
+  if (body) ghArgs.push("--body", body);
+  if (addLabel) ghArgs.push("--add-label", addLabel);
+  if (removeLabel) ghArgs.push("--remove-label", removeLabel);
+  if (addAssignee) ghArgs.push("--add-assignee", addAssignee);
+  if (removeAssignee) ghArgs.push("--remove-assignee", removeAssignee);
+  if (milestone) ghArgs.push("--milestone", milestone);
 
   await ghExec(ghArgs, ctx);
 
   // Fetch updated issue
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,title,state,labels,assignees'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    [
+      "issue",
+      "view",
+      String(num),
+      "--json",
+      "number,title,state,labels,assignees",
+    ],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, editResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'edit', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, editResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "edit",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
-  const reason = getFlag(args, '--reason');
-  const comment = getFlag(args, '--comment');
+  const num = requireNumber(getPositional(args, 1), "issue");
+  const reason = getFlag(args, "--reason");
+  const comment = getFlag(args, "--comment");
 
   // Idempotent: check current state
-  const current = await ghJson<{ state: string }>(['issue', 'view', String(num), '--json', 'state'], ctx);
-  if (current.state.toLowerCase() === 'closed') {
-    const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state'], ctx);
-    const blocks: string[] = [renderDetail('issue', { ...item, _message: 'Already closed' }, [...stateResultSchema, field('_message', 'message')])];
-    const help = getSuggestions({ domain: 'issue', action: 'close', id: num, repo: ctx });
+  const current = await ghJson<{ state: string }>(
+    ["issue", "view", String(num), "--json", "state"],
+    ctx,
+  );
+  if (current.state.toLowerCase() === "closed") {
+    const item = await ghJson<Record<string, unknown>>(
+      ["issue", "view", String(num), "--json", "number,state"],
+      ctx,
+    );
+    const blocks: string[] = [
+      renderDetail("issue", { ...item, _message: "Already closed" }, [
+        ...stateResultSchema,
+        field("_message", "message"),
+      ]),
+    ];
+    const help = getSuggestions({
+      domain: "issue",
+      action: "close",
+      id: num,
+      repo: ctx,
+    });
     blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
-  const ghArgs = ['issue', 'close', String(num)];
-  if (reason) ghArgs.push('--reason', reason);
-  if (comment) ghArgs.push('--comment', comment);
+  const ghArgs = ["issue", "close", String(num)];
+  if (reason) ghArgs.push("--reason", reason);
+  if (comment) ghArgs.push("--comment", comment);
 
   await ghExec(ghArgs, ctx);
 
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,state"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, stateResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'close', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, stateResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "close",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function reopenIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
   // Idempotent: check current state
-  const current = await ghJson<{ state: string }>(['issue', 'view', String(num), '--json', 'state'], ctx);
-  if (current.state.toLowerCase() === 'open') {
-    const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state'], ctx);
-    const blocks: string[] = [renderDetail('issue', { ...item, _message: 'Already open' }, [...stateResultSchema, field('_message', 'message')])];
-    const help = getSuggestions({ domain: 'issue', action: 'reopen', id: num, repo: ctx });
+  const current = await ghJson<{ state: string }>(
+    ["issue", "view", String(num), "--json", "state"],
+    ctx,
+  );
+  if (current.state.toLowerCase() === "open") {
+    const item = await ghJson<Record<string, unknown>>(
+      ["issue", "view", String(num), "--json", "number,state"],
+      ctx,
+    );
+    const blocks: string[] = [
+      renderDetail("issue", { ...item, _message: "Already open" }, [
+        ...stateResultSchema,
+        field("_message", "message"),
+      ]),
+    ];
+    const help = getSuggestions({
+      domain: "issue",
+      action: "reopen",
+      id: num,
+      repo: ctx,
+    });
     blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
-  await ghExec(['issue', 'reopen', String(num)], ctx);
+  await ghExec(["issue", "reopen", String(num)], ctx);
 
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,state"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, stateResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'reopen', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, stateResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "reopen",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
-async function commentOnIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
-  const body = getFlag(args, '--body');
-  if (!body) throw new AxiError('--body is required', 'VALIDATION_ERROR');
+async function commentOnIssue(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const num = requireNumber(getPositional(args, 1), "issue");
+  const body = getFlag(args, "--body");
+  if (!body) throw new AxiError("--body is required", "VALIDATION_ERROR");
 
-  await ghExec(['issue', 'comment', String(num), '--body', body], ctx);
+  await ghExec(["issue", "comment", String(num), "--body", body], ctx);
 
   // Fetch the latest comment
-  const issue = await ghJson<{ comments: IssueComment[] }>(['issue', 'view', String(num), '--json', 'comments'], ctx);
+  const issue = await ghJson<{ comments: IssueComment[] }>(
+    ["issue", "view", String(num), "--json", "comments"],
+    ctx,
+  );
   const lastComment = issue.comments[issue.comments.length - 1];
   const commentItem = { ...lastComment, number: num };
 
-  const blocks: string[] = [renderDetail('comment', commentItem, commentResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'comment', id: num, repo: ctx });
+  const blocks: string[] = [
+    renderDetail("comment", commentItem, commentResultSchema),
+  ];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "comment",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function deleteIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
-  await ghExec(['issue', 'delete', String(num), '--yes'], ctx);
+  await ghExec(["issue", "delete", String(num), "--yes"], ctx);
 
-  const blocks: string[] = [renderDetail('issue', { number: num, status: 'deleted' }, [field('number'), field('status')])];
-  const help = getSuggestions({ domain: 'issue', action: 'delete', id: num, repo: ctx });
+  const blocks: string[] = [
+    renderDetail("issue", { number: num, status: "deleted" }, [
+      field("number"),
+      field("status"),
+    ]),
+  ];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "delete",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function lockIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
   // Idempotent: check current locked state
-  const current = await ghJson<{ locked: boolean; state: string }>(['issue', 'view', String(num), '--json', 'state,locked'], ctx);
+  const current = await ghJson<{ locked: boolean; state: string }>(
+    ["issue", "view", String(num), "--json", "state,locked"],
+    ctx,
+  );
   if (current.locked) {
-    const item = { number: num, state: current.state, locked: true, _message: 'Already locked' };
-    const blocks: string[] = [renderDetail('issue', item, [...lockResultSchema, field('_message', 'message')])];
-    const help = getSuggestions({ domain: 'issue', action: 'lock', id: num, repo: ctx });
+    const item = {
+      number: num,
+      state: current.state,
+      locked: true,
+      _message: "Already locked",
+    };
+    const blocks: string[] = [
+      renderDetail("issue", item, [
+        ...lockResultSchema,
+        field("_message", "message"),
+      ]),
+    ];
+    const help = getSuggestions({
+      domain: "issue",
+      action: "lock",
+      id: num,
+      repo: ctx,
+    });
     blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
-  await ghExec(['issue', 'lock', String(num)], ctx);
+  await ghExec(["issue", "lock", String(num)], ctx);
 
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state,locked'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,state,locked"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, lockResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'lock', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, lockResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "lock",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function unlockIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
   // Idempotent: check current locked state
-  const current = await ghJson<{ locked: boolean; state: string }>(['issue', 'view', String(num), '--json', 'state,locked'], ctx);
+  const current = await ghJson<{ locked: boolean; state: string }>(
+    ["issue", "view", String(num), "--json", "state,locked"],
+    ctx,
+  );
   if (!current.locked) {
-    const item = { number: num, state: current.state, locked: false, _message: 'Already unlocked' };
-    const blocks: string[] = [renderDetail('issue', { ...item }, [...lockResultSchema, field('_message', 'message')])];
-    const help = getSuggestions({ domain: 'issue', action: 'unlock', id: num, repo: ctx });
+    const item = {
+      number: num,
+      state: current.state,
+      locked: false,
+      _message: "Already unlocked",
+    };
+    const blocks: string[] = [
+      renderDetail("issue", { ...item }, [
+        ...lockResultSchema,
+        field("_message", "message"),
+      ]),
+    ];
+    const help = getSuggestions({
+      domain: "issue",
+      action: "unlock",
+      id: num,
+      repo: ctx,
+    });
     blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
-  await ghExec(['issue', 'unlock', String(num)], ctx);
+  await ghExec(["issue", "unlock", String(num)], ctx);
 
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state,locked'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,state,locked"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, lockResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'unlock', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, lockResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "unlock",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function pinIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
   // Idempotent: check current pinned state
-  const current = await ghJson<{ isPinned: boolean; state: string }>(['issue', 'view', String(num), '--json', 'state,isPinned'], ctx);
+  const current = await ghJson<{ isPinned: boolean; state: string }>(
+    ["issue", "view", String(num), "--json", "state,isPinned"],
+    ctx,
+  );
   if (current.isPinned) {
-    const item = { number: num, state: current.state, isPinned: true, _message: 'Already pinned' };
-    const blocks: string[] = [renderDetail('issue', item, [...pinResultSchema, field('_message', 'message')])];
-    const help = getSuggestions({ domain: 'issue', action: 'pin', id: num, repo: ctx });
+    const item = {
+      number: num,
+      state: current.state,
+      isPinned: true,
+      _message: "Already pinned",
+    };
+    const blocks: string[] = [
+      renderDetail("issue", item, [
+        ...pinResultSchema,
+        field("_message", "message"),
+      ]),
+    ];
+    const help = getSuggestions({
+      domain: "issue",
+      action: "pin",
+      id: num,
+      repo: ctx,
+    });
     blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
-  await ghExec(['issue', 'pin', String(num)], ctx);
+  await ghExec(["issue", "pin", String(num)], ctx);
 
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state,isPinned'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,state,isPinned"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, pinResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'pin', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, pinResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "pin",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
 async function unpinIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
+  const num = requireNumber(getPositional(args, 1), "issue");
 
   // Idempotent: check current pinned state
-  const current = await ghJson<{ isPinned: boolean; state: string }>(['issue', 'view', String(num), '--json', 'state,isPinned'], ctx);
+  const current = await ghJson<{ isPinned: boolean; state: string }>(
+    ["issue", "view", String(num), "--json", "state,isPinned"],
+    ctx,
+  );
   if (!current.isPinned) {
-    const item = { number: num, state: current.state, isPinned: false, _message: 'Already unpinned' };
-    const blocks: string[] = [renderDetail('issue', item, [...pinResultSchema, field('_message', 'message')])];
-    const help = getSuggestions({ domain: 'issue', action: 'unpin', id: num, repo: ctx });
+    const item = {
+      number: num,
+      state: current.state,
+      isPinned: false,
+      _message: "Already unpinned",
+    };
+    const blocks: string[] = [
+      renderDetail("issue", item, [
+        ...pinResultSchema,
+        field("_message", "message"),
+      ]),
+    ];
+    const help = getSuggestions({
+      domain: "issue",
+      action: "unpin",
+      id: num,
+      repo: ctx,
+    });
     blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
-  await ghExec(['issue', 'unpin', String(num)], ctx);
+  await ghExec(["issue", "unpin", String(num)], ctx);
 
-  const item = await ghJson<Record<string, unknown>>(['issue', 'view', String(num), '--json', 'number,state,isPinned'], ctx);
+  const item = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", "number,state,isPinned"],
+    ctx,
+  );
 
-  const blocks: string[] = [renderDetail('issue', item, pinResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'unpin', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, pinResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "unpin",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
 }
 
-async function transferIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), 'issue');
-  const destRepo = getFlag(args, '--to-repo');
-  if (!destRepo) throw new AxiError('--to-repo is required for transfer', 'VALIDATION_ERROR');
+async function transferIssue(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const num = requireNumber(getPositional(args, 1), "issue");
+  const destRepo = getFlag(args, "--to-repo");
+  if (!destRepo)
+    throw new AxiError(
+      "--to-repo is required for transfer",
+      "VALIDATION_ERROR",
+    );
 
-  await ghExec(['issue', 'transfer', String(num), destRepo], ctx);
+  await ghExec(["issue", "transfer", String(num), destRepo], ctx);
 
   // After transfer the issue gets a new URL; try to get it from the output
   // The transferred issue may have a new number in the target repo.
   // We can fetch by the original number since gh resolves it via redirect.
   let item: { number: number; url: string };
   try {
-    item = await ghJson<{ number: number; url: string }>(['issue', 'view', String(num), '--json', 'number,url', '--repo', destRepo]);
+    item = await ghJson<{ number: number; url: string }>([
+      "issue",
+      "view",
+      String(num),
+      "--json",
+      "number,url",
+      "--repo",
+      destRepo,
+    ]);
   } catch {
     // Fallback: return what we know
     item = { number: num, url: `https://github.com/${destRepo}/issues/${num}` };
   }
 
-  const blocks: string[] = [renderDetail('issue', item, transferResultSchema)];
-  const help = getSuggestions({ domain: 'issue', action: 'transfer', id: num, repo: ctx });
+  const blocks: string[] = [renderDetail("issue", item, transferResultSchema)];
+  const help = getSuggestions({
+    domain: "issue",
+    action: "transfer",
+    id: num,
+    repo: ctx,
+  });
   blocks.push(renderHelp(help));
 
   return renderOutput(blocks);
@@ -511,46 +774,51 @@ async function transferIssue(args: string[], ctx?: RepoContext): Promise<string>
 // Main dispatcher
 // ---------------------------------------------------------------------------
 
-export async function issueCommand(args: string[], ctx?: RepoContext): Promise<string> {
+export async function issueCommand(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
   const sub = args[0];
 
-  if (!sub || hasFlag(args, '--help')) {
+  if (!sub || hasFlag(args, "--help")) {
     const blocks: string[] = [ISSUE_HELP];
-    const help = getSuggestions({ domain: 'issue', action: 'help', repo: ctx });
+    const help = getSuggestions({ domain: "issue", action: "help", repo: ctx });
     if (help.length > 0) blocks.push(renderHelp(help));
     return renderOutput(blocks);
   }
 
   switch (sub) {
-    case 'list':
+    case "list":
       return listIssues(args, ctx);
-    case 'view':
+    case "view":
       return viewIssue(args, ctx);
-    case 'create':
+    case "create":
       return createIssue(args, ctx);
-    case 'edit':
+    case "edit":
       return editIssue(args, ctx);
-    case 'close':
+    case "close":
       return closeIssue(args, ctx);
-    case 'reopen':
+    case "reopen":
       return reopenIssue(args, ctx);
-    case 'comment':
+    case "comment":
       return commentOnIssue(args, ctx);
-    case 'delete':
+    case "delete":
       return deleteIssue(args, ctx);
-    case 'lock':
+    case "lock":
       return lockIssue(args, ctx);
-    case 'unlock':
+    case "unlock":
       return unlockIssue(args, ctx);
-    case 'pin':
+    case "pin":
       return pinIssue(args, ctx);
-    case 'unpin':
+    case "unpin":
       return unpinIssue(args, ctx);
-    case 'transfer':
+    case "transfer":
       return transferIssue(args, ctx);
     default:
-      return renderError(`Unknown issue subcommand: ${sub}`, 'VALIDATION_ERROR', [
-        'Run `gh-axi issue --help` for usage',
-      ]);
+      return renderError(
+        `Unknown issue subcommand: ${sub}`,
+        "VALIDATION_ERROR",
+        ["Run `gh-axi issue --help` for usage"],
+      );
   }
 }

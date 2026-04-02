@@ -1,210 +1,254 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from "vitest";
 
-vi.mock('../../src/gh.js', () => ({
+vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec } from '../../src/gh.js';
-import { issueCommand, ISSUE_HELP } from '../../src/commands/issue.js';
-import { AxiError } from '../../src/errors.js';
-import type { RepoContext } from '../../src/context.js';
+import { ghJson, ghExec } from "../../src/gh.js";
+import { issueCommand, ISSUE_HELP } from "../../src/commands/issue.js";
+import { AxiError } from "../../src/errors.js";
+import type { RepoContext } from "../../src/context.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
 
-const ctx: RepoContext = { owner: 'octo', name: 'repo', nwo: 'octo/repo', source: 'flag' };
+const ctx: RepoContext = {
+  owner: "octo",
+  name: "repo",
+  nwo: "octo/repo",
+  source: "flag",
+};
 
-describe('issueCommand', () => {
+describe("issueCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
-  describe('router', () => {
-    it('returns help when --help is passed', async () => {
-      const result = await issueCommand(['--help'], ctx);
+  describe("router", () => {
+    it("returns help when --help is passed", async () => {
+      const result = await issueCommand(["--help"], ctx);
       expect(result).toContain(ISSUE_HELP);
     });
 
-    it('returns help when no subcommand is given', async () => {
+    it("returns help when no subcommand is given", async () => {
       const result = await issueCommand([], ctx);
       expect(result).toContain(ISSUE_HELP);
     });
 
-    it('returns error for unknown subcommand (not throw)', async () => {
-      const result = await issueCommand(['unknown'], ctx);
-      expect(result).toContain('Unknown issue subcommand: unknown');
+    it("returns error for unknown subcommand (not throw)", async () => {
+      const result = await issueCommand(["unknown"], ctx);
+      expect(result).toContain("Unknown issue subcommand: unknown");
     });
   });
 
-  describe('list', () => {
-    it('returns list with count', async () => {
+  describe("list", () => {
+    it("returns list with count", async () => {
       mockedGhJson.mockResolvedValue([
-        { number: 1, title: 'Bug report', state: 'OPEN', author: { login: 'alice' }, createdAt: '2024-01-01T00:00:00Z' },
-        { number: 2, title: 'Feature request', state: 'OPEN', author: { login: 'bob' }, createdAt: '2024-01-02T00:00:00Z' },
+        {
+          number: 1,
+          title: "Bug report",
+          state: "OPEN",
+          author: { login: "alice" },
+          createdAt: "2024-01-01T00:00:00Z",
+        },
+        {
+          number: 2,
+          title: "Feature request",
+          state: "OPEN",
+          author: { login: "bob" },
+          createdAt: "2024-01-02T00:00:00Z",
+        },
       ]);
 
-      const result = await issueCommand(['list'], ctx);
+      const result = await issueCommand(["list"], ctx);
 
-      expect(result).toContain('count: 2');
-      expect(result).toContain('Bug report');
-      expect(result).toContain('Feature request');
+      expect(result).toContain("count: 2");
+      expect(result).toContain("Bug report");
+      expect(result).toContain("Feature request");
     });
 
-    it('uses default compact --json fields when --fields is not passed', async () => {
+    it("uses default compact --json fields when --fields is not passed", async () => {
       mockedGhJson.mockResolvedValue([]);
-      await issueCommand(['list'], ctx);
+      await issueCommand(["list"], ctx);
 
       const callArgs = mockedGhJson.mock.calls[0][0] as string[];
-      const jsonIdx = callArgs.indexOf('--json');
+      const jsonIdx = callArgs.indexOf("--json");
       const jsonValue = callArgs[jsonIdx + 1];
       // Default fields should NOT include body, closedAt, etc.
-      expect(jsonValue).not.toContain('body');
-      expect(jsonValue).not.toContain('closedAt');
-      expect(jsonValue).toContain('number');
-      expect(jsonValue).toContain('title');
+      expect(jsonValue).not.toContain("body");
+      expect(jsonValue).not.toContain("closedAt");
+      expect(jsonValue).toContain("number");
+      expect(jsonValue).toContain("title");
     });
 
-    it('extends --json and schema when --fields is passed', async () => {
+    it("extends --json and schema when --fields is passed", async () => {
       mockedGhJson.mockResolvedValue([
-        { number: 1, title: 'Bug', state: 'OPEN', author: { login: 'alice' }, createdAt: '2024-01-01T00:00:00Z', body: 'details here', labels: [{ name: 'bug' }] },
+        {
+          number: 1,
+          title: "Bug",
+          state: "OPEN",
+          author: { login: "alice" },
+          createdAt: "2024-01-01T00:00:00Z",
+          body: "details here",
+          labels: [{ name: "bug" }],
+        },
       ]);
 
-      const result = await issueCommand(['list', '--fields', 'body,labels'], ctx);
+      const result = await issueCommand(
+        ["list", "--fields", "body,labels"],
+        ctx,
+      );
 
       // The gh --json arg should include the extra fields
       const callArgs = mockedGhJson.mock.calls[0][0] as string[];
-      const jsonIdx = callArgs.indexOf('--json');
+      const jsonIdx = callArgs.indexOf("--json");
       const jsonValue = callArgs[jsonIdx + 1];
-      expect(jsonValue).toContain('body');
-      expect(jsonValue).toContain('labels');
+      expect(jsonValue).toContain("body");
+      expect(jsonValue).toContain("labels");
 
       // Output should contain the extra field data
-      expect(result).toContain('details here');
-      expect(result).toContain('bug');
+      expect(result).toContain("details here");
+      expect(result).toContain("bug");
     });
 
-    it('throws VALIDATION_ERROR for unknown --fields', async () => {
+    it("throws VALIDATION_ERROR for unknown --fields", async () => {
       await expect(
-        issueCommand(['list', '--fields', 'nonexistent'], ctx),
+        issueCommand(["list", "--fields", "nonexistent"], ctx),
       ).rejects.toThrow(AxiError);
 
       try {
-        await issueCommand(['list', '--fields', 'nonexistent'], ctx);
+        await issueCommand(["list", "--fields", "nonexistent"], ctx);
       } catch (e) {
-        expect((e as AxiError).code).toBe('VALIDATION_ERROR');
-        expect((e as AxiError).message).toContain('nonexistent');
+        expect((e as AxiError).code).toBe("VALIDATION_ERROR");
+        expect((e as AxiError).message).toContain("nonexistent");
       }
     });
   });
 
-  describe('view', () => {
-    it('returns detail', async () => {
+  describe("view", () => {
+    it("returns detail", async () => {
       mockedGhJson.mockResolvedValue({
         number: 42,
-        title: 'Critical bug',
-        state: 'OPEN',
-        author: { login: 'alice' },
-        createdAt: '2024-01-01T00:00:00Z',
-        body: 'Some issue body',
+        title: "Critical bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "Some issue body",
       });
 
-      const result = await issueCommand(['view', '42'], ctx);
+      const result = await issueCommand(["view", "42"], ctx);
 
-      expect(result).toContain('42');
-      expect(result).toContain('Critical bug');
-      expect(result).toContain('open');
-      expect(result).toContain('alice');
+      expect(result).toContain("42");
+      expect(result).toContain("Critical bug");
+      expect(result).toContain("open");
+      expect(result).toContain("alice");
     });
 
-    it('omits help suggestions from detail view', async () => {
+    it("omits help suggestions from detail view", async () => {
       mockedGhJson.mockResolvedValue({
-        number: 42, title: 'Bug', state: 'OPEN', author: { login: 'alice' },
-        createdAt: '2024-01-01T00:00:00Z', body: 'body',
+        number: 42,
+        title: "Bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "body",
       });
-      const result = await issueCommand(['view', '42'], ctx);
+      const result = await issueCommand(["view", "42"], ctx);
       expect(result).not.toMatch(/^help\[/m);
     });
   });
 
-  describe('create', () => {
-    it('requires --title', async () => {
-      await expect(
-        issueCommand(['create'], ctx),
-      ).rejects.toThrow(AxiError);
+  describe("create", () => {
+    it("requires --title", async () => {
+      await expect(issueCommand(["create"], ctx)).rejects.toThrow(AxiError);
     });
 
-    it('returns created issue', async () => {
-      mockedGhExec.mockResolvedValue('https://github.com/octo/repo/issues/99\n');
+    it("returns created issue", async () => {
+      mockedGhExec.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
       mockedGhJson.mockResolvedValue({
         number: 99,
-        title: 'New issue',
-        state: 'OPEN',
-        url: 'https://github.com/octo/repo/issues/99',
+        title: "New issue",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
       });
 
-      const result = await issueCommand(['create', '--title', 'New issue'], ctx);
+      const result = await issueCommand(
+        ["create", "--title", "New issue"],
+        ctx,
+      );
 
-      expect(result).toContain('99');
-      expect(result).toContain('New issue');
+      expect(result).toContain("99");
+      expect(result).toContain("New issue");
       expect(mockedGhExec).toHaveBeenCalledWith(
-        expect.arrayContaining(['issue', 'create', '--title', 'New issue']),
+        expect.arrayContaining(["issue", "create", "--title", "New issue"]),
         ctx,
       );
     });
   });
 
-  describe('close', () => {
-    it('returns already closed when issue is already closed (idempotent)', async () => {
+  describe("close", () => {
+    it("returns already closed when issue is already closed (idempotent)", async () => {
       // First call: check current state
-      mockedGhJson.mockResolvedValueOnce({ state: 'closed' });
+      mockedGhJson.mockResolvedValueOnce({ state: "closed" });
       // Second call: fetch for display
-      mockedGhJson.mockResolvedValueOnce({ number: 10, state: 'closed' });
+      mockedGhJson.mockResolvedValueOnce({ number: 10, state: "closed" });
 
-      const result = await issueCommand(['close', '10'], ctx);
+      const result = await issueCommand(["close", "10"], ctx);
 
-      expect(result).toContain('closed');
-      expect(result).toContain('Already closed');
+      expect(result).toContain("closed");
+      expect(result).toContain("Already closed");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
 
-  describe('lock', () => {
-    it('returns already locked when issue is already locked (idempotent)', async () => {
-      mockedGhJson.mockResolvedValue({ locked: true, state: 'OPEN' });
+  describe("lock", () => {
+    it("returns already locked when issue is already locked (idempotent)", async () => {
+      mockedGhJson.mockResolvedValue({ locked: true, state: "OPEN" });
 
-      const result = await issueCommand(['lock', '10'], ctx);
+      const result = await issueCommand(["lock", "10"], ctx);
 
-      expect(result).toContain('Already locked');
+      expect(result).toContain("Already locked");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
 
-  describe('transfer', () => {
-    it('requires --to-repo', async () => {
-      await expect(
-        issueCommand(['transfer', '10'], ctx),
-      ).rejects.toThrow(AxiError);
+  describe("transfer", () => {
+    it("requires --to-repo", async () => {
+      await expect(issueCommand(["transfer", "10"], ctx)).rejects.toThrow(
+        AxiError,
+      );
     });
 
-    it('transfers to the destination repo provided by --to-repo', async () => {
-      mockedGhExec.mockResolvedValue('');
+    it("transfers to the destination repo provided by --to-repo", async () => {
+      mockedGhExec.mockResolvedValue("");
       mockedGhJson.mockResolvedValue({
         number: 10,
-        url: 'https://github.com/dest/repo/issues/10',
+        url: "https://github.com/dest/repo/issues/10",
       });
 
-      const result = await issueCommand(['transfer', '10', '--to-repo', 'dest/repo'], ctx);
-
-      expect(result).toContain('dest/repo/issues/10');
-      expect(mockedGhExec).toHaveBeenCalledWith(
-        ['issue', 'transfer', '10', 'dest/repo'],
+      const result = await issueCommand(
+        ["transfer", "10", "--to-repo", "dest/repo"],
         ctx,
       );
-      expect(mockedGhJson).toHaveBeenCalledWith(
-        ['issue', 'view', '10', '--json', 'number,url', '--repo', 'dest/repo'],
+
+      expect(result).toContain("dest/repo/issues/10");
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["issue", "transfer", "10", "dest/repo"],
+        ctx,
       );
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        "issue",
+        "view",
+        "10",
+        "--json",
+        "number,url",
+        "--repo",
+        "dest/repo",
+      ]);
     });
   });
 });
