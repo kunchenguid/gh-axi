@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- **cli:** add top-level `-v`, `-V`, and `--version` flags
+
 ### Bug Fixes
 
 - **cli:** scope repository targeting to command arguments, keep `search --repo`
