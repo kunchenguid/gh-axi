@@ -16,6 +16,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.11](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.10...gh-axi-v0.1.11) (2026-04-09)
+
+
+### Features
+
+* **pr:** add --full flag to diff and improve truncation ([677da2b](https://github.com/kunchenguid/gh-axi/commit/677da2b984ed51dde4cd1493357774c9a59f0768))
+
 ## [0.1.10](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.9...gh-axi-v0.1.10) (2026-04-03)
 
 
