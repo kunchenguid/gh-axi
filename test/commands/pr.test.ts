@@ -200,10 +200,11 @@ describe('prCommand', () => {
       expect(result).toContain('pr_diff:');
       expect(result).toContain('number: 7');
       expect(result).toContain('diff --git');
-      expect(result).toContain('truncated: false');
+      expect(result).not.toContain('truncated:');
+      expect(result).not.toContain('--full');
     });
 
-    it('truncates large diffs with metadata', async () => {
+    it('truncates large diffs with metadata and --full escape hatch', async () => {
       const largeDiff = 'x'.repeat(25000);
       mockedGhExec.mockResolvedValue(largeDiff);
 
@@ -211,6 +212,8 @@ describe('prCommand', () => {
 
       expect(result).toContain('truncated: true');
       expect(result).toContain('original_length: 25000');
+      expect(result).toContain('pr diff 7 --full');
+      expect(result).toContain('to see the complete diff');
     });
 
     it('skips truncation with --full flag', async () => {
@@ -219,7 +222,7 @@ describe('prCommand', () => {
 
       const result = await prCommand(['diff', '7', '--full'], ctx);
 
-      expect(result).toContain('truncated: false');
+      expect(result).not.toContain('truncated:');
       expect(result).not.toContain('original_length');
     });
   });

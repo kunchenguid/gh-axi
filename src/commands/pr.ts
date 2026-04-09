@@ -157,6 +157,8 @@ flags{review}:
   --approve, --request-changes, --comment, --body
 flags{checks}:
   (none)
+flags{diff}:
+  --full (show complete diff without truncation)
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
@@ -454,7 +456,7 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
-const DIFF_TRUNCATE_LIMIT = 20000;
+const DIFF_TRUNCATE_LIMIT = 4000;
 
 async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
   const full = takeBoolFlag(args, '--full');
@@ -462,17 +464,27 @@ async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
   const diff = await ghExec(['pr', 'diff', String(num)], ctx);
 
   const shouldTruncate = !full && diff.length > DIFF_TRUNCATE_LIMIT;
-  const result: Record<string, unknown> = {
-    pr_diff: {
-      number: num,
-      diff: shouldTruncate ? diff.slice(0, DIFF_TRUNCATE_LIMIT) : diff,
-      truncated: shouldTruncate,
-    },
+  const prDiffBlock: Record<string, unknown> = {
+    number: num,
+    diff: shouldTruncate ? diff.slice(0, DIFF_TRUNCATE_LIMIT) : diff,
   };
   if (shouldTruncate) {
-    (result.pr_diff as Record<string, unknown>).original_length = diff.length;
+    prDiffBlock.truncated = true;
+    prDiffBlock.original_length = diff.length;
   }
-  return encode(result);
+
+  const suggestions = getSuggestions({ domain: 'pr', action: 'diff', id: num, repo: ctx });
+  if (shouldTruncate) {
+    const repoArg = ctx && ctx.source !== 'git' ? ` -R ${ctx.nwo}` : '';
+    suggestions.unshift(
+      `Run \`gh-axi${repoArg} pr diff ${num} --full\` to see the complete diff`,
+    );
+  }
+
+  return renderOutput([
+    encode({ pr_diff: prDiffBlock }),
+    renderHelp(suggestions),
+  ]);
 }
 
 async function prCheckout(args: string[], ctx?: RepoContext): Promise<string> {
