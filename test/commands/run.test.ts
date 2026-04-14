@@ -203,7 +203,7 @@ describe("runCommand", () => {
       expect(result).toContain("502");
     });
 
-    it("shows specific job with steps when --job is used", async () => {
+    it("shows specific job with steps in job-only mode", async () => {
       mockedGhJson.mockResolvedValue({
         databaseId: 100,
         displayTitle: "CI Build",
@@ -249,7 +249,7 @@ describe("runCommand", () => {
         ],
       });
 
-      const result = await runCommand(["view", "100", "--job", "502"], ctx);
+      const result = await runCommand(["view", "--job", "502"], ctx);
 
       // Should show the job detail
       expect(result).toContain("test");
@@ -260,48 +260,15 @@ describe("runCommand", () => {
       expect(result).toContain("Teardown");
     });
 
-    it("accepts --job before the run id", async () => {
-      mockedGhJson.mockResolvedValue({
-        databaseId: 100,
-        displayTitle: "CI Build",
-        status: "completed",
-        conclusion: "failure",
-        workflowName: "CI",
-        headBranch: "main",
-        createdAt: "2024-01-01T00:00:00Z",
-        jobs: [
-          {
-            databaseId: 502,
-            name: "test",
-            status: "completed",
-            conclusion: "failure",
-            steps: [
-              {
-                name: "Run tests",
-                number: 1,
-                status: "completed",
-                conclusion: "failure",
-              },
-            ],
-          },
-        ],
+    it("rejects a trailing run id after --job", async () => {
+      await expect(
+        runCommand(["view", "--job", "502", "100"], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Specify either a run ID or --job, not both",
       });
-
-      const result = await runCommand(["view", "--job", "502", "100"], ctx);
-
-      expect(mockedGhJson).toHaveBeenCalledWith(
-        [
-          "run",
-          "view",
-          "100",
-          "--job",
-          "502",
-          "--json",
-          "databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs",
-        ],
-        ctx,
-      );
-      expect(result).toContain("Run tests");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
     it("accepts job-only view invocations", async () => {
@@ -347,6 +314,17 @@ describe("runCommand", () => {
       expect(result).toContain("Run tests");
     });
 
+    it("rejects combining a run id with --job", async () => {
+      await expect(
+        runCommand(["view", "100", "--job", "502"], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Specify either a run ID or --job, not both",
+      });
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
     it("throws error when --job references nonexistent job", async () => {
       mockedGhJson.mockResolvedValue({
         databaseId: 100,
@@ -384,9 +362,9 @@ describe("runCommand", () => {
         jobs: [],
       });
 
-      await expect(
-        runCommand(["view", "100", "--job", "999"], ctx),
-      ).rejects.toThrow("Job 999 not found in run 100");
+      await expect(runCommand(["view", "--job", "999"], ctx)).rejects.toThrow(
+        "Job 999 not found in run 100",
+      );
     });
 
     it("rejects --job without a value", async () => {
@@ -430,21 +408,20 @@ describe("runCommand", () => {
       expect(result).toContain("error in step 3");
     });
 
-    it("passes --job to gh CLI in log mode", async () => {
-      mockedGhExec.mockResolvedValue("job-specific log output\n");
-      const result = await runCommand(
-        ["view", "100", "--log", "--job", "555"],
-        ctx,
-      );
-      expect(mockedGhExec).toHaveBeenCalledWith(
-        expect.arrayContaining(["--log", "--job", "555"]),
-        ctx,
-      );
-      expect(result).toContain("job-specific log output");
+    it("rejects combining a run id with --job in log mode", async () => {
+      await expect(
+        runCommand(["view", "100", "--log", "--job", "555"], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Specify either a run ID or --job, not both",
+      });
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
     it("accepts job-only log invocations", async () => {
       mockedGhExec.mockResolvedValue("job-specific log output\n");
+      mockedGhJson.mockResolvedValue({ databaseId: 100 });
       const result = await runCommand(["view", "--log", "--job", "555"], ctx);
 
       expect(mockedGhExec).toHaveBeenCalledWith(
@@ -454,14 +431,29 @@ describe("runCommand", () => {
       expect(result).toContain("job-specific log output");
     });
 
-    it("passes --job to gh CLI in log-failed mode", async () => {
+    it("records the resolved run id in job-only log envelopes", async () => {
+      mockedGhExec.mockResolvedValue("job-specific log output\n");
+      mockedGhJson.mockResolvedValue({ databaseId: 100 });
+
+      const result = await runCommand(["view", "--log", "--job", "555"], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["run", "view", "--job", "555", "--json", "databaseId"],
+        ctx,
+      );
+      expect(result).toContain('run: "100"');
+      expect(result).not.toContain("run: 555");
+    });
+
+    it("passes --job to gh CLI in log-failed job-only mode", async () => {
       mockedGhExec.mockResolvedValue("job-specific failure\n");
+      mockedGhJson.mockResolvedValue({ databaseId: 100 });
       const result = await runCommand(
-        ["view", "100", "--log-failed", "--job", "555"],
+        ["view", "--log-failed", "--job", "555"],
         ctx,
       );
       expect(mockedGhExec).toHaveBeenCalledWith(
-        expect.arrayContaining(["--log-failed", "--job", "555"]),
+        ["run", "view", "--log-failed", "--job", "555"],
         ctx,
       );
       expect(result).toContain("job-specific failure");

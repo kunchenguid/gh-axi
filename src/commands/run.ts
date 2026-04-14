@@ -110,6 +110,24 @@ function wrapLogOutput(run: string, mode: string, output: string): string {
   return encode(result);
 }
 
+async function resolveLogRunId(
+  id: string | undefined,
+  jobFlag: string | undefined,
+  ctx?: RepoContext,
+): Promise<string> {
+  if (id) return id;
+
+  const run = await ghJson<Record<string, unknown>>(
+    ["run", "view", "--job", jobFlag!, "--json", "databaseId"],
+    ctx,
+  );
+  const resolvedId = run.databaseId;
+  if (resolvedId === undefined || resolvedId === null) {
+    throw new AxiError(`Unable to resolve run for job ${jobFlag}`, "UNKNOWN");
+  }
+  return String(resolvedId);
+}
+
 async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
   const fieldsArg = takeFlag(args, "--fields");
   const { extraDefs, extraJsonKeys } = parseFields(
@@ -160,6 +178,12 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const conclusionFilter = takeViewFlagValue(viewArgs, "--conclusion");
   const positionals = viewArgs.filter((a) => !a.startsWith("--"));
   const id = positionals[1]; // positionals[0] is "view"
+  if (id && jobFlag) {
+    throw new AxiError(
+      "Specify either a run ID or --job, not both",
+      "VALIDATION_ERROR",
+    );
+  }
   if (!id && !jobFlag)
     throw new AxiError(
       "Run ID is required: gh-axi run view <id>",
@@ -174,13 +198,21 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
     const ghArgs = [...ghSelector, "--log"];
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
-    return wrapLogOutput(id ?? jobFlag!, "log", output);
+    return wrapLogOutput(
+      await resolveLogRunId(id, jobFlag, ctx),
+      "log",
+      output,
+    );
   }
   if (hasFlag(args, "--log-failed")) {
     const ghArgs = [...ghSelector, "--log-failed"];
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
-    return wrapLogOutput(id ?? jobFlag!, "log-failed", output);
+    return wrapLogOutput(
+      await resolveLogRunId(id, jobFlag, ctx),
+      "log-failed",
+      output,
+    );
   }
 
   const run = await ghJson<Record<string, unknown>>(
