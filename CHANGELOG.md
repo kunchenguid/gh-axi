@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.12](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.11...gh-axi-v0.1.12) (2026-04-14)
+
+
+### Bug Fixes
+
+* **run:** harden job-level run view behavior ([#15](https://github.com/kunchenguid/gh-axi/issues/15)) ([162cc3a](https://github.com/kunchenguid/gh-axi/commit/162cc3a12364fce4a0fa5d89a5b7267325502917))
+
 ## [0.1.11](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.10...gh-axi-v0.1.11) (2026-04-09)
 
 ### Features
