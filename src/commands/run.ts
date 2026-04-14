@@ -146,11 +146,7 @@ async function resolveLogEnvelopeRunId(
   ctx?: RepoContext,
 ): Promise<string> {
   if (id) return id;
-  try {
-    return await resolveLogRunId(id, jobFlag, ctx);
-  } catch {
-    return jobFlag!;
-  }
+  return resolveLogRunId(id, jobFlag, ctx);
 }
 
 async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
@@ -203,12 +199,6 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const conclusionFilter = takeViewFlagValue(viewArgs, "--conclusion");
   const positionals = viewArgs.filter((a) => !a.startsWith("--"));
   const id = positionals[1]; // positionals[0] is "view"
-  if (id && jobFlag) {
-    throw new AxiError(
-      "Specify either a run ID or --job, not both",
-      "VALIDATION_ERROR",
-    );
-  }
   if (!id && !jobFlag)
     throw new AxiError(
       "Run ID is required: gh-axi run view <id>",
