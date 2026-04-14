@@ -24,7 +24,7 @@ subcommands[7]:
 flags{list}:
   --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c>
 flags{view}:
-  --log, --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
+  --job <job-id>, --log, --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
 flags{rerun}:
   --failed, --debug, --job
 flags{download}:
@@ -56,6 +56,14 @@ const viewSchema: FieldDef[] = [
 ];
 
 const jobSchema: FieldDef[] = [
+  field('databaseId', 'id'),
+  field('name'),
+  lower('status'),
+  lower('conclusion'),
+];
+
+const stepSchema: FieldDef[] = [
+  field('number'),
   field('name'),
   lower('status'),
   lower('conclusion'),
@@ -129,13 +137,19 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const id = positionals[1]; // positionals[0] is "view"
   if (!id) throw new AxiError('Run ID is required: gh-axi run view <id>', 'VALIDATION_ERROR');
 
+  const jobFlag = getFlag(args, '--job');
+
   // Handle log modes
   if (hasFlag(args, '--log') || hasFlag(args, '--verbose')) {
-    const output = await ghExec(['run', 'view', id, '--log'], ctx);
+    const ghArgs = ['run', 'view', id, '--log'];
+    if (jobFlag) ghArgs.push('--job', jobFlag);
+    const output = await ghExec(ghArgs, ctx);
     return wrapLogOutput(id, 'log', output);
   }
   if (hasFlag(args, '--log-failed')) {
-    const output = await ghExec(['run', 'view', id, '--log-failed'], ctx);
+    const ghArgs = ['run', 'view', id, '--log-failed'];
+    if (jobFlag) ghArgs.push('--job', jobFlag);
+    const output = await ghExec(ghArgs, ctx);
     return wrapLogOutput(id, 'log-failed', output);
   }
 
@@ -149,14 +163,25 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const jobsArr = run.jobs;
   if (Array.isArray(jobsArr) && jobsArr.length > 0) {
     const typedJobs = jobsArr as Record<string, unknown>[];
-    const conclusionFilter = getFlag(args, '--conclusion');
-    const jobs = conclusionFilter
-      ? typedJobs.filter((j) => (typeof j.conclusion === 'string' ? j.conclusion : '').toLowerCase() === conclusionFilter.toLowerCase())
-      : typedJobs;
-    if (conclusionFilter) {
-      blocks.push(`jobs: ${jobs.length} of ${typedJobs.length} with conclusion=${conclusionFilter}`);
+
+    if (jobFlag) {
+      const job = typedJobs.find((j) => String(j.databaseId) === jobFlag);
+      if (!job) throw new AxiError(`Job ${jobFlag} not found in run ${id}`, 'VALIDATION_ERROR');
+      blocks.push(renderDetail('job', job, jobSchema));
+      const stepsArr = job.steps;
+      if (Array.isArray(stepsArr) && stepsArr.length > 0) {
+        blocks.push(renderList('steps', stepsArr as Record<string, unknown>[], stepSchema));
+      }
+    } else {
+      const conclusionFilter = getFlag(args, '--conclusion');
+      const jobs = conclusionFilter
+        ? typedJobs.filter((j) => (typeof j.conclusion === 'string' ? j.conclusion : '').toLowerCase() === conclusionFilter.toLowerCase())
+        : typedJobs;
+      if (conclusionFilter) {
+        blocks.push(`jobs: ${jobs.length} of ${typedJobs.length} with conclusion=${conclusionFilter}`);
+      }
+      blocks.push(renderList('jobs', jobs, jobSchema));
     }
-    blocks.push(renderList('jobs', jobs, jobSchema));
   }
 
   return renderOutput(blocks);

@@ -130,6 +130,64 @@ describe('runCommand', () => {
       const result = await runCommand(['view', '100'], ctx);
       expect(result).not.toMatch(/^help\[/m);
     });
+
+    it('includes job databaseId in job listing', async () => {
+      mockedGhJson.mockResolvedValue({
+        databaseId: 100, displayTitle: 'CI Build', status: 'completed', conclusion: 'failure',
+        workflowName: 'CI', headBranch: 'main', createdAt: '2024-01-01T00:00:00Z',
+        jobs: [
+          { databaseId: 501, name: 'build', status: 'completed', conclusion: 'success', steps: [] },
+          { databaseId: 502, name: 'test', status: 'completed', conclusion: 'failure', steps: [] },
+        ],
+      });
+
+      const result = await runCommand(['view', '100'], ctx);
+
+      expect(result).toContain('501');
+      expect(result).toContain('502');
+    });
+
+    it('shows specific job with steps when --job is used', async () => {
+      mockedGhJson.mockResolvedValue({
+        databaseId: 100, displayTitle: 'CI Build', status: 'completed', conclusion: 'failure',
+        workflowName: 'CI', headBranch: 'main', createdAt: '2024-01-01T00:00:00Z',
+        jobs: [
+          { databaseId: 501, name: 'build', status: 'completed', conclusion: 'success', steps: [] },
+          {
+            databaseId: 502, name: 'test', status: 'completed', conclusion: 'failure',
+            steps: [
+              { name: 'Set up job', number: 1, status: 'completed', conclusion: 'success' },
+              { name: 'Run tests', number: 2, status: 'completed', conclusion: 'failure' },
+              { name: 'Teardown', number: 3, status: 'completed', conclusion: 'skipped' },
+            ],
+          },
+        ],
+      });
+
+      const result = await runCommand(['view', '100', '--job', '502'], ctx);
+
+      // Should show the job detail
+      expect(result).toContain('test');
+      expect(result).toContain('failure');
+      // Should show steps
+      expect(result).toContain('Set up job');
+      expect(result).toContain('Run tests');
+      expect(result).toContain('Teardown');
+    });
+
+    it('throws error when --job references nonexistent job', async () => {
+      mockedGhJson.mockResolvedValue({
+        databaseId: 100, displayTitle: 'CI Build', status: 'completed', conclusion: 'failure',
+        workflowName: 'CI', headBranch: 'main', createdAt: '2024-01-01T00:00:00Z',
+        jobs: [
+          { databaseId: 501, name: 'build', status: 'completed', conclusion: 'success', steps: [] },
+        ],
+      });
+
+      await expect(
+        runCommand(['view', '100', '--job', '999'], ctx),
+      ).rejects.toThrow(AxiError);
+    });
   });
 
   describe('view --log', () => {
@@ -148,6 +206,26 @@ describe('runCommand', () => {
       expect(result).toContain('run_log:');
       expect(result).toContain('mode: log-failed');
       expect(result).toContain('error in step 3');
+    });
+
+    it('passes --job to gh CLI in log mode', async () => {
+      mockedGhExec.mockResolvedValue('job-specific log output\n');
+      const result = await runCommand(['view', '100', '--log', '--job', '555'], ctx);
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        expect.arrayContaining(['--log', '--job', '555']),
+        ctx,
+      );
+      expect(result).toContain('job-specific log output');
+    });
+
+    it('passes --job to gh CLI in log-failed mode', async () => {
+      mockedGhExec.mockResolvedValue('job-specific failure\n');
+      const result = await runCommand(['view', '100', '--log-failed', '--job', '555'], ctx);
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        expect.arrayContaining(['--log-failed', '--job', '555']),
+        ctx,
+      );
+      expect(result).toContain('job-specific failure');
     });
   });
 
