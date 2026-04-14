@@ -110,6 +110,18 @@ function wrapLogOutput(run: string, mode: string, output: string): string {
   return encode(result);
 }
 
+function matchesConclusionFilter(
+  item: Record<string, unknown>,
+  conclusionFilter: string,
+): boolean {
+  return (
+    (typeof item.conclusion === "string"
+      ? item.conclusion
+      : ""
+    ).toLowerCase() === conclusionFilter.toLowerCase()
+  );
+}
+
 async function resolveLogRunId(
   id: string | undefined,
   jobFlag: string | undefined,
@@ -126,6 +138,19 @@ async function resolveLogRunId(
     throw new AxiError(`Unable to resolve run for job ${jobFlag}`, "UNKNOWN");
   }
   return String(resolvedId);
+}
+
+async function resolveLogEnvelopeRunId(
+  id: string | undefined,
+  jobFlag: string | undefined,
+  ctx?: RepoContext,
+): Promise<string> {
+  if (id) return id;
+  try {
+    return await resolveLogRunId(id, jobFlag, ctx);
+  } catch {
+    return jobFlag!;
+  }
 }
 
 async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
@@ -199,7 +224,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
     return wrapLogOutput(
-      await resolveLogRunId(id, jobFlag, ctx),
+      await resolveLogEnvelopeRunId(id, jobFlag, ctx),
       "log",
       output,
     );
@@ -209,7 +234,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
     return wrapLogOutput(
-      await resolveLogRunId(id, jobFlag, ctx),
+      await resolveLogEnvelopeRunId(id, jobFlag, ctx),
       "log-failed",
       output,
     );
@@ -239,6 +264,12 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
         `Job ${jobFlag} not found in run ${id ?? String(run.databaseId ?? "unknown")}`,
         "VALIDATION_ERROR",
       );
+    if (conclusionFilter && !matchesConclusionFilter(job, conclusionFilter)) {
+      throw new AxiError(
+        `Job ${jobFlag} does not match conclusion=${conclusionFilter}`,
+        "VALIDATION_ERROR",
+      );
+    }
     blocks.push(renderDetail("job", job, jobSchema));
     const stepsArr = job.steps;
     if (Array.isArray(stepsArr) && stepsArr.length > 0) {
@@ -248,13 +279,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
     }
   } else if (typedJobs.length > 0) {
     const jobs = conclusionFilter
-      ? typedJobs.filter(
-          (j) =>
-            (typeof j.conclusion === "string"
-              ? j.conclusion
-              : ""
-            ).toLowerCase() === conclusionFilter.toLowerCase(),
-        )
+      ? typedJobs.filter((j) => matchesConclusionFilter(j, conclusionFilter))
       : typedJobs;
     if (conclusionFilter) {
       blocks.push(

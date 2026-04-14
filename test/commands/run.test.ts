@@ -260,6 +260,34 @@ describe("runCommand", () => {
       expect(result).toContain("Teardown");
     });
 
+    it("rejects a job-only view when --conclusion excludes the selected job", async () => {
+      mockedGhJson.mockResolvedValue({
+        databaseId: 100,
+        displayTitle: "CI Build",
+        status: "completed",
+        conclusion: "failure",
+        workflowName: "CI",
+        headBranch: "main",
+        createdAt: "2024-01-01T00:00:00Z",
+        jobs: [
+          {
+            databaseId: 502,
+            name: "test",
+            status: "completed",
+            conclusion: "failure",
+            steps: [],
+          },
+        ],
+      });
+
+      await expect(
+        runCommand(["view", "--job", "502", "--conclusion", "success"], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Job 502 does not match conclusion=success",
+      });
+    });
+
     it("rejects a trailing run id after --job", async () => {
       await expect(
         runCommand(["view", "--job", "502", "100"], ctx),
@@ -443,6 +471,16 @@ describe("runCommand", () => {
       );
       expect(result).toContain('run: "100"');
       expect(result).not.toContain("run: 555");
+    });
+
+    it("keeps job-only log output when run id resolution would fail", async () => {
+      mockedGhExec.mockResolvedValue("job-specific log output\n");
+      mockedGhJson.mockRejectedValue(new Error("transient failure"));
+
+      const result = await runCommand(["view", "--log", "--job", "555"], ctx);
+
+      expect(result).toContain('run: "555"');
+      expect(result).toContain("job-specific log output");
     });
 
     it("passes --job to gh CLI in log-failed job-only mode", async () => {
