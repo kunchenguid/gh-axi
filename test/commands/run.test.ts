@@ -388,6 +388,28 @@ describe("runCommand", () => {
         runCommand(["view", "100", "--job", "999"], ctx),
       ).rejects.toThrow("Job 999 not found in run 100");
     });
+
+    it("rejects --job without a value", async () => {
+      await expect(
+        runCommand(["view", "100", "--job", "--log"], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Missing value for --job",
+      });
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects --conclusion without a value", async () => {
+      await expect(
+        runCommand(["view", "100", "--conclusion", "--job", "502"], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Missing value for --conclusion",
+      });
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
   });
 
   describe("view --log", () => {

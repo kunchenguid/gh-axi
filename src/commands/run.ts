@@ -84,6 +84,16 @@ const RUN_LIST_BASE_JSON =
 
 const LOG_TRUNCATE_LIMIT = 20000;
 
+function takeViewFlagValue(args: string[], flag: string): string | undefined {
+  const present = args.includes(flag);
+  const value = takeFlag(args, flag);
+  if (!present) return undefined;
+  if (!value || value.startsWith("--")) {
+    throw new AxiError(`Missing value for ${flag}`, "VALIDATION_ERROR");
+  }
+  return value;
+}
+
 function wrapLogOutput(run: string, mode: string, output: string): string {
   const truncated = output.length > LOG_TRUNCATE_LIMIT;
   const result: Record<string, unknown> = {
@@ -146,8 +156,8 @@ async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const viewArgs = [...args];
-  const jobFlag = takeFlag(viewArgs, "--job");
-  const conclusionFilter = takeFlag(viewArgs, "--conclusion");
+  const jobFlag = takeViewFlagValue(viewArgs, "--job");
+  const conclusionFilter = takeViewFlagValue(viewArgs, "--conclusion");
   const positionals = viewArgs.filter((a) => !a.startsWith("--"));
   const id = positionals[1]; // positionals[0] is "view"
   if (!id && !jobFlag)
