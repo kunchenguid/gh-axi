@@ -294,6 +294,51 @@ describe("runCommand", () => {
           "run",
           "view",
           "100",
+          "--job",
+          "502",
+          "--json",
+          "databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs",
+        ],
+        ctx,
+      );
+      expect(result).toContain("Run tests");
+    });
+
+    it("accepts job-only view invocations", async () => {
+      mockedGhJson.mockResolvedValue({
+        databaseId: 100,
+        displayTitle: "CI Build",
+        status: "completed",
+        conclusion: "failure",
+        workflowName: "CI",
+        headBranch: "main",
+        createdAt: "2024-01-01T00:00:00Z",
+        jobs: [
+          {
+            databaseId: 502,
+            name: "test",
+            status: "completed",
+            conclusion: "failure",
+            steps: [
+              {
+                name: "Run tests",
+                number: 1,
+                status: "completed",
+                conclusion: "failure",
+              },
+            ],
+          },
+        ],
+      });
+
+      const result = await runCommand(["view", "--job", "502"], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        [
+          "run",
+          "view",
+          "--job",
+          "502",
           "--json",
           "databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs",
         ],
@@ -371,6 +416,17 @@ describe("runCommand", () => {
       );
       expect(mockedGhExec).toHaveBeenCalledWith(
         expect.arrayContaining(["--log", "--job", "555"]),
+        ctx,
+      );
+      expect(result).toContain("job-specific log output");
+    });
+
+    it("accepts job-only log invocations", async () => {
+      mockedGhExec.mockResolvedValue("job-specific log output\n");
+      const result = await runCommand(["view", "--log", "--job", "555"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["run", "view", "--log", "--job", "555"],
         ctx,
       );
       expect(result).toContain("job-specific log output");

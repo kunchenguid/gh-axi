@@ -150,31 +150,33 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const conclusionFilter = takeFlag(viewArgs, "--conclusion");
   const positionals = viewArgs.filter((a) => !a.startsWith("--"));
   const id = positionals[1]; // positionals[0] is "view"
-  if (!id)
+  if (!id && !jobFlag)
     throw new AxiError(
       "Run ID is required: gh-axi run view <id>",
       "VALIDATION_ERROR",
     );
 
+  const ghSelector = ["run", "view"];
+  if (id) ghSelector.push(id);
+
   // Handle log modes
   if (hasFlag(args, "--log") || hasFlag(args, "--verbose")) {
-    const ghArgs = ["run", "view", id, "--log"];
+    const ghArgs = [...ghSelector, "--log"];
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
-    return wrapLogOutput(id, "log", output);
+    return wrapLogOutput(id ?? jobFlag!, "log", output);
   }
   if (hasFlag(args, "--log-failed")) {
-    const ghArgs = ["run", "view", id, "--log-failed"];
+    const ghArgs = [...ghSelector, "--log-failed"];
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
-    return wrapLogOutput(id, "log-failed", output);
+    return wrapLogOutput(id ?? jobFlag!, "log-failed", output);
   }
 
   const run = await ghJson<Record<string, unknown>>(
     [
-      "run",
-      "view",
-      id,
+      ...ghSelector,
+      ...(jobFlag ? ["--job", jobFlag] : []),
       "--json",
       "databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs",
     ],
@@ -192,7 +194,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
     const job = typedJobs.find((j) => String(j.databaseId) === jobFlag);
     if (!job)
       throw new AxiError(
-        `Job ${jobFlag} not found in run ${id}`,
+        `Job ${jobFlag} not found in run ${id ?? String(run.databaseId ?? "unknown")}`,
         "VALIDATION_ERROR",
       );
     blocks.push(renderDetail("job", job, jobSchema));
