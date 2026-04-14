@@ -28,10 +28,12 @@ hooks. Those hooks invoke `gh-axi` directly from the packaged production build.
 ## Usage
 
 ```bash
-gh-axi                          # dashboard — live state, no args needed
+gh-axi                          # dashboard - live state, no args needed
 gh-axi issue list               # list issues in current repo
 gh-axi pr view 42               # view pull request #42
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
+gh-axi run view 123456 --job 789012       # inspect a single job within a run
+gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 ```
 
 ### Commands
