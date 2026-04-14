@@ -530,13 +530,14 @@ describe("runCommand", () => {
       expect(result).not.toContain("run: 555");
     });
 
-    it("propagates job-only log run id resolution failures", async () => {
+    it("falls back to the job id when job-only log run id resolution fails", async () => {
       mockedGhExec.mockResolvedValue("job-specific log output\n");
       mockedGhJson.mockRejectedValue(new Error("transient failure"));
 
-      await expect(
-        runCommand(["view", "--log", "--job", "555"], ctx),
-      ).rejects.toThrow("transient failure");
+      const result = await runCommand(["view", "--log", "--job", "555"], ctx);
+
+      expect(result).toContain("job-specific log output");
+      expect(result).toContain('run: "555"');
     });
 
     it("passes --job to gh CLI in log-failed job-only mode", async () => {

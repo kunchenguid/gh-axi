@@ -146,7 +146,12 @@ async function resolveLogEnvelopeRunId(
   ctx?: RepoContext,
 ): Promise<string> {
   if (id) return id;
-  return resolveLogRunId(id, jobFlag, ctx);
+  try {
+    return await resolveLogRunId(id, jobFlag, ctx);
+  } catch {
+    if (jobFlag) return jobFlag;
+    throw new AxiError("Unable to resolve run id for logs", "UNKNOWN");
+  }
 }
 
 async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
