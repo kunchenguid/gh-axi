@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.13](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.12...gh-axi-v0.1.13) (2026-04-25)
+
+
+### Miscellaneous Chores
+
+* release 0.1.13 ([e78ecea](https://github.com/kunchenguid/gh-axi/commit/e78ecea3a068febe2cd5a2e17b3532e9294fc63e))
+
 ## [0.1.12](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.11...gh-axi-v0.1.12) (2026-04-14)
 
 
