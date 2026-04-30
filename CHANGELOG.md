@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.14](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.13...gh-axi-v0.1.14) (2026-04-30)
+
+
+### Bug Fixes
+
+* **commands:** render PR reviews with inline comments ([#20](https://github.com/kunchenguid/gh-axi/issues/20)) ([2952cf8](https://github.com/kunchenguid/gh-axi/commit/2952cf8ab7b83f7df8fdf3084db4bd88d9f05cb8))
+
 ## [0.1.13](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.12...gh-axi-v0.1.13) (2026-04-25)
 
 
