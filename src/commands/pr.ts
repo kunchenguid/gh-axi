@@ -53,7 +53,26 @@ interface PrItem {
   statusCheckRollup?: CheckRun[];
   body?: string;
   comments?: PrComment[];
+  reviews?: unknown[];
   mergedBy?: { login: string };
+}
+
+interface PrReview {
+  id: number;
+  user?: { login: string };
+  body?: string;
+  state?: string;
+  submitted_at?: string;
+}
+
+interface PrReviewComment {
+  pull_request_review_id?: number;
+  user?: { login: string };
+  path?: string;
+  line?: number | null;
+  original_line?: number | null;
+  body?: string;
+  created_at?: string;
 }
 
 interface RevertResult {
@@ -83,6 +102,14 @@ const REVIEW_MAP: Record<string, string> = {
   APPROVED: 'approved',
   CHANGES_REQUESTED: 'changes_requested',
   REVIEW_REQUIRED: 'required',
+};
+
+const REVIEW_STATE_MAP: Record<string, string> = {
+  APPROVED: 'approved',
+  CHANGES_REQUESTED: 'changes_requested',
+  COMMENTED: 'commented',
+  DISMISSED: 'dismissed',
+  PENDING: 'pending',
 };
 
 const listSchema: FieldDef[] = [
@@ -136,7 +163,7 @@ const viewSchemaFull: FieldDef[] = viewSchema.map(f =>
 );
 
 const VIEW_JSON_FIELDS =
-  'number,title,state,author,isDraft,mergedAt,statusCheckRollup,body,comments';
+  'number,title,state,author,isDraft,mergedAt,statusCheckRollup,body,comments,reviews';
 
 // ---------------------------------------------------------------------------
 // Help
@@ -148,7 +175,7 @@ subcommands[15]:
 flags{list}:
   --state <open|closed|all>, --label, --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --full (show complete body without truncation)
+  --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
 flags{create}:
   --title <text> (required), --body, --base, --head, --draft, --assignee, --reviewer, --label, --milestone
 flags{merge}:
@@ -162,6 +189,7 @@ flags{diff}:
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
+  gh-axi pr view 42 --reviews
   gh-axi pr merge 42 --squash --delete-branch`;
 
 // ---------------------------------------------------------------------------
@@ -224,10 +252,11 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   const includeComments = takeBoolFlag(args, '--comments');
+  const includeReviews = takeBoolFlag(args, '--reviews');
   const full = takeBoolFlag(args, '--full');
   const num = takeNumber(args, 'PR');
 
-  // Always fetch comments (for count or full rendering)
+  // Always fetch comments + review summaries (for count or full rendering)
   const ghArgs = ['pr', 'view', String(num), '--json', VIEW_JSON_FIELDS];
   const pr = await ghJson<PrItem>(ghArgs, ctx);
 
@@ -246,6 +275,57 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
     const commentCount = Array.isArray(pr.comments) ? pr.comments.length : 0;
     schema.push(
       custom('comment_count', () => `${commentCount} — use --comments to see full comments`),
+    );
+  }
+
+  if (includeReviews) {
+    // gh pr view --json reviews returns GraphQL node IDs, which don't match
+    // the numeric review IDs on inline review comments. Fetch both via REST
+    // so we can correlate inline comments back to their parent review.
+    const reviews = await ghJson<PrReview[]>(
+      ['api', `repos/{owner}/{repo}/pulls/${num}/reviews`, '--paginate'],
+      ctx,
+    );
+    let inlineComments: PrReviewComment[] = [];
+    if (reviews.length > 0) {
+      inlineComments = await ghJson<PrReviewComment[]>(
+        ['api', `repos/{owner}/{repo}/pulls/${num}/comments`, '--paginate'],
+        ctx,
+      );
+    }
+    const commentsByReview = new Map<number, PrReviewComment[]>();
+    for (const c of inlineComments) {
+      if (typeof c.pull_request_review_id === 'number') {
+        const list = commentsByReview.get(c.pull_request_review_id) ?? [];
+        list.push(c);
+        commentsByReview.set(c.pull_request_review_id, list);
+      }
+    }
+    schema.push(
+      custom('reviews', () =>
+        reviews.map((r) => {
+          const stateUpper = (r.state ?? '').toUpperCase();
+          const inline = commentsByReview.get(r.id) ?? [];
+          return {
+            author: r.user?.login ?? 'unknown',
+            state: REVIEW_STATE_MAP[stateUpper] ?? stateUpper.toLowerCase() ?? 'unknown',
+            submitted: r.submitted_at ?? '',
+            body: r.body ?? '',
+            inline_comments: inline.map((c) => ({
+              author: c.user?.login ?? 'unknown',
+              path: c.path ?? '',
+              line: c.line ?? c.original_line ?? null,
+              body: c.body ?? '',
+              created: c.created_at ?? '',
+            })),
+          };
+        }),
+      ),
+    );
+  } else {
+    const reviewCount = Array.isArray(pr.reviews) ? pr.reviews.length : 0;
+    schema.push(
+      custom('review_count', () => `${reviewCount} — use --reviews to see full reviews`),
     );
   }
 

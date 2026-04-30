@@ -134,6 +134,143 @@ describe('prCommand', () => {
       const result = await prCommand(['view', '42'], ctx);
       expect(result).not.toMatch(/^help\[/m);
     });
+
+    it('shows review_count summary when --reviews is not passed', async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42, title: 'My PR', state: 'OPEN', author: { login: 'alice' },
+        isDraft: false, mergedAt: null, statusCheckRollup: [], body: 'desc',
+        comments: [],
+        reviews: [{ id: 'PRR_1' }, { id: 'PRR_2' }],
+      });
+
+      const result = await prCommand(['view', '42'], ctx);
+
+      expect(result).toContain('review_count: 2');
+      expect(result).toContain('use --reviews to see full reviews');
+    });
+
+    it('lists review submissions and inline comments with --reviews', async () => {
+      mockedGhJson
+        .mockResolvedValueOnce({
+          number: 42, title: 'My PR', state: 'OPEN', author: { login: 'alice' },
+          isDraft: false, mergedAt: null, statusCheckRollup: [], body: 'desc',
+          comments: [],
+          reviews: [{ id: 'PRR_1' }],
+        })
+        .mockResolvedValueOnce([
+          {
+            id: 1001,
+            user: { login: 'cursor[bot]' },
+            body: 'Found 2 issues',
+            state: 'COMMENTED',
+            submitted_at: '2026-04-01T00:00:00Z',
+          },
+          {
+            id: 1002,
+            user: { login: 'reviewer' },
+            body: '',
+            state: 'APPROVED',
+            submitted_at: '2026-04-02T00:00:00Z',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            pull_request_review_id: 1001,
+            user: { login: 'cursor[bot]' },
+            path: 'src/foo.ts',
+            line: 42,
+            body: 'This could be null',
+            created_at: '2026-04-01T00:00:00Z',
+          },
+          {
+            pull_request_review_id: 1001,
+            user: { login: 'cursor[bot]' },
+            path: 'src/bar.ts',
+            line: null,
+            original_line: 7,
+            body: 'Off-by-one bug',
+            created_at: '2026-04-01T00:00:00Z',
+          },
+        ]);
+
+      const result = await prCommand(['view', '42', '--reviews'], ctx);
+
+      // Review submissions surfaced
+      expect(result).toContain('cursor[bot]');
+      expect(result).toContain('commented');
+      expect(result).toContain('Found 2 issues');
+      expect(result).toContain('approved');
+      // Inline comments surfaced under the right review
+      expect(result).toContain('src/foo.ts');
+      expect(result).toContain('This could be null');
+      expect(result).toContain('src/bar.ts');
+      expect(result).toContain('Off-by-one bug');
+      // review_count is replaced by full reviews block
+      expect(result).not.toContain('use --reviews to see full reviews');
+
+      // Verify REST endpoints were used
+      const apiCalls = mockedGhJson.mock.calls.map((c) => c[0]);
+      expect(apiCalls.some((a) => Array.isArray(a) && a.includes('api') && (a as string[]).some((s) => s.includes('/pulls/42/reviews')))).toBe(true);
+      expect(apiCalls.some((a) => Array.isArray(a) && a.includes('api') && (a as string[]).some((s) => s.includes('/pulls/42/comments')))).toBe(true);
+    });
+
+    it('skips inline-comment fetch when there are no reviews', async () => {
+      mockedGhJson
+        .mockResolvedValueOnce({
+          number: 42, title: 'My PR', state: 'OPEN', author: { login: 'alice' },
+          isDraft: false, mergedAt: null, statusCheckRollup: [], body: 'desc',
+          comments: [],
+          reviews: [],
+        })
+        .mockResolvedValueOnce([]); // empty reviews from REST
+
+      const result = await prCommand(['view', '42', '--reviews'], ctx);
+
+      // Two calls only: pr view --json and pulls/42/reviews. No comments call.
+      expect(mockedGhJson).toHaveBeenCalledTimes(2);
+      expect(result).toContain('reviews');
+    });
+
+    it('renders both comments and reviews when --comments --reviews are combined', async () => {
+      mockedGhJson
+        .mockResolvedValueOnce({
+          number: 42, title: 'My PR', state: 'OPEN', author: { login: 'alice' },
+          isDraft: false, mergedAt: null, statusCheckRollup: [], body: 'desc',
+          comments: [
+            { author: { login: 'carol' }, body: 'top-level chat', createdAt: '2026-04-01T00:00:00Z' },
+          ],
+          reviews: [{ id: 'PRR_1' }],
+        })
+        .mockResolvedValueOnce([
+          {
+            id: 2001,
+            user: { login: 'dave' },
+            body: 'lgtm with nits',
+            state: 'CHANGES_REQUESTED',
+            submitted_at: '2026-04-03T00:00:00Z',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            pull_request_review_id: 2001,
+            user: { login: 'dave' },
+            path: 'README.md',
+            line: 1,
+            body: 'fix typo',
+            created_at: '2026-04-03T00:00:00Z',
+          },
+        ]);
+
+      const result = await prCommand(['view', '42', '--comments', '--reviews'], ctx);
+
+      expect(result).toContain('top-level chat');
+      expect(result).toContain('carol');
+      expect(result).toContain('lgtm with nits');
+      expect(result).toContain('changes_requested');
+      expect(result).toContain('fix typo');
+      expect(result).not.toContain('use --comments to see full comments');
+      expect(result).not.toContain('use --reviews to see full reviews');
+    });
   });
 
   describe('close', () => {
