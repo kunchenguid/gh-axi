@@ -214,6 +214,83 @@ describe('prCommand', () => {
       expect(apiCalls.some((a) => Array.isArray(a) && a.includes('api') && (a as string[]).some((s) => s.includes('/pulls/42/comments')))).toBe(true);
     });
 
+    it('uses explicit REST paths without repo context for review fetches', async () => {
+      mockedGhJson
+        .mockResolvedValueOnce({
+          number: 42, title: 'My PR', state: 'OPEN', author: { login: 'alice' },
+          isDraft: false, mergedAt: null, statusCheckRollup: [], body: 'desc',
+          comments: [],
+          reviews: [],
+        })
+        .mockResolvedValueOnce([]);
+
+      await prCommand(['view', '42', '--reviews'], ctx);
+
+      expect(mockedGhJson).toHaveBeenNthCalledWith(
+        2,
+        ['api', 'repos/octo/repo/pulls/42/reviews', '--paginate', '--slurp'],
+      );
+    });
+
+    it('flattens paginated review and inline comment pages', async () => {
+      mockedGhJson
+        .mockResolvedValueOnce({
+          number: 42, title: 'My PR', state: 'OPEN', author: { login: 'alice' },
+          isDraft: false, mergedAt: null, statusCheckRollup: [], body: 'desc',
+          comments: [],
+          reviews: [{ id: 'PRR_1' }],
+        })
+        .mockResolvedValueOnce([
+          [
+            {
+              id: 3001,
+              user: { login: 'erin' },
+              body: 'page one review',
+              state: 'COMMENTED',
+              submitted_at: '2026-04-04T00:00:00Z',
+            },
+          ],
+          [
+            {
+              id: 3002,
+              user: { login: 'frank' },
+              body: 'page two review',
+              state: 'APPROVED',
+              submitted_at: '2026-04-05T00:00:00Z',
+            },
+          ],
+        ])
+        .mockResolvedValueOnce([
+          [
+            {
+              pull_request_review_id: 3001,
+              user: { login: 'erin' },
+              path: 'src/a.ts',
+              line: 10,
+              body: 'page one comment',
+              created_at: '2026-04-04T00:00:00Z',
+            },
+          ],
+          [
+            {
+              pull_request_review_id: 3002,
+              user: { login: 'frank' },
+              path: 'src/b.ts',
+              line: 20,
+              body: 'page two comment',
+              created_at: '2026-04-05T00:00:00Z',
+            },
+          ],
+        ]);
+
+      const result = await prCommand(['view', '42', '--reviews'], ctx);
+
+      expect(result).toContain('page one review');
+      expect(result).toContain('page two review');
+      expect(result).toContain('page one comment');
+      expect(result).toContain('page two comment');
+    });
+
     it('skips inline-comment fetch when there are no reviews', async () => {
       mockedGhJson
         .mockResolvedValueOnce({

@@ -94,6 +94,21 @@ function classifyCheck(c: CheckRun): 'pass' | 'fail' | 'skip' | 'pending' {
   return 'pending';
 }
 
+function prRestPath(ctx: RepoContext | undefined, num: number, suffix: string): string {
+  const repoPath = ctx ? `repos/${ctx.owner}/${ctx.name}` : 'repos/{owner}/{repo}';
+  return `${repoPath}/pulls/${num}/${suffix}`;
+}
+
+function flattenPaginated<T>(items: T[] | T[][]): T[] {
+  if (items.length > 0 && Array.isArray(items[0])) return (items as T[][]).flat();
+  return items as T[];
+}
+
+async function ghApiPaginatedArray<T>(path: string): Promise<T[]> {
+  const pages = await ghJson<T[] | T[][]>(['api', path, '--paginate', '--slurp']);
+  return flattenPaginated(pages);
+}
+
 // ---------------------------------------------------------------------------
 // Schemas
 // ---------------------------------------------------------------------------
@@ -282,15 +297,13 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
     // gh pr view --json reviews returns GraphQL node IDs, which don't match
     // the numeric review IDs on inline review comments. Fetch both via REST
     // so we can correlate inline comments back to their parent review.
-    const reviews = await ghJson<PrReview[]>(
-      ['api', `repos/{owner}/{repo}/pulls/${num}/reviews`, '--paginate'],
-      ctx,
+    const reviews = await ghApiPaginatedArray<PrReview>(
+      prRestPath(ctx, num, 'reviews'),
     );
     let inlineComments: PrReviewComment[] = [];
     if (reviews.length > 0) {
-      inlineComments = await ghJson<PrReviewComment[]>(
-        ['api', `repos/{owner}/{repo}/pulls/${num}/comments`, '--paginate'],
-        ctx,
+      inlineComments = await ghApiPaginatedArray<PrReviewComment>(
+        prRestPath(ctx, num, 'comments'),
       );
     }
     const commentsByReview = new Map<number, PrReviewComment[]>();
