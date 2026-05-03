@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.15](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.14...gh-axi-v0.1.15) (2026-05-03)
+
+
+### Bug Fixes
+
+* make search query optional when filter flags are provided ([#22](https://github.com/kunchenguid/gh-axi/issues/22)) ([7fe9aed](https://github.com/kunchenguid/gh-axi/commit/7fe9aed01fca936266e28f3bc4c8e56c89f4e36f))
+
 ## [0.1.14](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.13...gh-axi-v0.1.14) (2026-04-30)
 
 
