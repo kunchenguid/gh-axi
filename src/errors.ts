@@ -6,6 +6,7 @@ export type ErrorCode =
   | "AUTH_REQUIRED"
   | "FORBIDDEN"
   | "VALIDATION_ERROR"
+  | "RATE_LIMITED"
   | "GH_NOT_INSTALLED"
   | "UNKNOWN";
 
@@ -61,6 +62,24 @@ const patterns: ErrorPattern[] = [
     pattern: /gh auth login/,
     code: "AUTH_REQUIRED",
     message: () => "GitHub auth required — run `gh auth login` first",
+  },
+  {
+    pattern: /secondary rate limit/i,
+    code: "RATE_LIMITED",
+    message: () => "GitHub secondary rate limit hit — wait ~60s and retry",
+    suggestions: () => [
+      "Wait 60s before retrying",
+      "Use `gh api` (REST) for read-only ops, which has a separate budget",
+    ],
+  },
+  {
+    pattern: /API rate limit (?:already )?exceeded/i,
+    code: "RATE_LIMITED",
+    message: () => "GitHub API rate limit exceeded",
+    suggestions: () => [
+      "Wait until the hourly window resets (run `gh api rate_limit` to check)",
+      "Use a different identity with `gh auth switch` if available",
+    ],
   },
   {
     pattern: /HTTP 403/,

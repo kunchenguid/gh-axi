@@ -82,6 +82,33 @@ describe("mapGhError", () => {
     expect(err.code).toBe("FORBIDDEN");
   });
 
+  it("matches GraphQL primary rate limit pattern", () => {
+    const err = mapGhError(
+      "GraphQL: API rate limit already exceeded for user ID 189865151.",
+      1,
+    );
+    expect(err.code).toBe("RATE_LIMITED");
+    expect(err.message).toContain("rate limit");
+    expect(err.suggestions.length).toBeGreaterThan(0);
+  });
+
+  it("matches REST primary rate limit pattern (HTTP 403 form)", () => {
+    const err = mapGhError(
+      "HTTP 403: API rate limit exceeded for user ID 12345.",
+      1,
+    );
+    expect(err.code).toBe("RATE_LIMITED");
+  });
+
+  it("matches secondary rate limit pattern", () => {
+    const err = mapGhError(
+      "HTTP 403: You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
+      1,
+    );
+    expect(err.code).toBe("RATE_LIMITED");
+    expect(err.message).toContain("secondary");
+  });
+
   it("matches validation error pattern with message extraction", () => {
     const stderr = 'HTTP 422: {"message": "Validation Failed", "errors": []}';
     const err = mapGhError(stderr, 1);
@@ -161,6 +188,11 @@ describe("exitCodeForError", () => {
 
   it("returns 1 for FORBIDDEN", () => {
     const err = new AxiError("forbidden", "FORBIDDEN");
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it("returns 1 for RATE_LIMITED", () => {
+    const err = new AxiError("rate limited", "RATE_LIMITED");
     expect(exitCodeForError(err)).toBe(1);
   });
 
