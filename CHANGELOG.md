@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.16](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.15...gh-axi-v0.1.16) (2026-05-10)
+
+
+### Features
+
+* **errors:** map GitHub rate-limit stderr to RATE_LIMITED code ([#25](https://github.com/kunchenguid/gh-axi/issues/25)) ([869ff03](https://github.com/kunchenguid/gh-axi/commit/869ff03c3df8ab2ab99b4141c1e3d8356e683e6f))
+
 ## [0.1.15](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.14...gh-axi-v0.1.15) (2026-05-03)
 
 
