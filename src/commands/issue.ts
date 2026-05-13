@@ -111,7 +111,19 @@ const viewSchema: FieldDef[] = [
   ),
 ];
 
+const viewSchemaWithoutType: FieldDef[] = viewSchema.filter(
+  (f) => f !== issueTypeField,
+);
+
 const viewSchemaFull: FieldDef[] = viewSchema.map((f) =>
+  "as" in f && f.as === "body"
+    ? custom("body", (item: Record<string, unknown>) =>
+        typeof item.body === "string" ? item.body : "",
+      )
+    : f,
+);
+
+const viewSchemaFullWithoutType: FieldDef[] = viewSchemaWithoutType.map((f) =>
   "as" in f && f.as === "body"
     ? custom("body", (item: Record<string, unknown>) =>
         typeof item.body === "string" ? item.body : "",
@@ -272,10 +284,12 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["issue", "view", String(num), "--json", fields];
 
   let item: Record<string, unknown>;
+  let supportsIssueType = true;
   try {
     item = await ghJson<Record<string, unknown>>(ghArgs, ctx);
   } catch (e) {
     if (e instanceof AxiError && /issueType/i.test(e.message)) {
+      supportsIssueType = false;
       item = await ghJson<Record<string, unknown>>(
         ["issue", "view", String(num), "--json", baseFields],
         ctx,
@@ -285,8 +299,15 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
     }
   }
 
+  const schema = supportsIssueType
+    ? full
+      ? viewSchemaFull
+      : viewSchema
+    : full
+      ? viewSchemaFullWithoutType
+      : viewSchemaWithoutType;
   const blocks: string[] = [
-    renderDetail("issue", item, full ? viewSchemaFull : viewSchema),
+    renderDetail("issue", item, schema),
   ];
 
   if (withComments && Array.isArray(item.comments)) {
@@ -307,6 +328,18 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
 interface ResolvedIssueType {
   id: string;
   name: string;
+}
+
+function getOptionalRequiredFlag(
+  args: string[],
+  name: string,
+): string | undefined {
+  if (!hasFlag(args, name)) return undefined;
+  const value = getFlag(args, name);
+  if (value === undefined || value.trim() === "" || value.startsWith("--")) {
+    throw new AxiError(`${name} requires a value`, "VALIDATION_ERROR");
+  }
+  return value;
 }
 
 async function getOwnerName(
@@ -406,7 +439,7 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const label = getFlag(args, "--label");
   const milestone = getFlag(args, "--milestone");
   const project = getFlag(args, "--project");
-  const typeName = getFlag(args, "--type");
+  const typeName = getOptionalRequiredFlag(args, "--type");
 
   // Resolve type up front so an invalid value fails before creating the issue.
   let resolvedType: ResolvedIssueType | undefined;
@@ -469,9 +502,8 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const removeAssignee = getFlag(args, "--remove-assignee");
   const milestone = getFlag(args, "--milestone");
   const clearType = takeBoolFlag(args, "--no-type");
-  const rawType = getFlag(args, "--type");
-  const typeName = rawType && rawType.length > 0 ? rawType : undefined;
-  const clearTypeFlag = clearType || rawType === "";
+  const typeName = getOptionalRequiredFlag(args, "--type");
+  const clearTypeFlag = clearType;
 
   // Resolve type up front so an invalid value fails before mutating the issue.
   let resolvedType: ResolvedIssueType | undefined;

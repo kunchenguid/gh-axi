@@ -218,6 +218,7 @@ describe("issueCommand", () => {
 
       const result = await issueCommand(["view", "42"], ctx);
       expect(result).toContain("Critical bug");
+      expect(result).not.toContain("type: none");
     });
 
     it("omits help suggestions from detail view", async () => {
@@ -357,6 +358,13 @@ describe("issueCommand", () => {
       // No gh issue create should have been called when type resolution fails
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
+
+    it("rejects --type without a value", async () => {
+      await expect(
+        issueCommand(["create", "--title", "X", "--type"], ctx),
+      ).rejects.toThrow(AxiError);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe("edit with --type", () => {
@@ -419,6 +427,14 @@ describe("issueCommand", () => {
       const flat = (mutationCall![0] as string[]).join(" ");
       // null literal embedded directly in the mutation
       expect(flat).toContain("issueTypeId:null");
+    });
+
+    it("rejects --type without a value", async () => {
+      await expect(issueCommand(["edit", "10", "--type"], ctx)).rejects.toThrow(
+        AxiError,
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
 
