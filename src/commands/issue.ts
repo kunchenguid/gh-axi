@@ -1100,9 +1100,25 @@ async function subissueAdd(
   const addedNumbers: number[] = [];
   for (const child of children) {
     const mutation = `mutation { addSubIssue(input: { issueId: "${parent.id}", subIssueId: "${child.id}" }) { subIssue { number } } }`;
-    const result = await gqlRequest<{
-      addSubIssue?: { subIssue?: { number?: number } };
-    }>(mutation, repo);
+    let result: { addSubIssue?: { subIssue?: { number?: number } } };
+    try {
+      result = await gqlRequest<{
+        addSubIssue?: { subIssue?: { number?: number } };
+      }>(mutation, repo);
+    } catch (error) {
+      if (addedNumbers.length === 0) throw error;
+      const added = addedNumbers.map((n) => `#${n}`).join(", ");
+      if (error instanceof AxiError) {
+        throw new AxiError(
+          `${error.message}\nAdded before failure: ${added}`,
+          error.code,
+        );
+      }
+      throw new AxiError(
+        `Failed to add sub-issue #${child.number}\nAdded before failure: ${added}`,
+        "UNKNOWN",
+      );
+    }
     const r = result.addSubIssue;
     if (r?.subIssue?.number != null) addedNumbers.push(r.subIssue.number);
     else addedNumbers.push(child.number);

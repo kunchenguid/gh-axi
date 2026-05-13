@@ -687,6 +687,33 @@ describe("issueCommand", () => {
           AxiError,
         );
       });
+
+      it("reports already added children when a later add fails", async () => {
+        mockedGhJson.mockImplementation(async (args: string[]) => {
+          const query = graphqlQueryArg(args);
+          if (query.includes("query") && !query.includes("mutation")) {
+            return {
+              data: {
+                repository: {
+                  parent: { id: "P_1", number: 1 },
+                  c0: { id: "C_2", number: 2 },
+                  c1: { id: "C_3", number: 3 },
+                },
+              },
+            };
+          }
+          if (query.includes('subIssueId: "C_2"')) {
+            return {
+              data: { addSubIssue: { subIssue: { number: 2 } } },
+            };
+          }
+          throw new AxiError("GraphQL add failed", "UNKNOWN");
+        });
+
+        await expect(
+          issueCommand(["subissue", "add", "1", "2", "3"], ctx),
+        ).rejects.toThrow(/Added before failure: #2/);
+      });
     });
 
     describe("remove", () => {
