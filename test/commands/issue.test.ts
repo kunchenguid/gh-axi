@@ -15,9 +15,7 @@ const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
 const mockedGhRaw = vi.mocked(ghRaw);
 
-function mockTypeQueryOnce(
-  nodes: Array<{ id: string; name: string }>,
-): void {
+function mockTypeQueryOnce(nodes: Array<{ id: string; name: string }>): void {
   mockedGhRaw.mockResolvedValueOnce({
     stdout: JSON.stringify({
       data: { repository: { issueTypes: { nodes } } },
@@ -292,7 +290,9 @@ describe("issueCommand", () => {
 
       // Verify resolve query was issued
       const resolveCall = mockedGhRaw.mock.calls.find((c) =>
-        (c[0] as string[]).some((a) => typeof a === "string" && a.includes("issueTypes")),
+        (c[0] as string[]).some(
+          (a) => typeof a === "string" && a.includes("issueTypes"),
+        ),
       );
       expect(resolveCall).toBeDefined();
 

@@ -306,9 +306,7 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
     : full
       ? viewSchemaFullWithoutType
       : viewSchemaWithoutType;
-  const blocks: string[] = [
-    renderDetail("issue", item, schema),
-  ];
+  const blocks: string[] = [renderDetail("issue", item, schema)];
 
   if (withComments && Array.isArray(item.comments)) {
     blocks.push(
@@ -379,15 +377,14 @@ async function resolveIssueType(
   try {
     parsed = JSON.parse(result.stdout);
   } catch {
-    throw new AxiError(
-      "Unable to resolve issue types from GitHub",
-      "UNKNOWN",
-    );
+    throw new AxiError("Unable to resolve issue types from GitHub", "UNKNOWN");
   }
   const nodes = (
     parsed as {
       data?: {
-        repository?: { issueTypes?: { nodes?: Array<{ id: string; name: string }> } };
+        repository?: {
+          issueTypes?: { nodes?: Array<{ id: string; name: string }> };
+        };
       };
     }
   )?.data?.repository?.issueTypes?.nodes;
