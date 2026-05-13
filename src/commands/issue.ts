@@ -1288,6 +1288,10 @@ export async function issueCommand(
 ): Promise<string> {
   const sub = args[0];
 
+  if (sub === "subissue") {
+    return subissueCommand(args, ctx);
+  }
+
   if (!sub || hasFlag(args, "--help")) {
     const blocks: string[] = [ISSUE_HELP];
     const help = getSuggestions({ domain: "issue", action: "help", repo: ctx });
@@ -1322,8 +1326,6 @@ export async function issueCommand(
       return unpinIssue(args, ctx);
     case "transfer":
       return transferIssue(args, ctx);
-    case "subissue":
-      return subissueCommand(args, ctx);
     default:
       return renderError(
         `Unknown issue subcommand: ${sub}`,

@@ -7,7 +7,11 @@ vi.mock("../../src/gh.js", () => ({
 }));
 
 import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
-import { issueCommand, ISSUE_HELP } from "../../src/commands/issue.js";
+import {
+  issueCommand,
+  ISSUE_HELP,
+  SUBISSUE_HELP,
+} from "../../src/commands/issue.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 
@@ -51,6 +55,12 @@ describe("issueCommand", () => {
     it("returns help when --help is passed", async () => {
       const result = await issueCommand(["--help"], ctx);
       expect(result).toContain(ISSUE_HELP);
+    });
+
+    it("returns subissue help for subissue --help", async () => {
+      const result = await issueCommand(["subissue", "--help"], ctx);
+      expect(result).toContain(SUBISSUE_HELP);
+      expect(result).not.toContain("usage: gh-axi issue <subcommand>");
     });
 
     it("returns help when no subcommand is given", async () => {
