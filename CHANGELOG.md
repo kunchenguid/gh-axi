@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.18](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.17...gh-axi-v0.1.18) (2026-05-13)
+
+
+### Features
+
+* **commands:** add issue subissue management ([#34](https://github.com/kunchenguid/gh-axi/issues/34)) ([e640259](https://github.com/kunchenguid/gh-axi/commit/e640259f3c167f448ee7df803aa5e79605580946))
+* **issue:** support GitHub issue types ([#32](https://github.com/kunchenguid/gh-axi/issues/32)) ([58db24f](https://github.com/kunchenguid/gh-axi/commit/58db24f09f6c5c650c16f46ca097672452bbb4f2))
+
 ## [0.1.17](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.16...gh-axi-v0.1.17) (2026-05-13)
 
 
