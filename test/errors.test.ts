@@ -137,6 +137,33 @@ describe("mapGhError", () => {
     expect(err.code).toBe("NOT_FOUND");
   });
 
+  it("maps sub-issue already-linked errors to an actionable message", () => {
+    const err = mapGhError(
+      'GraphQL: Sub-issue is already a sub-issue of issue with number 5 (addSubIssue)',
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toMatch(/already a sub-issue of #?5/);
+  });
+
+  it("maps sub-issue cycle errors", () => {
+    const err = mapGhError(
+      "GraphQL: Sub-issue would create a cycle (addSubIssue)",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toMatch(/cycle/i);
+  });
+
+  it("maps sub-issue self-parent errors", () => {
+    const err = mapGhError(
+      "GraphQL: An issue cannot be a sub-issue of itself (addSubIssue)",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toMatch(/itself/i);
+  });
+
   it("returns UNKNOWN for unrecognized errors", () => {
     const err = mapGhError("some random error", 1);
     expect(err.code).toBe("UNKNOWN");

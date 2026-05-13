@@ -82,6 +82,21 @@ const patterns: ErrorPattern[] = [
     ],
   },
   {
+    pattern: /sub-issue is already a sub-issue of issue with number (\d+)/i,
+    code: "VALIDATION_ERROR",
+    message: (m) => `Issue is already a sub-issue of #${m[1]}`,
+  },
+  {
+    pattern: /sub-?issue.*?(cycle|circular)/i,
+    code: "VALIDATION_ERROR",
+    message: () => "Cannot add sub-issue: would create a cycle",
+  },
+  {
+    pattern: /issue cannot be a sub-?issue of itself/i,
+    code: "VALIDATION_ERROR",
+    message: () => "An issue cannot be a sub-issue of itself",
+  },
+  {
     pattern: /HTTP 403/,
     code: "FORBIDDEN",
     message: () => "Insufficient permissions for this action",

@@ -499,4 +499,283 @@ describe("issueCommand", () => {
       ]);
     });
   });
+
+  describe("view with sub-issue relationships", () => {
+    it("includes parent and subissues when the GraphQL augmentation returns data", async () => {
+      mockedGhJson.mockImplementation(async (args: string[]) => {
+        if (args[0] === "issue" && args[1] === "view") {
+          return {
+            number: 42,
+            title: "Parent issue",
+            state: "OPEN",
+            author: { login: "alice" },
+            createdAt: "2024-01-01T00:00:00Z",
+            body: "body",
+          };
+        }
+        if (args[0] === "api" && args[1] === "graphql") {
+          return {
+            data: {
+              repository: {
+                issue: {
+                  parent: { number: 16 },
+                  subIssues: {
+                    totalCount: 3,
+                    nodes: [{ number: 20 }, { number: 101 }, { number: 125 }],
+                  },
+                },
+              },
+            },
+          };
+        }
+        throw new Error(`Unexpected ghJson call: ${args.join(" ")}`);
+      });
+
+      const result = await issueCommand(["view", "42"], ctx);
+
+      expect(result).toContain("subissues[3]: #20,#101,#125");
+      expect(result).toContain("parent: #16");
+    });
+
+    it("omits parent and subissues fields when neither is present", async () => {
+      mockedGhJson.mockImplementation(async (args: string[]) => {
+        if (args[0] === "issue" && args[1] === "view") {
+          return {
+            number: 42,
+            title: "Standalone",
+            state: "OPEN",
+            author: { login: "alice" },
+            createdAt: "2024-01-01T00:00:00Z",
+            body: "body",
+          };
+        }
+        if (args[0] === "api" && args[1] === "graphql") {
+          return {
+            data: {
+              repository: {
+                issue: {
+                  parent: null,
+                  subIssues: { totalCount: 0, nodes: [] },
+                },
+              },
+            },
+          };
+        }
+        throw new Error(`Unexpected ghJson call: ${args.join(" ")}`);
+      });
+
+      const result = await issueCommand(["view", "42"], ctx);
+
+      expect(result).not.toContain("subissues");
+      expect(result).not.toMatch(/^parent:/m);
+    });
+
+    it("still renders the issue when the sub-issue GraphQL call fails", async () => {
+      mockedGhJson.mockImplementation(async (args: string[]) => {
+        if (args[0] === "issue" && args[1] === "view") {
+          return {
+            number: 42,
+            title: "Critical bug",
+            state: "OPEN",
+            author: { login: "alice" },
+            createdAt: "2024-01-01T00:00:00Z",
+            body: "body",
+          };
+        }
+        if (args[0] === "api" && args[1] === "graphql") {
+          throw new AxiError("graphql failed", "UNKNOWN");
+        }
+        throw new Error(`Unexpected ghJson call: ${args.join(" ")}`);
+      });
+
+      const result = await issueCommand(["view", "42"], ctx);
+
+      expect(result).toContain("Critical bug");
+      expect(result).not.toContain("subissues");
+    });
+  });
+
+  describe("subissue", () => {
+    function graphqlQueryArg(args: string[]): string {
+      const fIdx = args.indexOf("-f");
+      if (fIdx === -1) return "";
+      const val = args[fIdx + 1] ?? "";
+      return val.replace(/^query=/, "");
+    }
+
+    it("rejects unknown subissue subcommand", async () => {
+      const result = await issueCommand(["subissue", "frobnicate"], ctx);
+      expect(result).toContain("Unknown");
+    });
+
+    it("returns help when no subissue subcommand given", async () => {
+      const result = await issueCommand(["subissue"], ctx);
+      expect(result).toContain("subissue");
+      expect(result).toContain("add");
+      expect(result).toContain("remove");
+      expect(result).toContain("list");
+    });
+
+    describe("add", () => {
+      it("issues a single batched mutation with aliased addSubIssue calls", async () => {
+        const ghJsonCalls: string[][] = [];
+        mockedGhJson.mockImplementation(async (args: string[]) => {
+          ghJsonCalls.push(args);
+          const query = graphqlQueryArg(args);
+          if (query.includes("query") && !query.includes("mutation")) {
+            // resolution query
+            return {
+              data: {
+                repository: {
+                  parent: { id: "P_1", number: 1 },
+                  c0: { id: "C_2", number: 2 },
+                  c1: { id: "C_3", number: 3 },
+                  c2: { id: "C_4", number: 4 },
+                },
+              },
+            };
+          }
+          // mutation
+          return {
+            data: {
+              m0: { subIssue: { number: 2 } },
+              m1: { subIssue: { number: 3 } },
+              m2: { subIssue: { number: 4 } },
+            },
+          };
+        });
+
+        const result = await issueCommand(
+          ["subissue", "add", "1", "2", "3", "4"],
+          ctx,
+        );
+
+        // Two GraphQL calls total: one resolution query, one mutation.
+        const graphqlCalls = ghJsonCalls.filter(
+          (c) => c[0] === "api" && c[1] === "graphql",
+        );
+        expect(graphqlCalls).toHaveLength(2);
+
+        const mutationCall = graphqlCalls.find((c) =>
+          graphqlQueryArg(c).includes("mutation"),
+        );
+        expect(mutationCall).toBeDefined();
+        const mutationQuery = graphqlQueryArg(mutationCall!);
+        // Single mutation, three aliases
+        expect(mutationQuery.match(/addSubIssue/g)?.length).toBe(3);
+        expect(mutationQuery).toContain("m0:");
+        expect(mutationQuery).toContain("m1:");
+        expect(mutationQuery).toContain("m2:");
+
+        expect(result).toContain("parent: #1");
+        expect(result).toContain("#2");
+        expect(result).toContain("#3");
+        expect(result).toContain("#4");
+      });
+
+      it("requires at least one child", async () => {
+        await expect(
+          issueCommand(["subissue", "add", "1"], ctx),
+        ).rejects.toThrow(AxiError);
+      });
+
+      it("requires a parent argument", async () => {
+        await expect(issueCommand(["subissue", "add"], ctx)).rejects.toThrow(
+          AxiError,
+        );
+      });
+    });
+
+    describe("remove", () => {
+      it("sends a single removeSubIssue mutation", async () => {
+        const ghJsonCalls: string[][] = [];
+        mockedGhJson.mockImplementation(async (args: string[]) => {
+          ghJsonCalls.push(args);
+          const query = graphqlQueryArg(args);
+          if (query.includes("query") && !query.includes("mutation")) {
+            return {
+              data: {
+                repository: {
+                  parent: { id: "P_1", number: 1 },
+                  c0: { id: "C_2", number: 2 },
+                },
+              },
+            };
+          }
+          return { data: { removeSubIssue: { issue: { number: 1 } } } };
+        });
+
+        const result = await issueCommand(
+          ["subissue", "remove", "1", "2"],
+          ctx,
+        );
+
+        const graphqlCalls = ghJsonCalls.filter(
+          (c) => c[0] === "api" && c[1] === "graphql",
+        );
+        const mutationCall = graphqlCalls.find((c) =>
+          graphqlQueryArg(c).includes("mutation"),
+        );
+        expect(mutationCall).toBeDefined();
+        expect(graphqlQueryArg(mutationCall!)).toContain("removeSubIssue");
+
+        expect(result).toContain("parent: #1");
+        expect(result).toContain("removed: #2");
+      });
+
+      it("requires both parent and child", async () => {
+        await expect(
+          issueCommand(["subissue", "remove", "1"], ctx),
+        ).rejects.toThrow(AxiError);
+      });
+    });
+
+    describe("list", () => {
+      it("lists sub-issues of a parent", async () => {
+        mockedGhJson.mockResolvedValue({
+          data: {
+            repository: {
+              issue: {
+                subIssues: {
+                  totalCount: 2,
+                  nodes: [
+                    { number: 20, title: "Foo", state: "OPEN" },
+                    { number: 101, title: "Bar", state: "CLOSED" },
+                  ],
+                },
+              },
+            },
+          },
+        });
+
+        const result = await issueCommand(["subissue", "list", "1"], ctx);
+
+        expect(result).toContain("parent: #1");
+        expect(result).toContain("count: 2");
+        expect(result).toContain("Foo");
+        expect(result).toContain("Bar");
+        expect(result).toContain("open");
+        expect(result).toContain("closed");
+      });
+
+      it("renders count: 0 when there are no sub-issues", async () => {
+        mockedGhJson.mockResolvedValue({
+          data: {
+            repository: {
+              issue: { subIssues: { totalCount: 0, nodes: [] } },
+            },
+          },
+        });
+
+        const result = await issueCommand(["subissue", "list", "1"], ctx);
+        expect(result).toContain("count: 0");
+      });
+
+      it("requires a parent argument", async () => {
+        await expect(issueCommand(["subissue", "list"], ctx)).rejects.toThrow(
+          AxiError,
+        );
+      });
+    });
+  });
 });

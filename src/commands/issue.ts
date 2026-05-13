@@ -55,8 +55,8 @@ interface IssueComment {
 // ---------------------------------------------------------------------------
 
 export const ISSUE_HELP = `usage: gh-axi issue <subcommand> [flags]
-subcommands[13]:
-  list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>
+subcommands[14]:
+  list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>, subissue <add|remove|list>
 flags{list}:
   --state <open|closed|all>, --label <name>, --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
@@ -71,12 +71,24 @@ flags{comment}:
   --body <text> (required)
 flags{transfer}:
   --to-repo <owner/name> (required)
+subissue:
+  add <parent> <child> [<child> ...], remove <parent> <child>, list <parent>
 examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
   gh-axi issue close 42 --reason completed
-  gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`;
+  gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
+  gh-axi issue subissue add 16 20 101 125
+  gh-axi issue subissue list 16`;
+
+export const SUBISSUE_HELP = `usage: gh-axi issue subissue <add|remove|list> <parent> [child...]
+subcommands[3]:
+  add <parent> <child> [<child> ...], remove <parent> <child>, list <parent>
+examples:
+  gh-axi issue subissue add 16 20 101 125
+  gh-axi issue subissue remove 16 101
+  gh-axi issue subissue list 16`;
 
 // ---------------------------------------------------------------------------
 // Field schemas
@@ -299,14 +311,41 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
     }
   }
 
-  const schema = supportsIssueType
+  const baseSchema = supportsIssueType
     ? full
       ? viewSchemaFull
       : viewSchema
     : full
       ? viewSchemaFullWithoutType
       : viewSchemaWithoutType;
-  const blocks: string[] = [renderDetail("issue", item, schema)];
+
+  // Best-effort augmentation with sub-issue relationships. The sub-issues API
+  // is only available via GraphQL and requires repo context; failures here
+  // should not block the primary view output.
+  let parentNum: number | null = null;
+  let childNums: number[] = [];
+  if (ctx) {
+    try {
+      const rel = await fetchSubIssueRelationships(num, ctx);
+      parentNum = rel.parent;
+      childNums = rel.subIssues;
+    } catch {
+      // Sub-issues are a preview feature on some repos; ignore failures.
+    }
+  }
+
+  const schema: FieldDef[] = [...baseSchema];
+  const augmented: Record<string, unknown> = { ...item };
+  if (childNums.length > 0) {
+    augmented._subissues = childNums.map((n) => `#${n}`);
+    schema.push(custom("subissues", (it) => it._subissues));
+  }
+  if (parentNum != null) {
+    augmented._parent = `#${parentNum}`;
+    schema.push(custom("parent", (it) => it._parent));
+  }
+
+  const blocks: string[] = [renderDetail("issue", augmented, schema)];
 
   if (withComments && Array.isArray(item.comments)) {
     blocks.push(
@@ -961,6 +1000,277 @@ async function transferIssue(
 }
 
 // ---------------------------------------------------------------------------
+// Sub-issue helpers
+// ---------------------------------------------------------------------------
+
+interface ResolvedIssue {
+  id: string;
+  number: number;
+}
+
+interface SubIssueNode {
+  [key: string]: unknown;
+  number: number;
+  title?: string;
+  state?: string;
+}
+
+function requireRepo(ctx?: RepoContext): RepoContext {
+  if (!ctx) {
+    throw new AxiError(
+      "Could not determine repository — pass --repo <owner/name> or run inside a git checkout",
+      "VALIDATION_ERROR",
+    );
+  }
+  return ctx;
+}
+
+async function gqlRequest<T>(
+  query: string,
+  ctx?: RepoContext,
+): Promise<T> {
+  // Don't pass ctx through to ghJson — `gh api graphql` ignores --repo, and
+  // passing it produces a deprecation warning. The owner/name are baked into
+  // the query string instead.
+  void ctx;
+  const data = await ghJson<{ data: T }>([
+    "api",
+    "graphql",
+    "-f",
+    `query=${query}`,
+  ]);
+  return data.data;
+}
+
+async function resolveIssueIds(
+  parent: number,
+  children: number[],
+  ctx: RepoContext,
+): Promise<{ parent: ResolvedIssue; children: ResolvedIssue[] }> {
+  const childFields = children
+    .map(
+      (n, i) => `c${i}: issue(number: ${n}) { id number }`,
+    )
+    .join(" ");
+  const query = `query { repository(owner: "${ctx.owner}", name: "${ctx.name}") { parent: issue(number: ${parent}) { id number } ${childFields} } }`;
+  const result = await gqlRequest<{
+    repository: Record<string, ResolvedIssue | null>;
+  }>(query, ctx);
+
+  const repo = result.repository ?? {};
+  const parentNode = repo.parent;
+  if (!parentNode) {
+    throw new AxiError(
+      `Issue #${parent} not found in ${ctx.nwo}`,
+      "NOT_FOUND",
+    );
+  }
+  const childNodes: ResolvedIssue[] = [];
+  for (let i = 0; i < children.length; i++) {
+    const node = repo[`c${i}`];
+    if (!node) {
+      throw new AxiError(
+        `Issue #${children[i]} not found in ${ctx.nwo}`,
+        "NOT_FOUND",
+      );
+    }
+    childNodes.push(node);
+  }
+  return { parent: parentNode, children: childNodes };
+}
+
+async function subissueAdd(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const repo = requireRepo(ctx);
+  const parentRaw = args[2];
+  const childRaw = args.slice(3).filter((a) => !a.startsWith("--"));
+  const parentNum = requireNumber(parentRaw, "parent");
+  if (childRaw.length === 0) {
+    throw new AxiError(
+      "subissue add requires at least one child issue number",
+      "VALIDATION_ERROR",
+    );
+  }
+  const childNums = childRaw.map((r) => requireNumber(r, "child"));
+
+  const { parent, children } = await resolveIssueIds(parentNum, childNums, repo);
+
+  const mutationBody = children
+    .map(
+      (c, i) =>
+        `m${i}: addSubIssue(input: { issueId: "${parent.id}", subIssueId: "${c.id}" }) { subIssue { number } }`,
+    )
+    .join(" ");
+  const mutation = `mutation { ${mutationBody} }`;
+  const result = await gqlRequest<Record<string, { subIssue: { number: number } }>>(
+    mutation,
+    repo,
+  );
+
+  const addedNumbers: number[] = [];
+  for (let i = 0; i < children.length; i++) {
+    const r = result[`m${i}`];
+    if (r?.subIssue?.number != null) addedNumbers.push(r.subIssue.number);
+    else addedNumbers.push(children[i].number);
+  }
+
+  const item = {
+    parent: `#${parent.number}`,
+    added: addedNumbers.map((n) => `#${n}`),
+  };
+  const blocks: string[] = [
+    renderDetail("subissue_add", item, [
+      field("parent"),
+      custom("added", (it: Record<string, unknown>) => it.added),
+    ]),
+  ];
+  blocks.push(
+    renderHelp([
+      `Run \`gh-axi issue view ${parent.number}\` to see the parent with its sub-issues`,
+    ]),
+  );
+  return renderOutput(blocks);
+}
+
+async function subissueRemove(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const repo = requireRepo(ctx);
+  const parentRaw = args[2];
+  const childRaw = args[3];
+  const parentNum = requireNumber(parentRaw, "parent");
+  if (!childRaw) {
+    throw new AxiError(
+      "subissue remove requires a child issue number",
+      "VALIDATION_ERROR",
+    );
+  }
+  const childNum = requireNumber(childRaw, "child");
+
+  const { parent, children } = await resolveIssueIds(
+    parentNum,
+    [childNum],
+    repo,
+  );
+  const child = children[0];
+
+  const mutation = `mutation { removeSubIssue(input: { issueId: "${parent.id}", subIssueId: "${child.id}" }) { issue { number } } }`;
+  await gqlRequest<unknown>(mutation, repo);
+
+  const item = {
+    parent: `#${parent.number}`,
+    removed: `#${child.number}`,
+  };
+  const blocks: string[] = [
+    renderDetail("subissue_remove", item, [
+      field("parent"),
+      field("removed"),
+    ]),
+  ];
+  blocks.push(
+    renderHelp([
+      `Run \`gh-axi issue subissue list ${parent.number}\` to see remaining sub-issues`,
+    ]),
+  );
+  return renderOutput(blocks);
+}
+
+async function subissueList(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const repo = requireRepo(ctx);
+  const parentRaw = args[2];
+  const parentNum = requireNumber(parentRaw, "parent");
+
+  const query = `query { repository(owner: "${repo.owner}", name: "${repo.name}") { issue(number: ${parentNum}) { subIssues(first: 100) { totalCount nodes { number title state } } } } }`;
+  const data = await gqlRequest<{
+    repository: {
+      issue: {
+        subIssues: { totalCount: number; nodes: SubIssueNode[] };
+      } | null;
+    };
+  }>(query, repo);
+
+  const issue = data.repository?.issue;
+  if (!issue) {
+    throw new AxiError(
+      `Issue #${parentNum} not found in ${repo.nwo}`,
+      "NOT_FOUND",
+    );
+  }
+
+  const nodes = issue.subIssues.nodes ?? [];
+  const totalCount = issue.subIssues.totalCount ?? nodes.length;
+  const countLine = formatCountLine({
+    count: nodes.length,
+    limit: 100,
+    totalCount,
+  });
+
+  const schema: FieldDef[] = [
+    field("number"),
+    field("title"),
+    lower("state"),
+  ];
+
+  const blocks: string[] = [
+    `parent: #${parentNum}`,
+    countLine,
+    renderList("subissues", nodes as Record<string, unknown>[], schema),
+  ];
+  return renderOutput(blocks);
+}
+
+async function fetchSubIssueRelationships(
+  num: number,
+  ctx: RepoContext,
+): Promise<{ parent: number | null; subIssues: number[] }> {
+  const query = `query { repository(owner: "${ctx.owner}", name: "${ctx.name}") { issue(number: ${num}) { parent { number } subIssues(first: 100) { totalCount nodes { number } } } } }`;
+  const data = await gqlRequest<{
+    repository: {
+      issue: {
+        parent: { number: number } | null;
+        subIssues: { totalCount: number; nodes: { number: number }[] };
+      } | null;
+    };
+  }>(query, ctx);
+  const issue = data.repository?.issue;
+  if (!issue) return { parent: null, subIssues: [] };
+  return {
+    parent: issue.parent?.number ?? null,
+    subIssues: (issue.subIssues?.nodes ?? []).map((n) => n.number),
+  };
+}
+
+async function subissueCommand(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const sub = args[1];
+  if (!sub || hasFlag(args, "--help")) {
+    return renderOutput([SUBISSUE_HELP]);
+  }
+  switch (sub) {
+    case "add":
+      return subissueAdd(args, ctx);
+    case "remove":
+      return subissueRemove(args, ctx);
+    case "list":
+      return subissueList(args, ctx);
+    default:
+      return renderError(
+        `Unknown subissue subcommand: ${sub}`,
+        "VALIDATION_ERROR",
+        ["Run `gh-axi issue subissue --help` for usage"],
+      );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main dispatcher
 // ---------------------------------------------------------------------------
 
@@ -1004,6 +1314,8 @@ export async function issueCommand(
       return unpinIssue(args, ctx);
     case "transfer":
       return transferIssue(args, ctx);
+    case "subissue":
+      return subissueCommand(args, ctx);
     default:
       return renderError(
         `Unknown issue subcommand: ${sub}`,
