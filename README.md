@@ -39,17 +39,17 @@ gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 
 ### Commands
 
-| Command    | Description                                               |
-| ---------- | --------------------------------------------------------- |
+| Command    | Description                                                         |
+| ---------- | ------------------------------------------------------------------- |
 | `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue |
-| `pr`       | Pull requests — list, view, create, merge, review, checks |
-| `run`      | Workflow runs — list, view, rerun, cancel, watch          |
-| `workflow` | Workflows — list, view, run, enable, disable              |
-| `release`  | Releases — list, view, create, edit, delete               |
-| `repo`     | Repositories — list, view, create, edit, clone, fork      |
-| `label`    | Labels — list, create, edit, delete                       |
-| `search`   | Search issues, PRs, repos, commits, code                  |
-| `api`      | Raw GitHub API access                                     |
+| `pr`       | Pull requests — list, view, create, merge, review, checks           |
+| `run`      | Workflow runs — list, view, rerun, cancel, watch                    |
+| `workflow` | Workflows — list, view, run, enable, disable                        |
+| `release`  | Releases — list, view, create, edit, delete                         |
+| `repo`     | Repositories — list, view, create, edit, clone, fork                |
+| `label`    | Labels — list, create, edit, delete                                 |
+| `search`   | Search issues, PRs, repos, commits, code                            |
+| `api`      | Raw GitHub API access                                               |
 
 ### Global flags
 

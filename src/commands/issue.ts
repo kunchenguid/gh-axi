@@ -1025,10 +1025,7 @@ function requireRepo(ctx?: RepoContext): RepoContext {
   return ctx;
 }
 
-async function gqlRequest<T>(
-  query: string,
-  ctx?: RepoContext,
-): Promise<T> {
+async function gqlRequest<T>(query: string, ctx?: RepoContext): Promise<T> {
   // Don't pass ctx through to ghJson — `gh api graphql` ignores --repo, and
   // passing it produces a deprecation warning. The owner/name are baked into
   // the query string instead.
@@ -1048,9 +1045,7 @@ async function resolveIssueIds(
   ctx: RepoContext,
 ): Promise<{ parent: ResolvedIssue; children: ResolvedIssue[] }> {
   const childFields = children
-    .map(
-      (n, i) => `c${i}: issue(number: ${n}) { id number }`,
-    )
+    .map((n, i) => `c${i}: issue(number: ${n}) { id number }`)
     .join(" ");
   const query = `query { repository(owner: "${ctx.owner}", name: "${ctx.name}") { parent: issue(number: ${parent}) { id number } ${childFields} } }`;
   const result = await gqlRequest<{
@@ -1060,10 +1055,7 @@ async function resolveIssueIds(
   const repo = result.repository ?? {};
   const parentNode = repo.parent;
   if (!parentNode) {
-    throw new AxiError(
-      `Issue #${parent} not found in ${ctx.nwo}`,
-      "NOT_FOUND",
-    );
+    throw new AxiError(`Issue #${parent} not found in ${ctx.nwo}`, "NOT_FOUND");
   }
   const childNodes: ResolvedIssue[] = [];
   for (let i = 0; i < children.length; i++) {
@@ -1079,10 +1071,7 @@ async function resolveIssueIds(
   return { parent: parentNode, children: childNodes };
 }
 
-async function subissueAdd(
-  args: string[],
-  ctx?: RepoContext,
-): Promise<string> {
+async function subissueAdd(args: string[], ctx?: RepoContext): Promise<string> {
   const repo = requireRepo(ctx);
   const parentRaw = args[2];
   const childRaw = args.slice(3).filter((a) => !a.startsWith("--"));
@@ -1095,7 +1084,11 @@ async function subissueAdd(
   }
   const childNums = childRaw.map((r) => requireNumber(r, "child"));
 
-  const { parent, children } = await resolveIssueIds(parentNum, childNums, repo);
+  const { parent, children } = await resolveIssueIds(
+    parentNum,
+    childNums,
+    repo,
+  );
 
   const addedNumbers: number[] = [];
   for (const child of children) {
@@ -1173,10 +1166,7 @@ async function subissueRemove(
     removed: `#${child.number}`,
   };
   const blocks: string[] = [
-    renderDetail("subissue_remove", item, [
-      field("parent"),
-      field("removed"),
-    ]),
+    renderDetail("subissue_remove", item, [field("parent"), field("removed")]),
   ];
   blocks.push(
     renderHelp([
@@ -1219,11 +1209,7 @@ async function subissueList(
     totalCount,
   });
 
-  const schema: FieldDef[] = [
-    field("number"),
-    field("title"),
-    lower("state"),
-  ];
+  const schema: FieldDef[] = [field("number"), field("title"), lower("state")];
 
   const blocks: string[] = [
     `parent: #${parentNum}`,

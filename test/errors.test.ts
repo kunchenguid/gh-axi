@@ -139,7 +139,7 @@ describe("mapGhError", () => {
 
   it("maps sub-issue already-linked errors to an actionable message", () => {
     const err = mapGhError(
-      'GraphQL: Sub-issue is already a sub-issue of issue with number 5 (addSubIssue)',
+      "GraphQL: Sub-issue is already a sub-issue of issue with number 5 (addSubIssue)",
       1,
     );
     expect(err.code).toBe("VALIDATION_ERROR");
