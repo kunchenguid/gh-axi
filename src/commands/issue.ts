@@ -1,6 +1,6 @@
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec, ghRaw } from "../gh.js";
-import { AxiError } from "../errors.js";
+import { AxiError, mapGhError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   getFlag,
@@ -8,6 +8,7 @@ import {
   getPositional,
   requireNumber,
   takeFlag,
+  takeBoolFlag,
 } from "../args.js";
 import { truncateBody } from "../body.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
@@ -61,9 +62,9 @@ flags{list}:
 flags{view}:
   --comments, --full (show complete body without truncation)
 flags{create}:
-  --title <text> (required), --body <text>, --assignee <login>, --label <name>, --milestone <name>
+  --title <text> (required), --body <text>, --assignee <login>, --label <name>, --milestone <name>, --type <name>
 flags{edit}:
-  --title, --body, --add-label, --remove-label, --add-assignee, --remove-assignee, --milestone
+  --title, --body, --add-label, --remove-label, --add-assignee, --remove-assignee, --milestone, --type <name>, --no-type
 flags{close}:
   --reason <completed|not_planned>, --comment <text>
 flags{comment}:
@@ -89,12 +90,22 @@ const listSchema: FieldDef[] = [
   relativeTime("createdAt", "created"),
 ];
 
+const issueTypeField = custom("type", (item: Record<string, unknown>) => {
+  const it = item.issueType;
+  if (it && typeof it === "object") {
+    const name = (it as Record<string, unknown>).name;
+    if (typeof name === "string" && name.length > 0) return name;
+  }
+  return "none";
+});
+
 const viewSchema: FieldDef[] = [
   field("number"),
   field("title"),
   lower("state"),
   pluck("author", "login", "author"),
   relativeTime("createdAt", "created"),
+  issueTypeField,
   custom("body", (item: Record<string, unknown>) =>
     truncateBody(item.body, 500),
   ),
@@ -254,12 +265,25 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const withComments = hasFlag(args, "--comments");
   const full = hasFlag(args, "--full");
 
-  const fields =
+  const baseFields =
     "number,title,state,author,createdAt,body" +
     (withComments ? ",comments" : "");
+  const fields = baseFields + ",issueType";
   const ghArgs = ["issue", "view", String(num), "--json", fields];
 
-  const item = await ghJson<Record<string, unknown>>(ghArgs, ctx);
+  let item: Record<string, unknown>;
+  try {
+    item = await ghJson<Record<string, unknown>>(ghArgs, ctx);
+  } catch (e) {
+    if (e instanceof AxiError && /issueType/i.test(e.message)) {
+      item = await ghJson<Record<string, unknown>>(
+        ["issue", "view", String(num), "--json", baseFields],
+        ctx,
+      );
+    } else {
+      throw e;
+    }
+  }
 
   const blocks: string[] = [
     renderDetail("issue", item, full ? viewSchemaFull : viewSchema),
@@ -280,6 +304,99 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput(blocks);
 }
 
+interface ResolvedIssueType {
+  id: string;
+  name: string;
+}
+
+async function getOwnerName(
+  ctx?: RepoContext,
+): Promise<{ owner: string; name: string }> {
+  if (ctx) return { owner: ctx.owner, name: ctx.name };
+  const repo = await ghJson<{ owner: { login: string }; name: string }>([
+    "repo",
+    "view",
+    "--json",
+    "owner,name",
+  ]);
+  return { owner: repo.owner.login, name: repo.name };
+}
+
+async function resolveIssueType(
+  typeName: string,
+  ctx?: RepoContext,
+): Promise<ResolvedIssueType> {
+  const { owner, name } = await getOwnerName(ctx);
+  const query =
+    "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){issueTypes(first:25){nodes{id name}}}}";
+  const result = await ghRaw([
+    "api",
+    "graphql",
+    "-f",
+    `owner=${owner}`,
+    "-f",
+    `name=${name}`,
+    "-f",
+    `query=${query}`,
+  ]);
+  if (result.exitCode !== 0) {
+    throw mapGhError(result.stderr, result.exitCode);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    throw new AxiError(
+      "Unable to resolve issue types from GitHub",
+      "UNKNOWN",
+    );
+  }
+  const nodes = (
+    parsed as {
+      data?: {
+        repository?: { issueTypes?: { nodes?: Array<{ id: string; name: string }> } };
+      };
+    }
+  )?.data?.repository?.issueTypes?.nodes;
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    throw new AxiError(
+      `Issue types are not configured for this repository. Enable them in repo settings before using --type.`,
+      "VALIDATION_ERROR",
+    );
+  }
+  const wanted = typeName.toLowerCase();
+  const match = nodes.find(
+    (n) => typeof n?.name === "string" && n.name.toLowerCase() === wanted,
+  );
+  if (!match) {
+    const available = nodes
+      .map((n) => n?.name)
+      .filter((s): s is string => typeof s === "string");
+    throw new AxiError(
+      `Unknown issue type "${typeName}". Available types: ${available.join(", ")}`,
+      "VALIDATION_ERROR",
+    );
+  }
+  return { id: match.id, name: match.name };
+}
+
+async function applyIssueType(
+  issueNodeId: string,
+  typeId: string | null,
+): Promise<void> {
+  const mutation =
+    typeId === null
+      ? `mutation($id:ID!){updateIssue(input:{id:$id,issueTypeId:null}){issue{id}}}`
+      : `mutation($id:ID!,$typeId:ID!){updateIssue(input:{id:$id,issueTypeId:$typeId}){issue{id}}}`;
+  const args = ["api", "graphql", "-f", `id=${issueNodeId}`];
+  if (typeId !== null) args.push("-f", `typeId=${typeId}`);
+  args.push("-f", `query=${mutation}`);
+  const result = await ghRaw(args);
+  if (result.exitCode !== 0) {
+    throw mapGhError(result.stderr, result.exitCode);
+  }
+}
+
 async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const title = getFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
@@ -289,6 +406,13 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const label = getFlag(args, "--label");
   const milestone = getFlag(args, "--milestone");
   const project = getFlag(args, "--project");
+  const typeName = getFlag(args, "--type");
+
+  // Resolve type up front so an invalid value fails before creating the issue.
+  let resolvedType: ResolvedIssueType | undefined;
+  if (typeName) {
+    resolvedType = await resolveIssueType(typeName, ctx);
+  }
 
   const ghArgs = ["issue", "create", "--title", title];
   if (body) ghArgs.push("--body", body);
@@ -305,13 +429,24 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const numMatch = url.match(/\/issues\/(\d+)/);
   const num = numMatch ? parseInt(numMatch[1], 10) : 0;
 
-  // Fetch the created issue for structured output
+  // Fetch the created issue for structured output; include id for type mutation
   const item = await ghJson<Record<string, unknown>>(
-    ["issue", "view", String(num), "--json", "number,title,state,url"],
+    ["issue", "view", String(num), "--json", "number,title,state,url,id"],
     ctx,
   );
 
-  const blocks: string[] = [renderDetail("issue", item, createResultSchema)];
+  if (resolvedType) {
+    const issueNodeId = item.id;
+    if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
+      await applyIssueType(issueNodeId, resolvedType.id);
+    }
+    item.issueType = { name: resolvedType.name };
+  }
+
+  const schema = resolvedType
+    ? [...createResultSchema, issueTypeField]
+    : createResultSchema;
+  const blocks: string[] = [renderDetail("issue", item, schema)];
   const help = getSuggestions({
     domain: "issue",
     action: "create",
@@ -333,6 +468,16 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const addAssignee = getFlag(args, "--add-assignee");
   const removeAssignee = getFlag(args, "--remove-assignee");
   const milestone = getFlag(args, "--milestone");
+  const clearType = takeBoolFlag(args, "--no-type");
+  const rawType = getFlag(args, "--type");
+  const typeName = rawType && rawType.length > 0 ? rawType : undefined;
+  const clearTypeFlag = clearType || rawType === "";
+
+  // Resolve type up front so an invalid value fails before mutating the issue.
+  let resolvedType: ResolvedIssueType | undefined;
+  if (typeName) {
+    resolvedType = await resolveIssueType(typeName, ctx);
+  }
 
   const ghArgs = ["issue", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
@@ -343,21 +488,37 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   if (removeAssignee) ghArgs.push("--remove-assignee", removeAssignee);
   if (milestone) ghArgs.push("--milestone", milestone);
 
-  await ghExec(ghArgs, ctx);
+  // Only call `gh issue edit` if there is a non-type field to update; otherwise
+  // calling with just the issue number errors out.
+  if (ghArgs.length > 3) {
+    await ghExec(ghArgs, ctx);
+  }
 
-  // Fetch updated issue
+  // Fetch updated issue (include id for type mutation)
   const item = await ghJson<Record<string, unknown>>(
     [
       "issue",
       "view",
       String(num),
       "--json",
-      "number,title,state,labels,assignees",
+      "number,title,state,labels,assignees,id",
     ],
     ctx,
   );
 
-  const blocks: string[] = [renderDetail("issue", item, editResultSchema)];
+  if (resolvedType || clearTypeFlag) {
+    const issueNodeId = item.id;
+    if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
+      await applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null);
+    }
+    item.issueType = resolvedType ? { name: resolvedType.name } : null;
+  }
+
+  const schema =
+    resolvedType || clearTypeFlag
+      ? [...editResultSchema, issueTypeField]
+      : editResultSchema;
+  const blocks: string[] = [renderDetail("issue", item, schema)];
   const help = getSuggestions({
     domain: "issue",
     action: "edit",

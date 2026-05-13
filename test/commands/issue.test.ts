@@ -6,13 +6,36 @@ vi.mock("../../src/gh.js", () => ({
   ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec } from "../../src/gh.js";
+import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
 import { issueCommand, ISSUE_HELP } from "../../src/commands/issue.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhRaw = vi.mocked(ghRaw);
+
+function mockTypeQueryOnce(
+  nodes: Array<{ id: string; name: string }>,
+): void {
+  mockedGhRaw.mockResolvedValueOnce({
+    stdout: JSON.stringify({
+      data: { repository: { issueTypes: { nodes } } },
+    }),
+    stderr: "",
+    exitCode: 0,
+  });
+}
+
+function mockTypeMutationOnce(): void {
+  mockedGhRaw.mockResolvedValueOnce({
+    stdout: JSON.stringify({
+      data: { updateIssue: { issue: { id: "I_node" } } },
+    }),
+    stderr: "",
+    exitCode: 0,
+  });
+}
 
 const ctx: RepoContext = {
   owner: "octo",
@@ -146,6 +169,57 @@ describe("issueCommand", () => {
       expect(result).toContain("alice");
     });
 
+    it("includes issueType in the --json field list and renders type", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "Critical bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "Some issue body",
+        issueType: { name: "Bug" },
+      });
+
+      const result = await issueCommand(["view", "42"], ctx);
+
+      const callArgs = mockedGhJson.mock.calls[0][0] as string[];
+      const jsonIdx = callArgs.indexOf("--json");
+      expect(callArgs[jsonIdx + 1]).toContain("issueType");
+      expect(result).toContain("type: Bug");
+    });
+
+    it("renders type as none when no issueType is set", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "Critical bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "Some issue body",
+        issueType: null,
+      });
+
+      const result = await issueCommand(["view", "42"], ctx);
+      expect(result).toContain("type: none");
+    });
+
+    it("falls back when gh does not support the issueType field", async () => {
+      mockedGhJson.mockRejectedValueOnce(
+        new AxiError('unknown JSON field: "issueType"', "UNKNOWN"),
+      );
+      mockedGhJson.mockResolvedValueOnce({
+        number: 42,
+        title: "Critical bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "Some issue body",
+      });
+
+      const result = await issueCommand(["view", "42"], ctx);
+      expect(result).toContain("Critical bug");
+    });
+
     it("omits help suggestions from detail view", async () => {
       mockedGhJson.mockResolvedValue({
         number: 42,
@@ -187,6 +261,164 @@ describe("issueCommand", () => {
         expect.arrayContaining(["issue", "create", "--title", "New issue"]),
         ctx,
       );
+    });
+
+    it("applies --type via graphql mutation and renders the type", async () => {
+      // 1) resolve type
+      mockTypeQueryOnce([
+        { id: "T_task", name: "Task" },
+        { id: "T_feat", name: "Feature" },
+      ]);
+      mockedGhExec.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "New",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+        id: "I_node99",
+      });
+      // 2) apply mutation
+      mockTypeMutationOnce();
+
+      const result = await issueCommand(
+        ["create", "--title", "New", "--type", "Task"],
+        ctx,
+      );
+
+      expect(result).toContain("type: Task");
+
+      // Verify resolve query was issued
+      const resolveCall = mockedGhRaw.mock.calls.find((c) =>
+        (c[0] as string[]).some((a) => typeof a === "string" && a.includes("issueTypes")),
+      );
+      expect(resolveCall).toBeDefined();
+
+      // Verify mutation was issued with issue node ID and type id
+      const mutationCall = mockedGhRaw.mock.calls.find((c) =>
+        (c[0] as string[]).some(
+          (a) => typeof a === "string" && a.includes("updateIssue"),
+        ),
+      );
+      expect(mutationCall).toBeDefined();
+      const flat = (mutationCall![0] as string[]).join(" ");
+      expect(flat).toContain("I_node99");
+      expect(flat).toContain("T_task");
+    });
+
+    it("matches --type case-insensitively", async () => {
+      mockTypeQueryOnce([{ id: "T_task", name: "Task" }]);
+      mockedGhExec.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "New",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+        id: "I_node99",
+      });
+      mockTypeMutationOnce();
+
+      const result = await issueCommand(
+        ["create", "--title", "New", "--type", "task"],
+        ctx,
+      );
+
+      expect(result).toContain("type: Task");
+    });
+
+    it("rejects unknown --type with a hint listing supported types", async () => {
+      mockTypeQueryOnce([
+        { id: "T_task", name: "Task" },
+        { id: "T_feat", name: "Feature" },
+        { id: "T_bug", name: "Bug" },
+      ]);
+
+      await expect(
+        issueCommand(["create", "--title", "X", "--type", "Bogus"], ctx),
+      ).rejects.toThrow(AxiError);
+
+      mockTypeQueryOnce([
+        { id: "T_task", name: "Task" },
+        { id: "T_feat", name: "Feature" },
+        { id: "T_bug", name: "Bug" },
+      ]);
+
+      try {
+        await issueCommand(["create", "--title", "X", "--type", "Bogus"], ctx);
+      } catch (e) {
+        expect((e as AxiError).code).toBe("VALIDATION_ERROR");
+        expect((e as AxiError).message).toContain("Task");
+        expect((e as AxiError).message).toContain("Feature");
+        expect((e as AxiError).message).toContain("Bug");
+      }
+      // No gh issue create should have been called when type resolution fails
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("edit with --type", () => {
+    it("applies --type via graphql mutation", async () => {
+      // 1) resolve type
+      mockTypeQueryOnce([
+        { id: "T_task", name: "Task" },
+        { id: "T_feat", name: "Feature" },
+      ]);
+      mockedGhJson.mockResolvedValue({
+        number: 10,
+        title: "X",
+        state: "OPEN",
+        labels: [],
+        assignees: [],
+        id: "I_node10",
+      });
+      // 2) apply mutation
+      mockTypeMutationOnce();
+
+      const result = await issueCommand(
+        ["edit", "10", "--type", "Feature"],
+        ctx,
+      );
+
+      expect(result).toContain("type: Feature");
+      // No `gh issue edit` should be invoked when only --type is provided
+      expect(mockedGhExec).not.toHaveBeenCalled();
+
+      const mutationCall = mockedGhRaw.mock.calls.find((c) =>
+        (c[0] as string[]).some(
+          (a) => typeof a === "string" && a.includes("updateIssue"),
+        ),
+      );
+      expect(mutationCall).toBeDefined();
+      const flat = (mutationCall![0] as string[]).join(" ");
+      expect(flat).toContain("I_node10");
+      expect(flat).toContain("T_feat");
+    });
+
+    it("clears the type when --no-type is passed", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 10,
+        title: "X",
+        state: "OPEN",
+        labels: [],
+        assignees: [],
+        id: "I_node10",
+      });
+      mockTypeMutationOnce();
+
+      await issueCommand(["edit", "10", "--no-type"], ctx);
+
+      const mutationCall = mockedGhRaw.mock.calls.find((c) =>
+        (c[0] as string[]).some(
+          (a) => typeof a === "string" && a.includes("updateIssue"),
+        ),
+      );
+      expect(mutationCall).toBeDefined();
+      const flat = (mutationCall![0] as string[]).join(" ");
+      // null literal embedded directly in the mutation
+      expect(flat).toContain("issueTypeId:null");
     });
   });
 
