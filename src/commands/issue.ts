@@ -1097,23 +1097,15 @@ async function subissueAdd(
 
   const { parent, children } = await resolveIssueIds(parentNum, childNums, repo);
 
-  const mutationBody = children
-    .map(
-      (c, i) =>
-        `m${i}: addSubIssue(input: { issueId: "${parent.id}", subIssueId: "${c.id}" }) { subIssue { number } }`,
-    )
-    .join(" ");
-  const mutation = `mutation { ${mutationBody} }`;
-  const result = await gqlRequest<Record<string, { subIssue: { number: number } }>>(
-    mutation,
-    repo,
-  );
-
   const addedNumbers: number[] = [];
-  for (let i = 0; i < children.length; i++) {
-    const r = result[`m${i}`];
+  for (const child of children) {
+    const mutation = `mutation { addSubIssue(input: { issueId: "${parent.id}", subIssueId: "${child.id}" }) { subIssue { number } } }`;
+    const result = await gqlRequest<{
+      addSubIssue?: { subIssue?: { number?: number } };
+    }>(mutation, repo);
+    const r = result.addSubIssue;
     if (r?.subIssue?.number != null) addedNumbers.push(r.subIssue.number);
-    else addedNumbers.push(children[i].number);
+    else addedNumbers.push(child.number);
   }
 
   const item = {

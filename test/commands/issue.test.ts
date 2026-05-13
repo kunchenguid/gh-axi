@@ -617,7 +617,7 @@ describe("issueCommand", () => {
     });
 
     describe("add", () => {
-      it("issues a single batched mutation with aliased addSubIssue calls", async () => {
+      it("issues one addSubIssue mutation per child", async () => {
         const ghJsonCalls: string[][] = [];
         mockedGhJson.mockImplementation(async (args: string[]) => {
           ghJsonCalls.push(args);
@@ -636,11 +636,14 @@ describe("issueCommand", () => {
             };
           }
           // mutation
+          const subIssueNumber = query.includes("C_2")
+            ? 2
+            : query.includes("C_3")
+              ? 3
+              : 4;
           return {
             data: {
-              m0: { subIssue: { number: 2 } },
-              m1: { subIssue: { number: 3 } },
-              m2: { subIssue: { number: 4 } },
+              addSubIssue: { subIssue: { number: subIssueNumber } },
             },
           };
         });
@@ -650,22 +653,22 @@ describe("issueCommand", () => {
           ctx,
         );
 
-        // Two GraphQL calls total: one resolution query, one mutation.
+        // Four GraphQL calls total: one resolution query, one mutation per child.
         const graphqlCalls = ghJsonCalls.filter(
           (c) => c[0] === "api" && c[1] === "graphql",
         );
-        expect(graphqlCalls).toHaveLength(2);
+        expect(graphqlCalls).toHaveLength(4);
 
-        const mutationCall = graphqlCalls.find((c) =>
-          graphqlQueryArg(c).includes("mutation"),
-        );
-        expect(mutationCall).toBeDefined();
-        const mutationQuery = graphqlQueryArg(mutationCall!);
-        // Single mutation, three aliases
-        expect(mutationQuery.match(/addSubIssue/g)?.length).toBe(3);
-        expect(mutationQuery).toContain("m0:");
-        expect(mutationQuery).toContain("m1:");
-        expect(mutationQuery).toContain("m2:");
+        const mutationQueries = graphqlCalls
+          .map(graphqlQueryArg)
+          .filter((q) => q.includes("mutation"));
+        expect(mutationQueries).toHaveLength(3);
+        expect(mutationQueries[0]).toContain('subIssueId: "C_2"');
+        expect(mutationQueries[1]).toContain('subIssueId: "C_3"');
+        expect(mutationQueries[2]).toContain('subIssueId: "C_4"');
+        for (const mutationQuery of mutationQueries) {
+          expect(mutationQuery.match(/addSubIssue/g)?.length).toBe(1);
+        }
 
         expect(result).toContain("parent: #1");
         expect(result).toContain("#2");
