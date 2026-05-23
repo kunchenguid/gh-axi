@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.19](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.18...gh-axi-v0.1.19) (2026-05-23)
+
+
+### Features
+
+* **commands:** add explicit hook setup ([#35](https://github.com/kunchenguid/gh-axi/issues/35)) ([3237b79](https://github.com/kunchenguid/gh-axi/commit/3237b79c07f59ac4927ce8d82ef1c3e32fa0ea14))
+
 ## [0.1.18](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.17...gh-axi-v0.1.18) (2026-05-13)
 
 
