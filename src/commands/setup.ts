@@ -19,6 +19,8 @@ export async function setupCommand(args: string[]): Promise<string> {
 
   return renderOutput([
     "hooks:\n  status: installed\n  integrations: Claude Code, Codex, OpenCode",
-    renderHelp(["Restart your agent session to receive gh-axi ambient context"]),
+    renderHelp([
+      "Restart your agent session to receive gh-axi ambient context",
+    ]),
   ]);
 }
