@@ -21,9 +21,7 @@ npm install -g gh-axi
 ```
 
 Requires Node 20+ and [`gh`](https://cli.github.com/) authenticated via `gh auth login`.
-
-Running `gh-axi` also installs or repairs Claude Code and Codex `SessionStart`
-hooks. Those hooks invoke `gh-axi` directly from the packaged production build.
+Run `gh-axi setup hooks` once to install or repair optional agent `SessionStart` hooks for ambient GitHub context.
 
 ## Usage
 
@@ -35,6 +33,7 @@ gh-axi pr view 42               # view pull request #42
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
+gh-axi setup hooks              # install optional agent session hooks
 ```
 
 ### Commands
@@ -50,6 +49,7 @@ gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 | `label`    | Labels — list, create, edit, delete                                 |
 | `search`   | Search issues, PRs, repos, commits, code                            |
 | `api`      | Raw GitHub API access                                               |
+| `setup`    | Install optional agent session hooks                                |
 
 ### Global flags
 

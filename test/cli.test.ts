@@ -1,13 +1,21 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { runAxiCli } = vi.hoisted(() => ({
+const { installSessionStartHooks, runAxiCli } = vi.hoisted(() => ({
+  installSessionStartHooks: vi.fn(),
   runAxiCli: vi.fn(),
 }));
 
-vi.mock("axi-sdk-js", () => ({
-  runAxiCli,
-}));
+vi.mock("axi-sdk-js", async () => {
+  const actual = await vi.importActual<typeof import("axi-sdk-js")>(
+    "axi-sdk-js",
+  );
+  return {
+    ...actual,
+    installSessionStartHooks,
+    runAxiCli,
+  };
+});
 
 vi.mock("../src/commands/home.js", () => ({
   homeCommand: vi.fn().mockResolvedValue("home output"),
@@ -95,6 +103,11 @@ describe("main CLI", () => {
     expect(TOP_HELP).toContain("-v/-V/--version");
   });
 
+  it("documents explicit hook setup in help output", () => {
+    expect(TOP_HELP).toContain("setup");
+    expect(TOP_HELP).toContain("gh-axi setup hooks");
+  });
+
   it("passes bare top-level help argv through to axi-sdk-js", async () => {
     const argv = ["--help"];
     const stdout = { write: vi.fn() };
@@ -134,6 +147,38 @@ describe("main CLI", () => {
       }),
     );
     expect(vi.mocked(runAxiCli).mock.calls[0]?.[0]).not.toHaveProperty("argv");
+  });
+
+  it("does not pass the removed hooks option to axi-sdk-js", async () => {
+    const originalDisableHooks = process.env.GH_AXI_DISABLE_HOOKS;
+    process.env.GH_AXI_DISABLE_HOOKS = "1";
+
+    try {
+      await main();
+    } finally {
+      if (originalDisableHooks === undefined) {
+        delete process.env.GH_AXI_DISABLE_HOOKS;
+      } else {
+        process.env.GH_AXI_DISABLE_HOOKS = originalDisableHooks;
+      }
+    }
+
+    expect(vi.mocked(runAxiCli).mock.calls[0]?.[0]).not.toHaveProperty(
+      "hooks",
+    );
+  });
+
+  it("installs session hooks from the explicit setup command", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const output = await options.commands.setup(["hooks"]);
+
+    expect(installSessionStartHooks).toHaveBeenCalledTimes(1);
+    expect(installSessionStartHooks).toHaveBeenCalledWith();
+    expect(output).toContain("hooks:");
+    expect(output).toContain("status: installed");
+    expect(output).toContain("Restart your agent session");
   });
 
   it("wires command help into the runtime", async () => {
