@@ -22,6 +22,10 @@ function repoFlag(ctx: SuggestionContext): string {
   return "";
 }
 
+function normalizeRepoFlagLine(line: string): string {
+  return line.replace(/`gh-axi -R ([^`\s]+) ([^`]+)`/g, "`gh-axi $2 -R $1`");
+}
+
 const table: SuggestionEntry[] = [
   // Home
   {
@@ -491,7 +495,7 @@ const table: SuggestionEntry[] = [
 export function getSuggestions(ctx: SuggestionContext): string[] {
   for (const entry of table) {
     if (entry.match(ctx)) {
-      return entry.lines(ctx);
+      return entry.lines(ctx).map(normalizeRepoFlagLine);
     }
   }
   return [];

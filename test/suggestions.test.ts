@@ -38,6 +38,8 @@ describe('getSuggestions', () => {
       repo: { owner: 'cli', name: 'cli', nwo: 'cli/cli', source: 'flag' },
     });
     expect(lines.every((l) => l.includes('-R cli/cli'))).toBe(true);
+    expect(lines.every((l) => !l.includes('gh-axi -R'))).toBe(true);
+    expect(lines).toContain('Run `gh-axi issue view <number> -R cli/cli` to view details');
   });
 
   it('does not carry -R flag when repo source is git', () => {
