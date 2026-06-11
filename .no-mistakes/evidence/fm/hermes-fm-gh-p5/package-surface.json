@@ -1,0 +1,11 @@
+{
+  "command": "npm pack --dry-run --json",
+  "package": "gh-axi@0.1.20",
+  "includedPublicSkill": "skills/gh-axi/SKILL.md",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "package.json",
+    "skills/gh-axi/SKILL.md"
+  ]
+}

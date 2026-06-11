@@ -1,0 +1,13 @@
+Command: npx -y skills add . --list --full-depth
+
+Source: /Users/kunchen/.no-mistakes/worktrees/21c6d0f851bd/01KTVW7A6RMNS8KA93MAS9HVTQ
+Local path validated
+Found 1 skill
+
+Available Skills
+
+  gh-axi
+
+    Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, releases, repositories, labels, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, cutting releases, or querying the GitHub API.
+
+Use --skill <name> to install specific skills
