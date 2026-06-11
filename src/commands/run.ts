@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec } from "../gh.js";
@@ -94,20 +97,59 @@ function takeViewFlagValue(args: string[], flag: string): string | undefined {
   return value;
 }
 
-function wrapLogOutput(run: string, mode: string, output: string): string {
-  const truncated = output.length > LOG_TRUNCATE_LIMIT;
-  const result: Record<string, unknown> = {
-    run_log: {
-      run,
-      mode,
-      output: truncated ? output.slice(0, LOG_TRUNCATE_LIMIT) : output,
-      truncated,
-    },
-  };
-  if (truncated) {
-    (result.run_log as Record<string, unknown>).original_length = output.length;
+function logFileName(run: string, mode: string, job?: string): string {
+  const safe = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "_");
+  return `${safe(run)}${job ? `-job-${safe(job)}` : ""}-${safe(mode)}.log`;
+}
+
+async function saveFullLog(
+  run: string,
+  mode: string,
+  output: string,
+  job?: string,
+): Promise<string | undefined> {
+  try {
+    const dir = join(tmpdir(), "gh-axi", "logs");
+    await mkdir(dir, { recursive: true });
+    const file = join(dir, logFileName(run, mode, job));
+    await writeFile(file, output, "utf8");
+    return file;
+  } catch {
+    // Saving the full log is best-effort; the truncated tail is still returned.
+    return undefined;
   }
-  return encode(result);
+}
+
+async function wrapLogOutput(
+  run: string,
+  mode: string,
+  output: string,
+  job?: string,
+): Promise<string> {
+  const truncated = output.length > LOG_TRUNCATE_LIMIT;
+  const runLog: Record<string, unknown> = {
+    run,
+    mode,
+    // CI logs put the failure at the end, so keep the tail when truncating.
+    output: truncated ? output.slice(-LOG_TRUNCATE_LIMIT) : output,
+    truncated,
+  };
+  if (!truncated) {
+    return encode({ run_log: runLog });
+  }
+  runLog.original_length = output.length;
+  const fullLogPath = await saveFullLog(run, mode, output, job);
+  const hint = `Output shows the last ${LOG_TRUNCATE_LIMIT} of ${output.length} chars`;
+  if (fullLogPath) {
+    runLog.full_log = fullLogPath;
+    return renderOutput([
+      encode({ run_log: runLog }),
+      renderHelp([
+        `${hint}; full log saved to ${fullLogPath} - grep it for earlier context`,
+      ]),
+    ]);
+  }
+  return renderOutput([encode({ run_log: runLog }), renderHelp([hint])]);
 }
 
 function matchesConclusionFilter(
@@ -222,6 +264,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
       await resolveLogEnvelopeRunId(id, jobFlag, ctx),
       "log",
       output,
+      jobFlag,
     );
   }
   if (hasFlag(args, "--log-failed")) {
@@ -232,6 +275,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
       await resolveLogEnvelopeRunId(id, jobFlag, ctx),
       "log-failed",
       output,
+      jobFlag,
     );
   }
 
