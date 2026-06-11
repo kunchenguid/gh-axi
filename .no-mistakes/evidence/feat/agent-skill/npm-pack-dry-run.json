@@ -1,0 +1,381 @@
+[
+  {
+    "id": "gh-axi@0.1.19",
+    "name": "gh-axi",
+    "version": "0.1.19",
+    "size": 66814,
+    "unpackedSize": 357768,
+    "shasum": "fd9c33ca4bc1341856c2aacfc04d45591636d42b",
+    "integrity": "sha512-az6eJGktcZzEnqfHyctDx7RTam5oE4bvS2mDDt1AaM0Ko2lmvthEBuFrAn9aCFVZU2uS4GyZg3vY9LTdjGo9DQ==",
+    "filename": "gh-axi-0.1.19.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 5849,
+        "mode": 420
+      },
+      {
+        "path": "dist/bin/gh-axi.d.ts",
+        "size": 31,
+        "mode": 420
+      },
+      {
+        "path": "dist/bin/gh-axi.js",
+        "size": 100,
+        "mode": 420
+      },
+      {
+        "path": "dist/bin/gh-axi.js.map",
+        "size": 168,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/args.d.ts",
+        "size": 1163,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/args.js",
+        "size": 2177,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/args.js.map",
+        "size": 2419,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/body.d.ts",
+        "size": 547,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/body.js",
+        "size": 2190,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/body.js.map",
+        "size": 1396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.d.ts",
+        "size": 773,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 4195,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 3907,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/api.d.ts",
+        "size": 628,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/api.js",
+        "size": 6008,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/api.js.map",
+        "size": 5126,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/home.d.ts",
+        "size": 177,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/home.js",
+        "size": 1830,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/home.js.map",
+        "size": 2047,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/issue.d.ts",
+        "size": 1939,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/issue.js",
+        "size": 36415,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/issue.js.map",
+        "size": 35242,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/label.d.ts",
+        "size": 640,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/label.js",
+        "size": 4925,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/label.js.map",
+        "size": 4802,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/pr.d.ts",
+        "size": 1286,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/pr.js",
+        "size": 27988,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/pr.js.map",
+        "size": 28226,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/release.d.ts",
+        "size": 825,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/release.js",
+        "size": 8901,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/release.js.map",
+        "size": 9047,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/repo.d.ts",
+        "size": 766,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/repo.js",
+        "size": 7307,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/repo.js.map",
+        "size": 7174,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/run.d.ts",
+        "size": 777,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/run.js",
+        "size": 12737,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/run.js.map",
+        "size": 13141,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/search.d.ts",
+        "size": 675,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/search.js",
+        "size": 12465,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/search.js.map",
+        "size": 12508,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/setup.d.ts",
+        "size": 243,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/setup.js",
+        "size": 800,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/setup.js.map",
+        "size": 595,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/workflow.d.ts",
+        "size": 542,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/workflow.js",
+        "size": 5871,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/commands/workflow.js.map",
+        "size": 6024,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/context.d.ts",
+        "size": 432,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/context.js",
+        "size": 1535,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/context.js.map",
+        "size": 1698,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/errors.d.ts",
+        "size": 392,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/errors.js",
+        "size": 4075,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/errors.js.map",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/fields.d.ts",
+        "size": 837,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/fields.js",
+        "size": 1161,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/fields.js.map",
+        "size": 1171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.d.ts",
+        "size": 936,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 1269,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 753,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/gh.d.ts",
+        "size": 569,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/gh.js",
+        "size": 2020,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/gh.js.map",
+        "size": 2288,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/skill.d.ts",
+        "size": 639,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/skill.js",
+        "size": 3483,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/skill.js.map",
+        "size": 747,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/suggestions.d.ts",
+        "size": 352,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/suggestions.js",
+        "size": 14525,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/suggestions.js.map",
+        "size": 14324,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/toon.d.ts",
+        "size": 2379,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/toon.js",
+        "size": 5679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/toon.js.map",
+        "size": 6105,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1231,
+        "mode": 420
+      },
+      {
+        "path": "skills/gh-axi/SKILL.md",
+        "size": 2407,
+        "mode": 420
+      }
+    ],
+    "entryCount": 73,
+    "bundled": []
+  }
+]
