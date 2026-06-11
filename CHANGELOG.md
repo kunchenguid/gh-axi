@@ -18,6 +18,18 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.20](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.19...gh-axi-v0.1.20) (2026-06-11)
+
+
+### Features
+
+* add installable agent skill ([#38](https://github.com/kunchenguid/gh-axi/issues/38)) ([c98b2fa](https://github.com/kunchenguid/gh-axi/commit/c98b2fa400ddd25e4f828f9e2d102b990ceb98c3))
+
+
+### Bug Fixes
+
+* **commands:** preserve run log tails when truncating ([#40](https://github.com/kunchenguid/gh-axi/issues/40)) ([4531c7c](https://github.com/kunchenguid/gh-axi/commit/4531c7cf4d1b52763ed4fe2039848c52d100f7f6))
+
 ## [0.1.19](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.18...gh-axi-v0.1.19) (2026-05-23)
 
 
