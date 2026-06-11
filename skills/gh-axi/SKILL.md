@@ -2,6 +2,11 @@
 name: gh-axi
 description: "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, releases, repositories, labels, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, cutting releases, or querying the GitHub API."
 user-invocable: false
+author: Kun Chen (kunchenguid)
+metadata:
+  hermes:
+    tags: [github, git, ci, pull-requests, releases]
+    category: devops
 ---
 
 # gh-axi

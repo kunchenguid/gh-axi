@@ -8,6 +8,14 @@ export const SKILL_DESCRIPTION =
   "GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, cutting " +
   "releases, or querying the GitHub API.";
 
+export const SKILL_AUTHOR = "Kun Chen (kunchenguid)";
+
+// Extended frontmatter read by Nous Research's Hermes Agent harness
+// (https://hermes-agent.nousresearch.com/docs/user-guide/features/skills).
+// Harnesses that don't know these fields (e.g. Claude Code) ignore them.
+export const HERMES_TAGS = ["github", "git", "ci", "pull-requests", "releases"];
+export const HERMES_CATEGORY = "devops";
+
 function yamlDoubleQuote(value: string): string {
   return JSON.stringify(value);
 }
@@ -37,6 +45,11 @@ export function createSkillMarkdown(): string {
 name: gh-axi
 description: ${yamlDoubleQuote(SKILL_DESCRIPTION)}
 user-invocable: false
+author: ${SKILL_AUTHOR}
+metadata:
+  hermes:
+    tags: [${HERMES_TAGS.join(", ")}]
+    category: ${HERMES_CATEGORY}
 ---
 
 # gh-axi

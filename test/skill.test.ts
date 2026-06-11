@@ -1,38 +1,21 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
+import { parse } from "yaml";
 import {
   createSkillMarkdown,
   extractCommandsBlock,
+  HERMES_CATEGORY,
+  HERMES_TAGS,
+  SKILL_AUTHOR,
   SKILL_DESCRIPTION,
 } from "../src/skill.js";
 
-function parseFrontmatter(markdown: string): Record<string, string | boolean> {
+function parseFrontmatter(markdown: string): Record<string, unknown> {
   const match = markdown.match(/^---\n([\s\S]*?)\n---\n/);
   if (!match) {
     throw new Error("Missing frontmatter");
   }
-
-  const parsed: Record<string, string | boolean> = {};
-  for (const line of match[1].split("\n")) {
-    const field = line.match(/^([a-z-]+): (.*)$/);
-    if (!field) {
-      throw new Error(`Invalid frontmatter line: ${line}`);
-    }
-
-    const [, key, rawValue] = field;
-    if (rawValue.startsWith('"')) {
-      parsed[key] = JSON.parse(rawValue) as string;
-    } else if (rawValue === "true" || rawValue === "false") {
-      parsed[key] = rawValue === "true";
-    } else {
-      if (/:\s/.test(rawValue)) {
-        throw new Error(`Invalid plain scalar for ${key}`);
-      }
-      parsed[key] = rawValue;
-    }
-  }
-
-  return parsed;
+  return parse(match[1], { strict: true }) as Record<string, unknown>;
 }
 
 describe("createSkillMarkdown", () => {
@@ -44,16 +27,39 @@ describe("createSkillMarkdown", () => {
     expect(committed).toBe(createSkillMarkdown());
   });
 
-  it("starts with valid frontmatter and is not user-invocable", () => {
+  it("starts with valid YAML frontmatter and is not user-invocable", () => {
     const markdown = createSkillMarkdown();
     const frontmatter = parseFrontmatter(markdown);
     expect(frontmatter).toEqual({
       name: "gh-axi",
       description: SKILL_DESCRIPTION,
       "user-invocable": false,
+      author: SKILL_AUTHOR,
+      metadata: {
+        hermes: {
+          tags: HERMES_TAGS,
+          category: HERMES_CATEGORY,
+        },
+      },
     });
     expect(markdown).not.toContain("$ARGUMENTS");
     expect(markdown).not.toContain("argument-hint:");
+  });
+
+  it("carries Hermes Agent metadata without env-var requirements", () => {
+    const frontmatter = parseFrontmatter(createSkillMarkdown());
+    const hermes = (frontmatter.metadata as { hermes: Record<string, unknown> })
+      .hermes;
+    expect(hermes.tags).toEqual([
+      "github",
+      "git",
+      "ci",
+      "pull-requests",
+      "releases",
+    ]);
+    expect(hermes.category).toBe("devops");
+    // gh-axi authenticates via the gh CLI, not an API-key env var.
+    expect(frontmatter).not.toHaveProperty("required_environment_variables");
   });
 
   it("teaches npx invocation instead of assuming a global install", () => {
