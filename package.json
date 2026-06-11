@@ -21,6 +21,7 @@
   },
   "files": [
     "dist",
+    "skills/gh-axi",
     "LICENSE",
     "README.md"
   ],
@@ -29,6 +30,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "build:skill": "tsx scripts/build-skill.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx bin/gh-axi.ts",

@@ -15,7 +15,7 @@ import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
 
-const DESCRIPTION =
+export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
 const VERSION = readPackageVersion();
 
