@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({
@@ -559,16 +559,16 @@ describe("runCommand", () => {
       expect(result).toContain("TAIL-MARKER");
       expect(result).not.toContain("HEAD-MARKER");
 
-      const expectedPath = join(
-        tmpdir(),
-        "gh-axi",
-        "logs",
-        "100-job-555-log-failed.log",
-      );
-      expect(result).toContain(`full_log: ${expectedPath}`);
+      const fullLogPath = result.match(/^\s*full_log: "?([^"\n]+)"?$/m)?.[1];
+      expect(fullLogPath).toBeDefined();
+      expect(fullLogPath).toContain(join(tmpdir(), "gh-axi-logs-"));
+      expect(fullLogPath).toContain("100-job-555-log-failed.log");
+      expect(result).toContain(`full_log: ${fullLogPath}`);
       expect(result).toContain("help[1]:");
       expect(result).toContain("Output shows the last 20000 of");
-      await expect(readFile(expectedPath, "utf8")).resolves.toBe(output);
+      await expect(readFile(fullLogPath!, "utf8")).resolves.toBe(output);
+      expect((await stat(dirname(fullLogPath!))).mode & 0o777).toBe(0o700);
+      expect((await stat(fullLogPath!)).mode & 0o777).toBe(0o600);
     });
 
     it("does not save a log file when output fits within the limit", async () => {

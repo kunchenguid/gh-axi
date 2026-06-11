@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { encode } from "@toon-format/toon";
@@ -109,10 +109,9 @@ async function saveFullLog(
   job?: string,
 ): Promise<string | undefined> {
   try {
-    const dir = join(tmpdir(), "gh-axi", "logs");
-    await mkdir(dir, { recursive: true });
+    const dir = await mkdtemp(join(tmpdir(), "gh-axi-logs-"));
     const file = join(dir, logFileName(run, mode, job));
-    await writeFile(file, output, "utf8");
+    await writeFile(file, output, { encoding: "utf8", flag: "wx", mode: 0o600 });
     return file;
   } catch {
     // Saving the full log is best-effort; the truncated tail is still returned.
