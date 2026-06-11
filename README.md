@@ -70,6 +70,9 @@ gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 gh-axi setup hooks              # install optional agent session hooks
 ```
 
+Long `run view --log` and `run view --log-failed` output shows the last 20,000 characters so CI failures stay visible.
+When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
+
 ### Commands
 
 | Command    | Description                                                         |

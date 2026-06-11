@@ -1,0 +1,8 @@
+command: PATH=... pnpm exec tsx bin/gh-axi.ts run view 100 --log-failed --job 555
+toon_has_tail_marker: true
+toon_has_head_marker: false
+toon_has_help_hint: true
+full_log_path: /var/folders/5x/4nqprlbx0518k3ybcb1sz6gr0000gn/T/gh-axi-logs-MBAqG0/100-job-555-log-failed.log
+full_log_has_head_marker: true
+full_log_has_tail_marker: true
+full_log_length: 25096

@@ -1,0 +1,13 @@
+#!/usr/bin/env node
+
+const args = process.argv.slice(2);
+
+if (args.join(" ") !== "run view 100 --log-failed --job 555") {
+  console.error(`unexpected gh args: ${args.join(" ")}`);
+  process.exit(1);
+}
+
+const head = "HEAD-MARKER setup noise before failure\n";
+const middle = "x".repeat(25000);
+const tail = "\nnot ok 12 - spawned poll announces the wait TAIL-MARKER\n";
+process.stdout.write(head + middle + tail);

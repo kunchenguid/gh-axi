@@ -295,7 +295,7 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "run" && c.action === "view",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} run view ${c.id} --log\` to see full logs`,
+      `Run \`gh-axi${repoFlag(c)} run view ${c.id} --log\` to see run logs`,
     ],
   },
 
