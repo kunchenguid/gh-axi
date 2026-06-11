@@ -112,7 +112,11 @@ async function saveFullLog(
   try {
     const dir = await mkdtemp(join(tmpdir(), "gh-axi-logs-"));
     const file = join(dir, logFileName(run, mode, job));
-    await writeFile(file, output, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    await writeFile(file, output, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
     return file;
   } catch {
     // Saving the full log is best-effort; the truncated tail is still returned.
