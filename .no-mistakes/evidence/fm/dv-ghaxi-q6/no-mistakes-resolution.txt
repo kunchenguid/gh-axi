@@ -1,0 +1,27 @@
+command: test ! -e .agents/skills/no-mistakes/SKILL.md && test ! -e .claude/skills/no-mistakes/SKILL.md
+result: repo-local vendored no-mistakes skill copies are absent
+
+command: test -f "$HOME/.agents/skills/no-mistakes/SKILL.md"
+result: user-level no-mistakes skill is present at /Users/kunchen/.agents/skills/no-mistakes/SKILL.md
+
+command: no-mistakes axi
+error: repo not initialized (run 'no-mistakes init' first)
+help[1]: Run `no-mistakes init` to set up the gate in this repository
+
+command: no-mistakes doctor
+  System
+  ✓ git             git version 2.53.0
+  ✓ gh              ok
+  ✓ data directory  /Users/kunchen/.no-mistakes
+  ✓ database        ok
+  ✓ daemon          running
+
+  Agents
+  ✓ claude          /Users/kunchen/.local/bin/claude
+  ✓ codex           /opt/homebrew/bin/codex
+  – rovodev         not found
+  ✓ opencode        /opt/homebrew/bin/opencode
+  ✓ pi              /Users/kunchen/.nvm/versions/node/v24.13.1/bin/pi
+
+command: test -f skills/gh-axi/SKILL.md
+result: top-level skills/gh-axi/SKILL.md is preserved
