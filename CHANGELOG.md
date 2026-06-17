@@ -18,6 +18,19 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.21](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.20...gh-axi-v0.1.21) (2026-06-17)
+
+
+### Features
+
+* **skills:** add Hermes metadata to gh-axi skill ([#43](https://github.com/kunchenguid/gh-axi/issues/43)) ([f703922](https://github.com/kunchenguid/gh-axi/commit/f703922b7257b67eb15d5024a21e4100fb430ba8))
+
+
+### Bug Fixes
+
+* hide vendored no-mistakes skill from discovery ([#41](https://github.com/kunchenguid/gh-axi/issues/41)) ([1603e94](https://github.com/kunchenguid/gh-axi/commit/1603e941367cfad17cad933f12b630a827192a3d))
+* preserve gh argument forwarding ([#46](https://github.com/kunchenguid/gh-axi/issues/46)) ([9b1abda](https://github.com/kunchenguid/gh-axi/commit/9b1abda2ced148d0eccb6dafdc30339cf8e58a8c))
+
 ## [0.1.20](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.19...gh-axi-v0.1.20) (2026-06-11)
 
 
