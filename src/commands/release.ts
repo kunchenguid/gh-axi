@@ -90,6 +90,24 @@ function appendBoolFlag(
   }
 }
 
+function appendOptionalValueBoolFlag(
+  ghArgs: string[],
+  args: string[],
+  outputFlag: string,
+  inputFlags: string[] = [outputFlag],
+): void {
+  for (const flag of inputFlags) {
+    const equalsPrefix = `${flag}=`;
+    const equalsIndex = args.findIndex((arg) => arg.startsWith(equalsPrefix));
+    if (equalsIndex !== -1) {
+      ghArgs.push(`${outputFlag}=${args[equalsIndex].slice(equalsPrefix.length)}`);
+      args.splice(equalsIndex, 1);
+      return;
+    }
+  }
+  appendBoolFlag(ghArgs, args, outputFlag, inputFlags);
+}
+
 
 async function listReleases(args: string[], ctx?: RepoContext): Promise<string> {
   const limit = getFlag(args, '--limit') ?? '10';
@@ -145,7 +163,7 @@ async function createRelease(args: string[], ctx?: RepoContext): Promise<string>
   appendBoolFlag(optionArgs, remaining, '--verify-tag');
   appendBoolFlag(optionArgs, remaining, '--notes-from-tag');
   appendBoolFlag(optionArgs, remaining, '--fail-on-no-commits');
-  appendBoolFlag(optionArgs, remaining, '--latest');
+  appendOptionalValueBoolFlag(optionArgs, remaining, '--latest');
 
   const positionals = remaining.filter((a) => !a.startsWith('-'));
   const tag = positionals[0];

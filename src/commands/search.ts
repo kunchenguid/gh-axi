@@ -20,6 +20,19 @@ import { getSuggestions } from "../suggestions.js";
 
 const DEFAULT_SEARCH_LIMIT = "1000";
 const DISPLAY_LIMIT = 30;
+const SEARCH_VALUE_FLAGS = new Set([
+  "--repo",
+  "--owner",
+  "--state",
+  "--label",
+  "--assignee",
+  "--author",
+  "--sort",
+  "--limit",
+  "--review",
+  "--language",
+  "--stars",
+]);
 
 export const SEARCH_HELP = `usage: gh-axi search <type> <query> [flags]
 types[5]:
@@ -92,8 +105,7 @@ function extractQuery(args: string[]): string {
   let i = 1; // skip subcommand (issues/prs/repos/commits/code)
   while (i < args.length) {
     if (args[i].startsWith("--")) {
-      // Skip flag + value
-      i += 2;
+      i += args[i].includes("=") || !SEARCH_VALUE_FLAGS.has(args[i]) ? 1 : 2;
     } else {
       positionals.push(args[i]);
       i++;

@@ -187,6 +187,17 @@ describe('releaseCommand', () => {
       ], ctx);
     });
 
+    it('forwards latest equals-form values', async () => {
+      await releaseCommand(['create', 'v1.0.0', '--latest=false'], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'release',
+        'create',
+        'v1.0.0',
+        '--latest=false',
+      ], ctx);
+    });
+
     it('threads repo context through create', async () => {
       await releaseCommand(['create', 'v1.0.0', '--target', 'main'], ctx);
 

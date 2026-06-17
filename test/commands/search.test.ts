@@ -75,6 +75,32 @@ describe("searchCommand", () => {
       expect(result).toContain("Bug");
       expect(result).toContain("Feature");
     });
+
+    it("keeps query after equals-form filters", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(["issues", "--repo=owner/repo", "bug"]);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        "search",
+        "issues",
+        "bug",
+        "--json",
+        "number,title,repository,state,author,labels,createdAt",
+        "--limit",
+        "1000",
+        "--repo",
+        "owner/repo",
+      ]);
+    });
+
+    it("keeps query after boolean filters", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(["prs", "--draft", "bug"]);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(expect.arrayContaining(["bug"]));
+    });
   });
 
   describe("searchRepos", () => {
