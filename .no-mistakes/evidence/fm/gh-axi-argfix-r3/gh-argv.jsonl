@@ -1,0 +1,4 @@
+["release","create","v1.2.3","--title","Ship 1.2.3","--notes","hello notes","--target","main","dist/app.zip","--repo","octo/release-target"]
+["release","create","v1.2.4","--notes-file","notes.md","--target","main","--discussion-category","Announcements","--notes-start-tag","v1.2.0","dist/app.zip","--repo","octo/equals-target"]
+["pr","view","42","--json","state,mergedBy,mergedAt","--repo","octo/pr-target"]
+["pr","merge","42","--squash","--delete-branch","--repo","octo/pr-target"]

@@ -1,0 +1,21 @@
+#!/bin/sh
+
+log_file="${GH_AXI_ARG_LOG:?GH_AXI_ARG_LOG is required}"
+
+json_array='['
+first=1
+for arg in "$@"; do
+  escaped=$(printf '%s' "$arg" | sed 's/\\/\\\\/g; s/"/\\"/g')
+  if [ "$first" -eq 1 ]; then
+    first=0
+  else
+    json_array="$json_array,"
+  fi
+  json_array="$json_array\"$escaped\""
+done
+json_array="$json_array]"
+printf '%s\n' "$json_array" >> "$log_file"
+
+if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  printf '{"state":"OPEN"}\n'
+fi

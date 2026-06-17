@@ -27,7 +27,7 @@ flags{list}:
 flags{view}:
   --full (show complete release notes without truncation)
 flags{create}:
-  --title, --notes, --notes-file, --draft, --prerelease, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag
+  --title/-t, --notes/-n, --notes-file/-F, --draft/-d, --prerelease/-p, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag, --notes-from-tag, --fail-on-no-commits, --latest[=true|false], <files...>
 flags{edit}:
   --title, --notes, --draft, --prerelease
 flags{download}:
@@ -35,7 +35,7 @@ flags{download}:
 examples:
   gh-axi release list --exclude-drafts
   gh-axi release view v1.2.0 --full
-  gh-axi release create v1.3.0 --generate-notes --draft`;
+  gh-axi release create v1.3.0 --generate-notes --draft dist/app.zip`;
 
 const listSchema: FieldDef[] = [
   field('tagName', 'tag'),

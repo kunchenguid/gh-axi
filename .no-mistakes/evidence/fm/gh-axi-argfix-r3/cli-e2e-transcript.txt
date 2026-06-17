@@ -1,0 +1,71 @@
+$ pnpm exec tsx bin/gh-axi.ts release create v1.2.3 --repo octo/release-target --target main --title Ship 1.2.3 --notes hello notes dist/app.zip
+created: ok
+tag: v1.2.3
+help[2]:
+  Run `gh-axi -R octo/release-target release view v1.2.3` to view the release
+  Run `gh-axi -R octo/release-target release upload v1.2.3 <files...>` to upload assets
+
+$ pnpm exec tsx bin/gh-axi.ts release create v1.2.4 --repo=octo/equals-target --target=main --notes-file=notes.md --discussion-category=Announcements --notes-start-tag v1.2.0 dist/app.zip
+created: ok
+tag: v1.2.4
+help[2]:
+  Run `gh-axi -R octo/equals-target release view v1.2.4` to view the release
+  Run `gh-axi -R octo/equals-target release upload v1.2.4 <files...>` to upload assets
+
+$ pnpm exec tsx bin/gh-axi.ts pr merge 42 --repo octo/pr-target --squash --delete-branch
+merged:
+  number: 42
+  status: ok
+  method: squash
+help[1]:
+  Run `gh-axi -R octo/pr-target pr revert 42` to revert if needed
+
+Recorded gh argv:
+[
+  "release",
+  "create",
+  "v1.2.3",
+  "--title",
+  "Ship 1.2.3",
+  "--notes",
+  "hello notes",
+  "--target",
+  "main",
+  "dist/app.zip",
+  "--repo",
+  "octo/release-target"
+]
+[
+  "release",
+  "create",
+  "v1.2.4",
+  "--notes-file",
+  "notes.md",
+  "--target",
+  "main",
+  "--discussion-category",
+  "Announcements",
+  "--notes-start-tag",
+  "v1.2.0",
+  "dist/app.zip",
+  "--repo",
+  "octo/equals-target"
+]
+[
+  "pr",
+  "view",
+  "42",
+  "--json",
+  "state,mergedBy,mergedAt",
+  "--repo",
+  "octo/pr-target"
+]
+[
+  "pr",
+  "merge",
+  "42",
+  "--squash",
+  "--delete-branch",
+  "--repo",
+  "octo/pr-target"
+]

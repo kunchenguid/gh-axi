@@ -26,7 +26,7 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 
 1. Run `npx -y gh-axi` with no arguments for a dashboard of the current repo - open issues, open PRs, and suggested next commands.
 2. Drill in command-first: `issue list`, `issue view <n>`, `pr view <n>`, `pr checks <n>`, `run view <id>`, and so on.
-3. Target another repository by placing `-R owner/name` (or `--repo owner/name`) AFTER the command, e.g. `npx -y gh-axi issue list -R owner/name` - the flag is not accepted before the command.
+3. Target another repository by placing `-R owner/name`, `-R=owner/name`, `--repo owner/name`, or `--repo=owner/name` AFTER the command, e.g. `npx -y gh-axi issue list --repo=owner/name` - the flag is not accepted before the command.
 4. Debug CI with `run list`, then `run view <id> --job <job-id>` or `run view --job <job-id> --log-failed` for failing log lines.
    Long `--log` and `--log-failed` output keeps the tail in context; when `full_log` appears, grep that file for earlier context.
 5. Every response ends with contextual next-step hints under `help:` - follow them.

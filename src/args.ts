@@ -4,7 +4,7 @@ function flagEqualsPrefix(flag: string): string {
   return `${flag}=`;
 }
 
-/** Get a flag's value without modifying the args array. */
+/** Get a flag's value from --flag value or --flag=value without modifying args. */
 export function getFlag(args: string[], name: string): string | undefined {
   const equalsPrefix = flagEqualsPrefix(name);
   for (let i = 0; i < args.length; i++) {
@@ -20,7 +20,7 @@ export function getFlag(args: string[], name: string): string | undefined {
   return undefined;
 }
 
-/** Get a flag's value and remove both the flag and value from args. */
+/** Get a flag's value from --flag value or --flag=value and remove it from args. */
 export function takeFlag(args: string[], flag: string): string | undefined {
   const equalsPrefix = flagEqualsPrefix(flag);
   for (let i = 0; i < args.length; i++) {
@@ -52,7 +52,7 @@ export function takeBoolFlag(args: string[], flag: string): boolean {
   return true;
 }
 
-/** Collect all values for a repeatable flag. */
+/** Collect all values for a repeatable flag in --flag value or --flag=value form. */
 export function getAllFlags(args: string[], flag: string): string[] {
   const result: string[] = [];
   const equalsPrefix = flagEqualsPrefix(flag);

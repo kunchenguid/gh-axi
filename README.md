@@ -116,6 +116,7 @@ Repository targeting is command-first too:
 
 - `gh-axi issue list -R owner/name`
 - `gh-axi issue list --repo owner/name`
+- `gh-axi issue list --repo=owner/name`
 - `gh-axi run list -R owner/name`
 - `gh-axi search issues "login bug" --repo owner/name`
 
