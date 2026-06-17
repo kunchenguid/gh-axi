@@ -473,18 +473,24 @@ describe("prCommand", () => {
       ["--squash", "--squash", "squash"],
       ["--merge", "--merge", "merge"],
       ["--rebase", "--rebase", "rebase"],
-    ])("maps %s shorthand to a gh merge method flag", async (input, ghFlag, method) => {
-      mockedGhJson.mockResolvedValue({ state: "OPEN" });
-      mockedGhExec.mockResolvedValue("");
+    ])(
+      "maps %s shorthand to a gh merge method flag",
+      async (input, ghFlag, method) => {
+        mockedGhJson.mockResolvedValue({ state: "OPEN" });
+        mockedGhExec.mockResolvedValue("");
 
-      const result = await prCommand(["merge", "10", input, "--delete-branch"], ctx);
+        const result = await prCommand(
+          ["merge", "10", input, "--delete-branch"],
+          ctx,
+        );
 
-      expect(mockedGhExec).toHaveBeenCalledWith(
-        ["pr", "merge", "10", ghFlag, "--delete-branch"],
-        ctx,
-      );
-      expect(result).toContain(`method: ${method}`);
-    });
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "merge", "10", ghFlag, "--delete-branch"],
+          ctx,
+        );
+        expect(result).toContain(`method: ${method}`);
+      },
+    );
 
     it("keeps --method working", async () => {
       mockedGhJson.mockResolvedValue({ state: "OPEN" });

@@ -1,4 +1,4 @@
-import { AxiError } from './errors.js';
+import { AxiError } from "./errors.js";
 
 function flagEqualsPrefix(flag: string): string {
   return `${flag}=`;
@@ -69,25 +69,29 @@ export function getAllFlags(args: string[], flag: string): string[] {
 }
 
 /** Get the first positional arg (non-flag) starting from startIndex. */
-export function getPositional(args: string[], startIndex: number): string | undefined {
+export function getPositional(
+  args: string[],
+  startIndex: number,
+): string | undefined {
   for (let i = startIndex; i < args.length; i++) {
-    if (!args[i].startsWith('--')) return args[i];
+    if (!args[i].startsWith("--")) return args[i];
   }
   return undefined;
 }
 
 /** Parse and validate a required numeric argument. */
 export function requireNumber(raw: string | undefined, label: string): number {
-  if (!raw) throw new AxiError(`Missing ${label} number`, 'VALIDATION_ERROR');
+  if (!raw) throw new AxiError(`Missing ${label} number`, "VALIDATION_ERROR");
   const n = parseInt(raw, 10);
-  if (isNaN(n)) throw new AxiError(`Invalid ${label} number: ${raw}`, 'VALIDATION_ERROR');
+  if (isNaN(n))
+    throw new AxiError(`Invalid ${label} number: ${raw}`, "VALIDATION_ERROR");
   return n;
 }
 
 /** Find the first numeric positional arg, remove it from args, and return it as a number. */
 export function takeNumber(args: string[], label: string): number {
   const raw = args.find((a) => /^\d+$/.test(a));
-  if (!raw) throw new AxiError(`Missing ${label} number`, 'VALIDATION_ERROR');
+  if (!raw) throw new AxiError(`Missing ${label} number`, "VALIDATION_ERROR");
   args.splice(args.indexOf(raw), 1);
   return Number(raw);
 }

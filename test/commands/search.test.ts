@@ -99,7 +99,9 @@ describe("searchCommand", () => {
 
       await searchCommand(["prs", "--draft", "bug"]);
 
-      expect(mockedGhJson).toHaveBeenCalledWith(expect.arrayContaining(["bug"]));
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(["bug"]),
+      );
     });
   });
 
