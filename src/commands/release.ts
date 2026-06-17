@@ -2,7 +2,7 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag, hasFlag } from '../args.js';
+import { getFlag, hasFlag, takeBoolFlag, takeFlag } from '../args.js';
 import { truncateBody } from '../body.js';
 import {
   field,
@@ -27,7 +27,7 @@ flags{list}:
 flags{view}:
   --full (show complete release notes without truncation)
 flags{create}:
-  --title, --notes, --notes-file, --draft, --prerelease, --target, --generate-notes
+  --title, --notes, --notes-file, --draft, --prerelease, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag
 flags{edit}:
   --title, --notes, --draft, --prerelease
 flags{download}:
@@ -61,6 +61,34 @@ const viewSchemaFull: FieldDef[] = [
   custom('body', (item) => typeof item.body === 'string' ? item.body : ''),
 ];
 
+function takeFirstFlag(args: string[], flags: string[]): string | undefined {
+  for (const flag of flags) {
+    const value = takeFlag(args, flag);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function appendValueFlag(
+  ghArgs: string[],
+  args: string[],
+  outputFlag: string,
+  inputFlags: string[] = [outputFlag],
+): void {
+  const value = takeFirstFlag(args, inputFlags);
+  if (value !== undefined) ghArgs.push(outputFlag, value);
+}
+
+function appendBoolFlag(
+  ghArgs: string[],
+  args: string[],
+  outputFlag: string,
+  inputFlags: string[] = [outputFlag],
+): void {
+  if (inputFlags.some((flag) => takeBoolFlag(args, flag))) {
+    ghArgs.push(outputFlag);
+  }
+}
 
 
 async function listReleases(args: string[], ctx?: RepoContext): Promise<string> {
@@ -102,29 +130,28 @@ async function viewRelease(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function createRelease(args: string[], ctx?: RepoContext): Promise<string> {
-  const positionals = args.filter((a) => !a.startsWith('--'));
-  const tag = positionals[1];
+  const remaining = args.slice(1);
+  const optionArgs: string[] = [];
+
+  appendValueFlag(optionArgs, remaining, '--title', ['--title', '-t']);
+  appendValueFlag(optionArgs, remaining, '--notes', ['--notes', '-n']);
+  appendValueFlag(optionArgs, remaining, '--notes-file', ['--notes-file', '-F']);
+  appendValueFlag(optionArgs, remaining, '--target');
+  appendValueFlag(optionArgs, remaining, '--discussion-category');
+  appendValueFlag(optionArgs, remaining, '--notes-start-tag');
+  appendBoolFlag(optionArgs, remaining, '--draft', ['--draft', '-d']);
+  appendBoolFlag(optionArgs, remaining, '--prerelease', ['--prerelease', '-p']);
+  appendBoolFlag(optionArgs, remaining, '--generate-notes');
+  appendBoolFlag(optionArgs, remaining, '--verify-tag');
+  appendBoolFlag(optionArgs, remaining, '--notes-from-tag');
+  appendBoolFlag(optionArgs, remaining, '--fail-on-no-commits');
+  appendBoolFlag(optionArgs, remaining, '--latest');
+
+  const positionals = remaining.filter((a) => !a.startsWith('-'));
+  const tag = positionals[0];
   if (!tag) throw new AxiError('Tag is required: gh-axi release create <tag>', 'VALIDATION_ERROR');
 
-  const ghArgs = ['release', 'create', tag];
-  const title = getFlag(args, '--title');
-  if (title) ghArgs.push('--title', title);
-  const notes = getFlag(args, '--notes');
-  if (notes) ghArgs.push('--notes', notes);
-  const notesFile = getFlag(args, '--notes-file');
-  if (notesFile) ghArgs.push('--notes-file', notesFile);
-  if (hasFlag(args, '--draft')) ghArgs.push('--draft');
-  if (hasFlag(args, '--prerelease')) ghArgs.push('--prerelease');
-  const target = getFlag(args, '--target');
-  if (target) ghArgs.push('--target', target);
-  if (hasFlag(args, '--generate-notes')) ghArgs.push('--generate-notes');
-
-  // Positional files (after tag, excluding flags and their values)
-  const files: string[] = [];
-  for (let i = 2; i < positionals.length; i++) {
-    files.push(positionals[i]);
-  }
-  ghArgs.push(...files);
+  const ghArgs = ['release', 'create', tag, ...optionArgs, ...positionals.slice(1)];
 
   await ghExec(ghArgs, ctx);
   const suggestions = getSuggestions({ domain: 'release', action: 'create', id: tag, repo: ctx });

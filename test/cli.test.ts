@@ -68,6 +68,7 @@ vi.mock("../src/context.js", () => ({
 import { main, TOP_HELP } from "../src/cli.js";
 import { homeCommand } from "../src/commands/home.js";
 import { issueCommand } from "../src/commands/issue.js";
+import { releaseCommand } from "../src/commands/release.js";
 import { resolveRepo } from "../src/context.js";
 
 const packageVersion = JSON.parse(
@@ -82,6 +83,7 @@ describe("main CLI", () => {
     process.argv = [...originalArgv];
     vi.mocked(homeCommand).mockResolvedValue("home output");
     vi.mocked(issueCommand).mockResolvedValue("issue output");
+    vi.mocked(releaseCommand).mockResolvedValue("release output");
     vi.mocked(resolveRepo).mockReturnValue({
       owner: "octo",
       name: "repo",
@@ -212,6 +214,19 @@ describe("main CLI", () => {
     expect(context).toEqual(expect.objectContaining({ nwo: "octo/repo" }));
   });
 
+  it("accepts --repo=value as a repo-context alias after the command", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const context = options.resolveContext({
+      command: "release",
+      args: ["create", "v1.0.0", "--repo=owner/name"],
+    });
+
+    expect(vi.mocked(resolveRepo)).toHaveBeenCalledWith("owner/name");
+    expect(context).toEqual(expect.objectContaining({ nwo: "octo/repo" }));
+  });
+
   it("routes the home handler through resolved repo context", async () => {
     await main();
 
@@ -258,6 +273,28 @@ describe("main CLI", () => {
     await options.commands.issue(["list", "--repo", "owner/name"], ctx);
 
     expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(["list"], ctx);
+  });
+
+  it("strips --repo=value before invoking release handlers when used as repo context", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.release(
+      ["create", "v1.0.0", "--repo=owner/name", "--target", "main"],
+      ctx,
+    );
+
+    expect(vi.mocked(releaseCommand)).toHaveBeenCalledWith(
+      ["create", "v1.0.0", "--target", "main"],
+      ctx,
+    );
   });
 
   it("uses -R as repo context for issue transfer and preserves --to-repo", async () => {

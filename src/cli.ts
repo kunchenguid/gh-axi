@@ -128,6 +128,11 @@ function parseRepoContextArgs(
       continue;
     }
 
+    if (arg.startsWith("-R=") && arg.length > 3) {
+      repoFlag = arg.slice(3);
+      continue;
+    }
+
     if (arg === "--repo" && index + 1 < args.length) {
       const value = args[index + 1];
 
@@ -138,6 +143,16 @@ function parseRepoContextArgs(
       }
 
       index++;
+      continue;
+    }
+
+    if (arg.startsWith("--repo=") && arg.length > "--repo=".length) {
+      repoFlag = arg.slice("--repo=".length);
+
+      if (command === "search") {
+        stripped.push(arg);
+      }
+
       continue;
     }
 

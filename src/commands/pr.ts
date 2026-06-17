@@ -229,7 +229,7 @@ flags{view}:
 flags{create}:
   --title <text> (required), --body, --base, --head, --draft, --assignee, --reviewer, --label, --milestone
 flags{merge}:
-  --method <merge|squash|rebase>, --auto, --delete-branch, --body, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body, --subject
 flags{review}:
   --approve, --request-changes, --comment, --body
 flags{checks}:
@@ -536,7 +536,33 @@ async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
-  const method = takeFlag(args, "--method");
+  const explicitMethod = takeFlag(args, "--method");
+  const shorthandMethods = ["merge", "squash", "rebase"].filter((candidate) =>
+    takeBoolFlag(args, `--${candidate}`),
+  );
+  if (shorthandMethods.length > 1) {
+    throw new AxiError(
+      "Choose only one merge method: --merge, --squash, or --rebase",
+      "VALIDATION_ERROR",
+    );
+  }
+  if (
+    explicitMethod &&
+    shorthandMethods.length === 1 &&
+    explicitMethod !== shorthandMethods[0]
+  ) {
+    throw new AxiError(
+      "Choose either --method or a matching merge method shorthand, not both",
+      "VALIDATION_ERROR",
+    );
+  }
+  const method = explicitMethod ?? shorthandMethods[0];
+  if (method && !["merge", "squash", "rebase"].includes(method)) {
+    throw new AxiError(
+      "--method must be one of: merge, squash, rebase",
+      "VALIDATION_ERROR",
+    );
+  }
   const auto = takeBoolFlag(args, "--auto");
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const body = takeFlag(args, "--body");

@@ -116,7 +116,9 @@ const COMMON_FILTER_FLAGS = [
 ];
 
 function hasSearchFilters(args: string[], extraFlags: string[] = []): boolean {
-  return [...COMMON_FILTER_FLAGS, ...extraFlags].some((f) => hasFlag(args, f));
+  return [...COMMON_FILTER_FLAGS, ...extraFlags].some(
+    (f) => hasFlag(args, f) || getFlag(args, f) !== undefined,
+  );
 }
 
 async function searchIssues(

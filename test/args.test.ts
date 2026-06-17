@@ -15,6 +15,10 @@ describe('getFlag', () => {
     expect(getFlag(['--repo', 'cli/cli', '--state', 'open'], '--repo')).toBe('cli/cli');
   });
 
+  it('returns the value from --flag=value form', () => {
+    expect(getFlag(['--repo=cli/cli', '--state', 'open'], '--repo')).toBe('cli/cli');
+  });
+
   it('returns undefined when flag is missing', () => {
     expect(getFlag(['--state', 'open'], '--repo')).toBeUndefined();
   });
@@ -33,6 +37,13 @@ describe('getFlag', () => {
 describe('takeFlag', () => {
   it('returns value and removes flag+value from args', () => {
     const args = ['--repo', 'cli/cli', '--state', 'open'];
+    const val = takeFlag(args, '--repo');
+    expect(val).toBe('cli/cli');
+    expect(args).toEqual(['--state', 'open']);
+  });
+
+  it('returns value and removes --flag=value from args', () => {
+    const args = ['--repo=cli/cli', '--state', 'open'];
     const val = takeFlag(args, '--repo');
     expect(val).toBe('cli/cli');
     expect(args).toEqual(['--state', 'open']);
@@ -84,6 +95,11 @@ describe('takeBoolFlag', () => {
 describe('getAllFlags', () => {
   it('collects all values for a repeatable flag', () => {
     const args = ['--label', 'bug', '--state', 'open', '--label', 'help wanted'];
+    expect(getAllFlags(args, '--label')).toEqual(['bug', 'help wanted']);
+  });
+
+  it('collects repeatable values from --flag=value form', () => {
+    const args = ['--label=bug', '--state', 'open', '--label=help wanted'];
     expect(getAllFlags(args, '--label')).toEqual(['bug', 'help wanted']);
   });
 

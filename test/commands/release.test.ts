@@ -6,12 +6,13 @@ vi.mock('../../src/gh.js', () => ({
   ghRaw: vi.fn(),
 }));
 
-import { ghJson } from '../../src/gh.js';
+import { ghJson, ghExec } from '../../src/gh.js';
 import { releaseCommand, RELEASE_HELP } from '../../src/commands/release.js';
 import { AxiError } from '../../src/errors.js';
 import type { RepoContext } from '../../src/context.js';
 
 const mockedGhJson = vi.mocked(ghJson);
+const mockedGhExec = vi.mocked(ghExec);
 
 const ctx: RepoContext = { owner: 'octo', name: 'repo', nwo: 'octo/repo', source: 'flag' };
 
@@ -82,6 +83,142 @@ describe('releaseCommand', () => {
       });
       const result = await releaseCommand(['view', 'v1.0.0'], ctx);
       expect(result).not.toMatch(/^help\[/m);
+    });
+  });
+
+  describe('create', () => {
+    beforeEach(() => {
+      mockedGhExec.mockResolvedValue('');
+    });
+
+    it('does not treat space-form valued flag values as asset files', async () => {
+      await releaseCommand([
+        'create',
+        'v1.0.0',
+        '--target',
+        'main',
+        '--title',
+        'HomeMux 0.1.0 (TestFlight)',
+        '--notes',
+        'hello notes',
+      ], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'release',
+        'create',
+        'v1.0.0',
+        '--title',
+        'HomeMux 0.1.0 (TestFlight)',
+        '--notes',
+        'hello notes',
+        '--target',
+        'main',
+      ], ctx);
+    });
+
+    it('accepts equals-form valued flags', async () => {
+      await releaseCommand([
+        'create',
+        'v1.0.0',
+        '--target=abc123',
+        '--title=HomeMux 0.1.0 (TestFlight)',
+        '--notes=hello notes',
+      ], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'release',
+        'create',
+        'v1.0.0',
+        '--title',
+        'HomeMux 0.1.0 (TestFlight)',
+        '--notes',
+        'hello notes',
+        '--target',
+        'abc123',
+      ], ctx);
+    });
+
+    it('keeps trailing asset files positional after valued flags are consumed', async () => {
+      await releaseCommand([
+        'create',
+        'v1.0.0',
+        '--target',
+        'main',
+        '--title',
+        'Release title',
+        'dist/app.zip',
+      ], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'release',
+        'create',
+        'v1.0.0',
+        '--title',
+        'Release title',
+        '--target',
+        'main',
+        'dist/app.zip',
+      ], ctx);
+    });
+
+    it('consumes all supported valued release-create flags before assets', async () => {
+      await releaseCommand([
+        'create',
+        'v1.0.0',
+        '--notes-file',
+        'notes.md',
+        '--discussion-category=Announcements',
+        '--notes-start-tag',
+        'v0.9.0',
+        'dist/app.zip',
+      ], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'release',
+        'create',
+        'v1.0.0',
+        '--notes-file',
+        'notes.md',
+        '--discussion-category',
+        'Announcements',
+        '--notes-start-tag',
+        'v0.9.0',
+        'dist/app.zip',
+      ], ctx);
+    });
+
+    it('threads repo context through create', async () => {
+      await releaseCommand(['create', 'v1.0.0', '--target', 'main'], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(expect.any(Array), ctx);
+    });
+  });
+
+  describe('repo context threading', () => {
+    beforeEach(() => {
+      mockedGhJson.mockImplementation(async (args) => {
+        if (args[0] === 'release' && args[1] === 'list') return [];
+        return { tagName: 'v1.0.0' };
+      });
+      mockedGhExec.mockResolvedValue('');
+    });
+
+    it.each([
+      ['list', ['list']],
+      ['view', ['view', 'v1.0.0']],
+      ['edit', ['edit', 'v1.0.0', '--title', 'New title']],
+      ['delete', ['delete', 'v1.0.0']],
+      ['download', ['download', 'v1.0.0', '--pattern', '*.zip']],
+      ['upload', ['upload', 'v1.0.0', 'dist/app.zip']],
+    ])('passes ctx to gh for release %s', async (_name, args) => {
+      await releaseCommand(args, ctx);
+
+      for (const call of mockedGhJson.mock.calls) {
+        expect(call[1]).toBe(ctx);
+      }
+      for (const call of mockedGhExec.mock.calls) {
+        expect(call[1]).toBe(ctx);
+      }
     });
   });
 });

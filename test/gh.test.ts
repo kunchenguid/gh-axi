@@ -152,6 +152,25 @@ describe("ghExec", () => {
       expect((e as AxiError).code).toBe("GH_NOT_INSTALLED");
     }
   });
+
+  it("appends --repo for non-git sources", async () => {
+    mockExecFileResult(null, "output", "");
+    const ctx: RepoContext = {
+      owner: "cli",
+      name: "cli",
+      nwo: "cli/cli",
+      source: "flag",
+    };
+    await ghExec(["release", "create", "v1.0.0"], ctx);
+    const callArgs = mockedExecFile.mock.calls[0][1] as string[];
+    expect(callArgs).toEqual([
+      "release",
+      "create",
+      "v1.0.0",
+      "--repo",
+      "cli/cli",
+    ]);
+  });
 });
 
 describe("ghRaw", () => {
