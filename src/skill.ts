@@ -87,7 +87,7 @@ Run \`npx -y gh-axi --help\` for global flags, or \`npx -y gh-axi <command> --he
 - Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
 - Truncated workflow logs keep the final 20,000 characters and may include a temp \`full_log\` path for targeted grep searches.
 - Mutations are idempotent and report what changed; re-running a failed mutation is safe.
-- For multi-line markdown bodies or comments, write the text to a UTF-8 file and pass \`--body-file <path>\`; it works anywhere \`--body\` is accepted.
+- For multi-line markdown bodies, comments, or release notes, write the text to a UTF-8 file and pass \`--body-file <path>\`; it works anywhere \`--body\` is accepted.
 - Use \`api\` for anything the dedicated commands do not cover, e.g. \`npx -y gh-axi api repos/{owner}/{repo}/topics\`.
 `;
 }

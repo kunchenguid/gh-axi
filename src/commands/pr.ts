@@ -228,10 +228,14 @@ flags{view}:
   --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path>, --base, --head, --draft, --assignee, --reviewer, --label, --milestone
+flags{edit}:
+  --title <text>, --body <text> or --body-file <path>, --add-label, --remove-label, --add-assignee, --remove-assignee, --add-reviewer, --remove-reviewer, --milestone
 flags{merge}:
   --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
+flags{comment}:
+  --body <text> or --body-file <path> (required)
 flags{checks}:
   (none)
 flags{diff}:

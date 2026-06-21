@@ -115,6 +115,10 @@ function readBodyFile(
 
 /**
  * Resolve a command body from inline text or a UTF-8 file and remove the flags.
+ *
+ * Optional bodies accept at most one source. Required bodies enforce exactly
+ * one source and raise validation errors for missing, conflicting, or
+ * unreadable input.
  */
 export function takeBody(
   args: string[],

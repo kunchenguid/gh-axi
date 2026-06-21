@@ -373,7 +373,7 @@ const table: SuggestionEntry[] = [
     match: (c) => c.domain === "release" && c.action === "list",
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} release view <tag>\` to view details`,
-      `Run \`gh-axi${repoFlag(c)} release create <tag>\` to create a release`,
+      `Run \`gh-axi${repoFlag(c)} release create <tag> --body-file <path>\` to create a release`,
     ],
   },
 
@@ -382,7 +382,7 @@ const table: SuggestionEntry[] = [
     match: (c) => c.domain === "release" && c.action === "view",
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} release download ${c.id}\` to download assets`,
-      `Run \`gh-axi${repoFlag(c)} release edit ${c.id}\` to edit`,
+      `Run \`gh-axi${repoFlag(c)} release edit ${c.id} --body-file <path>\` to edit notes`,
     ],
   },
 
