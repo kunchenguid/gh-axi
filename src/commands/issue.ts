@@ -3,14 +3,14 @@ import { ghJson, ghExec, ghRaw } from "../gh.js";
 import { AxiError, mapGhError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
-  getFlag,
   hasFlag,
+  getFlag,
   getPositional,
   requireNumber,
   takeFlag,
   takeBoolFlag,
 } from "../args.js";
-import { truncateBody } from "../body.js";
+import { takeBody, truncateBody } from "../body.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import { formatCountLine } from "../format.js";
 import {
@@ -62,13 +62,13 @@ flags{list}:
 flags{view}:
   --comments, --full (show complete body without truncation)
 flags{create}:
-  --title <text> (required), --body <text>, --assignee <login>, --label <name>, --milestone <name>, --type <name>
+  --title <text> (required), --body <text> or --body-file <path>, --assignee <login>, --label <name>, --milestone <name>, --type <name>
 flags{edit}:
-  --title, --body, --add-label, --remove-label, --add-assignee, --remove-assignee, --milestone, --type <name>, --no-type
+  --title, --body <text> or --body-file <path>, --add-label, --remove-label, --add-assignee, --remove-assignee, --milestone, --type <name>, --no-type
 flags{close}:
   --reason <completed|not_planned>, --comment <text>
 flags{comment}:
-  --body <text> (required)
+  --body <text> or --body-file <path> (required)
 flags{transfer}:
   --to-repo <owner/name> (required)
 subissue:
@@ -77,6 +77,7 @@ examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
+  gh-axi issue comment 42 --body-file comment.md
   gh-axi issue close 42 --reason completed
   gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
   gh-axi issue subissue add 16 20 101 125
@@ -470,7 +471,7 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const title = getFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
-  const body = getFlag(args, "--body");
+  const body = takeBody(args);
   const assignee = getFlag(args, "--assignee");
   const label = getFlag(args, "--label");
   const milestone = getFlag(args, "--milestone");
@@ -484,7 +485,7 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ["issue", "create", "--title", title];
-  if (body) ghArgs.push("--body", body);
+  if (body !== undefined) ghArgs.push("--body", body);
   if (assignee) ghArgs.push("--assignee", assignee);
   if (label) ghArgs.push("--label", label);
   if (milestone) ghArgs.push("--milestone", milestone);
@@ -531,7 +532,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
 
   const title = getFlag(args, "--title");
-  const body = getFlag(args, "--body");
+  const body = takeBody(args);
   const addLabel = getFlag(args, "--add-label");
   const removeLabel = getFlag(args, "--remove-label");
   const addAssignee = getFlag(args, "--add-assignee");
@@ -549,7 +550,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghArgs = ["issue", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
-  if (body) ghArgs.push("--body", body);
+  if (body !== undefined) ghArgs.push("--body", body);
   if (addLabel) ghArgs.push("--add-label", addLabel);
   if (removeLabel) ghArgs.push("--remove-label", removeLabel);
   if (addAssignee) ghArgs.push("--add-assignee", addAssignee);
@@ -705,8 +706,7 @@ async function commentOnIssue(
   ctx?: RepoContext,
 ): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
-  const body = getFlag(args, "--body");
-  if (!body) throw new AxiError("--body is required", "VALIDATION_ERROR");
+  const body = takeBody(args, { required: true });
 
   await ghExec(["issue", "comment", String(num), "--body", body], ctx);
 

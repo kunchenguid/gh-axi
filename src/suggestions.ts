@@ -36,14 +36,14 @@ const table: SuggestionEntry[] = [
     match: (c) => c.domain === "issue" && c.action === "list" && !c.isEmpty,
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} issue view <number>\` to view details`,
-      `Run \`gh-axi${repoFlag(c)} issue create --title "..." --body "..."\` to create`,
+      `Run \`gh-axi${repoFlag(c)} issue create --title "..." --body-file <path>\` to create`,
     ],
   },
   {
     match: (c) =>
       c.domain === "issue" && c.action === "list" && c.isEmpty === true,
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} issue create --title "..." --body "..."\` to create an issue`,
+      `Run \`gh-axi${repoFlag(c)} issue create --title "..." --body-file <path>\` to create an issue`,
       `Run \`gh-axi${repoFlag(c)} issue list --state closed\` to see closed issues`,
     ],
   },
@@ -53,7 +53,7 @@ const table: SuggestionEntry[] = [
     match: (c) =>
       c.domain === "issue" && c.action === "view" && c.state === "open",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} issue comment ${c.id} --body "..."\` to comment`,
+      `Run \`gh-axi${repoFlag(c)} issue comment ${c.id} --body-file <path>\` to comment`,
       `Run \`gh-axi${repoFlag(c)} issue close ${c.id}\` to close`,
       `Run \`gh-axi${repoFlag(c)} issue edit ${c.id} --add-assignee <user>\` to assign`,
       `Run \`gh-axi search prs "${c.id}"${c.repo ? ` --repo ${c.repo.nwo}` : ""}\` to find PRs referencing this issue`,
@@ -64,7 +64,7 @@ const table: SuggestionEntry[] = [
       c.domain === "issue" && c.action === "view" && c.state === "closed",
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} issue reopen ${c.id}\` to reopen`,
-      `Run \`gh-axi${repoFlag(c)} issue comment ${c.id} --body "..."\` to comment`,
+      `Run \`gh-axi${repoFlag(c)} issue comment ${c.id} --body-file <path>\` to comment`,
       `Run \`gh-axi search prs "${c.id}"${c.repo ? ` --repo ${c.repo.nwo}` : ""}\` to find PRs referencing this issue`,
     ],
   },
@@ -140,14 +140,14 @@ const table: SuggestionEntry[] = [
     match: (c) => c.domain === "pr" && c.action === "list" && !c.isEmpty,
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} pr view <number>\` to view details`,
-      `Run \`gh-axi${repoFlag(c)} pr create --title "..." --body "..."\` to create`,
+      `Run \`gh-axi${repoFlag(c)} pr create --title "..." --body-file <path>\` to create`,
     ],
   },
   {
     match: (c) =>
       c.domain === "pr" && c.action === "list" && c.isEmpty === true,
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} pr create --title "..." --body "..."\` to create a PR`,
+      `Run \`gh-axi${repoFlag(c)} pr create --title "..." --body-file <path>\` to create a PR`,
       `Run \`gh-axi${repoFlag(c)} pr list --state closed\` to see closed PRs`,
     ],
   },

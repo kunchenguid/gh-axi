@@ -52,3 +52,11 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);
   assertHelpHasExamples("API_HELP", API_HELP);
 });
+
+describe("--body-file discoverability", () => {
+  it("documents --body-file in body-accepting command help", () => {
+    expect(ISSUE_HELP).toContain("--body-file <path>");
+    expect(PR_HELP).toContain("--body-file <path>");
+    expect(RELEASE_HELP).toContain("--body-file");
+  });
+});

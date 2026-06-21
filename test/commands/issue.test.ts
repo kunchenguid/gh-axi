@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({
@@ -45,6 +48,20 @@ const ctx: RepoContext = {
   nwo: "octo/repo",
   source: "flag",
 };
+
+async function withBodyFile<T>(
+  body: string,
+  fn: (file: string) => Promise<T>,
+): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), "gh-axi-issue-body-"));
+  try {
+    const file = join(dir, "body.md");
+    writeFileSync(file, body, "utf8");
+    return await fn(file);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 describe("issueCommand", () => {
   beforeEach(() => {
@@ -445,6 +462,76 @@ describe("issueCommand", () => {
       );
       expect(mockedGhJson).not.toHaveBeenCalled();
       expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("--body-file", () => {
+    const markdownBody = "steps\n```sh\necho ok\n```\nIt's reproducible.";
+
+    it("uses file contents for issue create", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "New issue",
+          state: "OPEN",
+          url: "https://github.com/octo/repo/issues/99",
+        });
+
+        await issueCommand(
+          ["create", "--title", "New issue", "--body-file", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["issue", "create", "--title", "New issue", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("uses file contents for issue edit", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "New issue",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+        });
+
+        await issueCommand(["edit", "99", "--body-file", file], ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["issue", "edit", "99", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("uses file contents for issue comment", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValue({
+          comments: [
+            {
+              author: { login: "alice" },
+              body: markdownBody,
+              createdAt: "2026-01-01T00:00:00Z",
+            },
+          ],
+        });
+
+        await issueCommand(["comment", "99", "--body-file", file], ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["issue", "comment", "99", "--body", markdownBody],
+          ctx,
+        );
+      });
     });
   });
 

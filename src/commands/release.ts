@@ -3,7 +3,7 @@ import type { RepoContext } from "../context.js";
 import { ghJson, ghExec } from "../gh.js";
 import { AxiError } from "../errors.js";
 import { getFlag, hasFlag, takeBoolFlag, takeFlag } from "../args.js";
-import { truncateBody } from "../body.js";
+import { takeBody, truncateBody } from "../body.js";
 import {
   field,
   boolYesNo,
@@ -27,15 +27,15 @@ flags{list}:
 flags{view}:
   --full (show complete release notes without truncation)
 flags{create}:
-  --title/-t, --notes/-n, --notes-file/-F, --draft/-d, --prerelease/-p, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag, --notes-from-tag, --fail-on-no-commits, --latest[=true|false], <files...>
+  --title/-t, --notes/-n or --body, --notes-file/-F or --body-file, --draft/-d, --prerelease/-p, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag, --notes-from-tag, --fail-on-no-commits, --latest[=true|false], <files...>
 flags{edit}:
-  --title, --notes, --draft, --prerelease
+  --title, --notes or --body, --body-file, --draft, --prerelease
 flags{download}:
   --pattern, --dir
 examples:
   gh-axi release list --exclude-drafts
   gh-axi release view v1.2.0 --full
-  gh-axi release create v1.3.0 --generate-notes --draft dist/app.zip`;
+  gh-axi release create v1.3.0 --body-file notes.md --draft dist/app.zip`;
 
 const listSchema: FieldDef[] = [
   field("tagName", "tag"),
@@ -110,6 +110,29 @@ function appendOptionalValueBoolFlag(
   appendBoolFlag(ghArgs, args, outputFlag, inputFlags);
 }
 
+function findProvidedFlags(args: string[], flags: string[]): string[] {
+  return flags.filter((flag) =>
+    args.some((arg) => arg === flag || arg.startsWith(`${flag}=`)),
+  );
+}
+
+function assertNoReleaseNotesConflict(
+  body: string | undefined,
+  args: string[],
+  flags: string[],
+): void {
+  if (body === undefined) return;
+  const conflicts = findProvidedFlags(args, flags);
+  if (conflicts.length === 0) return;
+  throw new AxiError(
+    `Use only one release notes source: --body/--body-file cannot be combined with ${conflicts.join(", ")}`,
+    "VALIDATION_ERROR",
+    [
+      "Use --body-file <path> for file-backed release notes, or remove --body-file and use --notes-file <path>",
+    ],
+  );
+}
+
 async function listReleases(
   args: string[],
   ctx?: RepoContext,
@@ -173,6 +196,14 @@ async function createRelease(
 ): Promise<string> {
   const remaining = args.slice(1);
   const optionArgs: string[] = [];
+  const body = takeBody(remaining, { label: "release notes" });
+  assertNoReleaseNotesConflict(body, remaining, [
+    "--notes",
+    "-n",
+    "--notes-file",
+    "-F",
+  ]);
+  if (body !== undefined) optionArgs.push("--notes", body);
 
   appendValueFlag(optionArgs, remaining, "--title", ["--title", "-t"]);
   appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
@@ -221,7 +252,10 @@ async function createRelease(
 }
 
 async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
-  const positionals = args.filter((a) => !a.startsWith("--"));
+  const remaining = [...args];
+  const body = takeBody(remaining, { label: "release notes" });
+  assertNoReleaseNotesConflict(body, remaining, ["--notes"]);
+  const positionals = remaining.filter((a) => !a.startsWith("--"));
   const tag = positionals[1];
   if (!tag)
     throw new AxiError(
@@ -230,12 +264,13 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
     );
 
   const ghArgs = ["release", "edit", tag];
-  const title = getFlag(args, "--title");
+  const title = getFlag(remaining, "--title");
   if (title) ghArgs.push("--title", title);
-  const notes = getFlag(args, "--notes");
+  const notes = getFlag(remaining, "--notes");
+  if (body !== undefined) ghArgs.push("--notes", body);
   if (notes) ghArgs.push("--notes", notes);
-  if (hasFlag(args, "--draft")) ghArgs.push("--draft");
-  if (hasFlag(args, "--prerelease")) ghArgs.push("--prerelease");
+  if (hasFlag(remaining, "--draft")) ghArgs.push("--draft");
+  if (hasFlag(remaining, "--prerelease")) ghArgs.push("--prerelease");
 
   await ghExec(ghArgs, ctx);
   const suggestions = getSuggestions({

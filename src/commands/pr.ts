@@ -2,7 +2,7 @@ import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec, ghRaw } from "../gh.js";
 import { AxiError } from "../errors.js";
-import { truncateBody } from "../body.js";
+import { takeBody, truncateBody } from "../body.js";
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
 import { takeFlag, takeBoolFlag, takeNumber } from "../args.js";
@@ -227,11 +227,11 @@ flags{list}:
 flags{view}:
   --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
 flags{create}:
-  --title <text> (required), --body, --base, --head, --draft, --assignee, --reviewer, --label, --milestone
+  --title <text> (required), --body <text> or --body-file <path>, --base, --head, --draft, --assignee, --reviewer, --label, --milestone
 flags{merge}:
-  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
 flags{review}:
-  --approve, --request-changes, --comment, --body
+  --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{checks}:
   (none)
 flags{diff}:
@@ -240,6 +240,7 @@ examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
   gh-axi pr view 42 --reviews
+  gh-axi pr comment 42 --body-file review.md
   gh-axi pr merge 42 --squash --delete-branch`;
 
 // ---------------------------------------------------------------------------
@@ -421,7 +422,7 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
 async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
-  const body = takeFlag(args, "--body");
+  const body = takeBody(args);
   const base = takeFlag(args, "--base");
   const head = takeFlag(args, "--head");
   const draft = takeBoolFlag(args, "--draft");
@@ -432,7 +433,7 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const project = takeFlag(args, "--project");
 
   const ghArgs = ["pr", "create", "--title", title];
-  if (body) ghArgs.push("--body", body);
+  if (body !== undefined) ghArgs.push("--body", body);
   if (base) ghArgs.push("--base", base);
   if (head) ghArgs.push("--head", head);
   if (draft) ghArgs.push("--draft");
@@ -462,7 +463,7 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
 async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
   const title = takeFlag(args, "--title");
-  const body = takeFlag(args, "--body");
+  const body = takeBody(args);
   const addLabel = takeFlag(args, "--add-label");
   const removeLabel = takeFlag(args, "--remove-label");
   const addAssignee = takeFlag(args, "--add-assignee");
@@ -474,7 +475,7 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghArgs = ["pr", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
-  if (body) ghArgs.push("--body", body);
+  if (body !== undefined) ghArgs.push("--body", body);
   if (addLabel) ghArgs.push("--add-label", addLabel);
   if (removeLabel) ghArgs.push("--remove-label", removeLabel);
   if (addAssignee) ghArgs.push("--add-assignee", addAssignee);
@@ -565,7 +566,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   }
   const auto = takeBoolFlag(args, "--auto");
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
-  const body = takeFlag(args, "--body");
+  const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
 
   // Idempotent: check if already merged
@@ -600,7 +601,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   if (method) ghArgs.push("--" + method);
   if (auto) ghArgs.push("--auto");
   if (deleteBranch) ghArgs.push("--delete-branch");
-  if (body) ghArgs.push("--body", body);
+  if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
 
   await ghExec(ghArgs, ctx);
@@ -622,13 +623,13 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
   const approve = takeBoolFlag(args, "--approve");
   const requestChanges = takeBoolFlag(args, "--request-changes");
   const commentFlag = takeBoolFlag(args, "--comment");
-  const body = takeFlag(args, "--body");
+  const body = takeBody(args);
 
   const ghArgs = ["pr", "review", String(num)];
   if (approve) ghArgs.push("--approve");
   else if (requestChanges) ghArgs.push("--request-changes");
   else if (commentFlag) ghArgs.push("--comment");
-  if (body) ghArgs.push("--body", body);
+  if (body !== undefined) ghArgs.push("--body", body);
 
   await ghExec(ghArgs, ctx);
 
@@ -824,8 +825,7 @@ async function prReopen(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
-  const body = takeFlag(args, "--body");
-  if (!body) throw new AxiError("--body is required", "VALIDATION_ERROR");
+  const body = takeBody(args, { required: true });
 
   await ghExec(["pr", "comment", String(num), "--body", body], ctx);
   return renderOutput([

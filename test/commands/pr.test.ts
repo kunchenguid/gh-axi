@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({
@@ -20,6 +23,20 @@ const ctx: RepoContext = {
   nwo: "octo/repo",
   source: "flag",
 };
+
+async function withBodyFile<T>(
+  body: string,
+  fn: (file: string) => Promise<T>,
+): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), "gh-axi-pr-body-"));
+  try {
+    const file = join(dir, "body.md");
+    writeFileSync(file, body, "utf8");
+    return await fn(file);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 describe("prCommand", () => {
   beforeEach(() => {
@@ -502,6 +519,96 @@ describe("prCommand", () => {
         ["pr", "merge", "10", "--squash"],
         ctx,
       );
+    });
+  });
+
+  describe("--body-file", () => {
+    const markdownBody = "summary\n```ts\nconst quoted = true;\n```\nIt's ok.";
+
+    it("uses file contents for pr create", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/pull/123\n",
+        );
+
+        await prCommand(
+          ["create", "--title", "New PR", "--body-file", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "create", "--title", "New PR", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("uses file contents for pr edit", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue("");
+
+        await prCommand(["edit", "123", "--body-file", file], ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "edit", "123", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("uses file contents for pr merge", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhJson.mockResolvedValue({ state: "OPEN" });
+        mockedGhExec.mockResolvedValue("");
+
+        await prCommand(["merge", "123", "--squash", "--body-file", file], ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "merge", "123", "--squash", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("uses file contents for pr review", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue("");
+
+        await prCommand(
+          ["review", "123", "--comment", "--body-file", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "review", "123", "--comment", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("uses file contents for pr comment", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        mockedGhExec.mockResolvedValue("");
+
+        await prCommand(["comment", "123", "--body-file", file], ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "comment", "123", "--body", markdownBody],
+          ctx,
+        );
+      });
+    });
+
+    it("rejects --body and --body-file together before calling gh", async () => {
+      await withBodyFile(markdownBody, async (file) => {
+        await expect(
+          prCommand(
+            ["comment", "123", "--body", "inline", "--body-file", file],
+            ctx,
+          ),
+        ).rejects.toThrow(/Use only one body source/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
     });
   });
 

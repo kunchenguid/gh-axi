@@ -1,5 +1,95 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { cleanBody, truncateBody } from '../src/body.js';
+import { cleanBody, takeBody, truncateBody } from '../src/body.js';
+import { AxiError } from '../src/errors.js';
+
+function withTempDir<T>(fn: (dir: string) => T): T {
+  const dir = mkdtempSync(join(tmpdir(), 'gh-axi-body-'));
+  try {
+    return fn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe('takeBody', () => {
+  it('returns inline body text and removes the flag', () => {
+    const args = ['--body', 'hello', '--label', 'bug'];
+
+    expect(takeBody(args)).toBe('hello');
+    expect(args).toEqual(['--label', 'bug']);
+  });
+
+  it('preserves dash-leading inline markdown body text', () => {
+    const args = ['--body', '- item one\n- item two'];
+
+    expect(takeBody(args)).toBe('- item one\n- item two');
+    expect(args).toEqual([]);
+  });
+
+  it('reads UTF-8 body text from a file and removes the flag', () =>
+    withTempDir((dir) => {
+      const file = join(dir, 'body.md');
+      const body = "line 1\n```ts\nconst ok = true;\n```\nIt's fine.\n";
+      writeFileSync(file, body, 'utf8');
+      const args = ['--body-file', file, '--label', 'bug'];
+
+      expect(takeBody(args)).toBe(body);
+      expect(args).toEqual(['--label', 'bug']);
+    }));
+
+  it('supports equals-form --body-file values', () =>
+    withTempDir((dir) => {
+      const file = join(dir, 'body.md');
+      writeFileSync(file, 'from equals', 'utf8');
+
+      expect(takeBody([`--body-file=${file}`])).toBe('from equals');
+    }));
+
+  it('returns undefined when the body is optional and omitted', () => {
+    expect(takeBody(['--label', 'bug'])).toBeUndefined();
+  });
+
+  it('requires exactly one body source when required', () => {
+    expect(() => takeBody([], { required: true })).toThrow(AxiError);
+    expect(() => takeBody([], { required: true })).toThrow(
+      '--body or --body-file is required',
+    );
+  });
+
+  it('rejects --body and --body-file together', () =>
+    withTempDir((dir) => {
+      const file = join(dir, 'body.md');
+      writeFileSync(file, 'file body', 'utf8');
+
+      expect(() => takeBody(['--body', 'inline', '--body-file', file])).toThrow(
+        /Use only one body source/,
+      );
+    }));
+
+  it('rejects --body-file without a path', () => {
+    expect(() => takeBody(['--body-file'])).toThrow('--body-file requires path');
+  });
+
+  it('reports a missing body file path clearly', () =>
+    withTempDir((dir) => {
+      const missing = join(dir, 'missing.md');
+
+      expect(() => takeBody(['--body-file', missing])).toThrow(`${missing}`);
+      expect(() => takeBody(['--body-file', missing])).toThrow(
+        '--body-file path not found',
+      );
+    }));
+
+  it('reports an unreadable body file path clearly', () =>
+    withTempDir((dir) => {
+      expect(() => takeBody(['--body-file', dir])).toThrow(
+        '--body-file must point to a readable UTF-8 file',
+      );
+    }));
+});
 
 describe('cleanBody', () => {
   it('normalizes GitHub PR markdown links to short references', () => {
