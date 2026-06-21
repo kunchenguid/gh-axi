@@ -9,6 +9,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 usage: gh-axi issue <subcommand> [flags]
 subcommands[14]:
@@ -46,6 +47,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 usage: gh-axi pr <subcommand> [flags]
 subcommands[15]:
@@ -78,6 +80,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 usage: gh-axi release <subcommand> [flags]
 subcommands[7]:
@@ -104,6 +107,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 created:
   number: 123
@@ -120,6 +124,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 edited:
   number: 123
@@ -133,6 +138,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 review:
   number: 123
@@ -148,6 +154,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 commented:
   number: 123
@@ -163,6 +170,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 merged:
   number: 123
@@ -179,6 +187,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 issue:
   number: 99
@@ -197,6 +206,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 issue:
   number: 99
@@ -215,6 +225,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 comment:
   issue: 99
@@ -232,6 +243,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 created: ok
 tag: v9.9.9-bodyfile
@@ -247,6 +259,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 edit: ok
 tag: v9.9.9-bodyfile
@@ -261,6 +274,7 @@ expected_exit_code: 2
 exit_code: 2
 
 stdout:
+
 ```toon
 error: "Use only one body source: --body, --body-file were provided"
 code: VALIDATION_ERROR
@@ -274,6 +288,7 @@ expected_exit_code: 2
 exit_code: 2
 
 stdout:
+
 ```toon
 error: "--body-file path not found: /Users/kunchen/.no-mistakes/worktrees/21c6d0f851bd/01KVP0MQVZ83MNTJK3C3MJTYFS/.no-mistakes/evidence/fm/gh-axi-bodyfile-b8/missing.md"
 code: VALIDATION_ERROR
@@ -287,6 +302,7 @@ expected_exit_code: 2
 exit_code: 2
 
 stdout:
+
 ```toon
 error: "Use only one release notes source: --body/--body-file cannot be combined with --notes-file"
 code: VALIDATION_ERROR
@@ -300,6 +316,7 @@ expected_exit_code: 0
 exit_code: 0
 
 stdout:
+
 ```toon
 commented:
   number: 123
@@ -308,4 +325,3 @@ help[1]:
   Run `gh-axi pr view 123 --comments` to see all comments
 
 ```
-

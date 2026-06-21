@@ -4,7 +4,10 @@ import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = process.cwd();
-const evidenceDir = resolve(root, ".no-mistakes/evidence/fm/gh-axi-bodyfile-b8");
+const evidenceDir = resolve(
+  root,
+  ".no-mistakes/evidence/fm/gh-axi-bodyfile-b8",
+);
 const stubDir = join(evidenceDir, "bin");
 const bodyPath = join(evidenceDir, "body.md");
 const notesPath = join(evidenceDir, "release-notes.md");
@@ -127,20 +130,121 @@ const commands = [
   { argv: ["issue", "--help"], expectedExit: 0 },
   { argv: ["pr", "--help"], expectedExit: 0 },
   { argv: ["release", "--help"], expectedExit: 0 },
-  { argv: ["pr", "create", "--title", "E2E body-file PR", "--body-file", bodyPath], expectedExit: 0 },
+  {
+    argv: [
+      "pr",
+      "create",
+      "--title",
+      "E2E body-file PR",
+      "--body-file",
+      bodyPath,
+    ],
+    expectedExit: 0,
+  },
   { argv: ["pr", "edit", "123", "--body-file", bodyPath], expectedExit: 0 },
-  { argv: ["pr", "review", "123", "--comment", "--body-file", bodyPath], expectedExit: 0 },
+  {
+    argv: ["pr", "review", "123", "--comment", "--body-file", bodyPath],
+    expectedExit: 0,
+  },
   { argv: ["pr", "comment", "123", "--body-file", bodyPath], expectedExit: 0 },
-  { argv: ["pr", "merge", "123", "--squash", "--delete-branch", "--subject", "Squash subject", "--body-file", bodyPath], expectedExit: 0 },
-  { argv: ["issue", "create", "--title", "E2E body-file issue", "--body-file", bodyPath], expectedExit: 0 },
+  {
+    argv: [
+      "pr",
+      "merge",
+      "123",
+      "--squash",
+      "--delete-branch",
+      "--subject",
+      "Squash subject",
+      "--body-file",
+      bodyPath,
+    ],
+    expectedExit: 0,
+  },
+  {
+    argv: [
+      "issue",
+      "create",
+      "--title",
+      "E2E body-file issue",
+      "--body-file",
+      bodyPath,
+    ],
+    expectedExit: 0,
+  },
   { argv: ["issue", "edit", "99", "--body-file", bodyPath], expectedExit: 0 },
-  { argv: ["issue", "comment", "99", "--body-file", bodyPath], expectedExit: 0 },
-  { argv: ["release", "create", "v9.9.9-bodyfile", "--body-file", notesPath, "--draft", "dist/app.zip"], expectedExit: 0 },
-  { argv: ["release", "edit", "v9.9.9-bodyfile", "--body-file", notesPath, "--title", "Retitled release"], expectedExit: 0 },
-  { argv: ["pr", "comment", "123", "--body", "inline body", "--body-file", bodyPath], expectedExit: 2 },
-  { argv: ["issue", "comment", "99", "--body-file", join(evidenceDir, "missing.md")], expectedExit: 2 },
-  { argv: ["release", "edit", "v9.9.9-bodyfile", "--body-file", notesPath, "--notes-file", "other-notes.md"], expectedExit: 2 },
-  { argv: ["pr", "comment", "123", "--body", "- dash-leading inline body\n- still inline"], expectedExit: 0 },
+  {
+    argv: ["issue", "comment", "99", "--body-file", bodyPath],
+    expectedExit: 0,
+  },
+  {
+    argv: [
+      "release",
+      "create",
+      "v9.9.9-bodyfile",
+      "--body-file",
+      notesPath,
+      "--draft",
+      "dist/app.zip",
+    ],
+    expectedExit: 0,
+  },
+  {
+    argv: [
+      "release",
+      "edit",
+      "v9.9.9-bodyfile",
+      "--body-file",
+      notesPath,
+      "--title",
+      "Retitled release",
+    ],
+    expectedExit: 0,
+  },
+  {
+    argv: [
+      "pr",
+      "comment",
+      "123",
+      "--body",
+      "inline body",
+      "--body-file",
+      bodyPath,
+    ],
+    expectedExit: 2,
+  },
+  {
+    argv: [
+      "issue",
+      "comment",
+      "99",
+      "--body-file",
+      join(evidenceDir, "missing.md"),
+    ],
+    expectedExit: 2,
+  },
+  {
+    argv: [
+      "release",
+      "edit",
+      "v9.9.9-bodyfile",
+      "--body-file",
+      notesPath,
+      "--notes-file",
+      "other-notes.md",
+    ],
+    expectedExit: 2,
+  },
+  {
+    argv: [
+      "pr",
+      "comment",
+      "123",
+      "--body",
+      "- dash-leading inline body\n- still inline",
+    ],
+    expectedExit: 0,
+  },
 ];
 
 let transcript = "# gh-axi --body-file E2E transcript\n\n";
