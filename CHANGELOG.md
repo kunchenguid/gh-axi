@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.22](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.21...gh-axi-v0.1.22) (2026-06-21)
+
+
+### Features
+
+* **commands:** add body-file support for markdown bodies ([#47](https://github.com/kunchenguid/gh-axi/issues/47)) ([9192ce6](https://github.com/kunchenguid/gh-axi/commit/9192ce60be6ca7cb928bb92fbbedd35dab77a503))
+
 ## [0.1.21](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.20...gh-axi-v0.1.21) (2026-06-17)
 
 
