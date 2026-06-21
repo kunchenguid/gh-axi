@@ -29,7 +29,7 @@ flags{view}:
 flags{create}:
   --title/-t, --notes/-n or --body, --notes-file/-F or --body-file, --draft/-d, --prerelease/-p, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag, --notes-from-tag, --fail-on-no-commits, --latest[=true|false], <files...>
 flags{edit}:
-  --title, --notes or --body, --body-file, --draft, --prerelease
+  --title, --notes/-n or --body, --notes-file/-F or --body-file, --draft, --prerelease
 flags{download}:
   --pattern, --dir
 examples:
@@ -116,6 +116,15 @@ function findProvidedFlags(args: string[], flags: string[]): string[] {
   );
 }
 
+const RELEASE_NOTES_FLAGS = ["--notes", "-n", "--notes-file", "-F"];
+
+function takeReleaseBodyAlias(args: string[]): string | undefined {
+  return takeBody(args, {
+    label: "release notes",
+    valueBoundaryFlags: RELEASE_NOTES_FLAGS,
+  });
+}
+
 function assertNoReleaseNotesConflict(
   body: string | undefined,
   args: string[],
@@ -196,13 +205,8 @@ async function createRelease(
 ): Promise<string> {
   const remaining = args.slice(1);
   const optionArgs: string[] = [];
-  const body = takeBody(remaining, { label: "release notes" });
-  assertNoReleaseNotesConflict(body, remaining, [
-    "--notes",
-    "-n",
-    "--notes-file",
-    "-F",
-  ]);
+  const body = takeReleaseBodyAlias(remaining);
+  assertNoReleaseNotesConflict(body, remaining, RELEASE_NOTES_FLAGS);
   if (body !== undefined) optionArgs.push("--notes", body);
 
   appendValueFlag(optionArgs, remaining, "--title", ["--title", "-t"]);
@@ -253,9 +257,14 @@ async function createRelease(
 
 async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
   const remaining = [...args];
-  const body = takeBody(remaining, { label: "release notes" });
-  assertNoReleaseNotesConflict(body, remaining, ["--notes"]);
-  const positionals = remaining.filter((a) => !a.startsWith("--"));
+  const body = takeReleaseBodyAlias(remaining);
+  assertNoReleaseNotesConflict(body, remaining, RELEASE_NOTES_FLAGS);
+  const title = takeFirstFlag(remaining, ["--title"]);
+  const notes = takeFirstFlag(remaining, ["--notes", "-n"]);
+  const notesFile = takeFirstFlag(remaining, ["--notes-file", "-F"]);
+  const draft = takeBoolFlag(remaining, "--draft");
+  const prerelease = takeBoolFlag(remaining, "--prerelease");
+  const positionals = remaining.filter((a) => !a.startsWith("-"));
   const tag = positionals[1];
   if (!tag)
     throw new AxiError(
@@ -264,13 +273,12 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
     );
 
   const ghArgs = ["release", "edit", tag];
-  const title = getFlag(remaining, "--title");
   if (title) ghArgs.push("--title", title);
-  const notes = getFlag(remaining, "--notes");
   if (body !== undefined) ghArgs.push("--notes", body);
   if (notes) ghArgs.push("--notes", notes);
-  if (hasFlag(remaining, "--draft")) ghArgs.push("--draft");
-  if (hasFlag(remaining, "--prerelease")) ghArgs.push("--prerelease");
+  if (notesFile) ghArgs.push("--notes-file", notesFile);
+  if (draft) ghArgs.push("--draft");
+  if (prerelease) ghArgs.push("--prerelease");
 
   await ghExec(ghArgs, ctx);
   const suggestions = getSuggestions({

@@ -317,6 +317,55 @@ describe("releaseCommand", () => {
         );
       });
     });
+
+    it("forwards --notes-file", async () => {
+      await releaseCommand(["edit", "v1.0.0", "--notes-file", "notes.md"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["release", "edit", "v1.0.0", "--notes-file", "notes.md"],
+        ctx,
+      );
+    });
+
+    it("forwards short notes aliases", async () => {
+      await releaseCommand(["edit", "v1.0.0", "-n", "updated notes"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["release", "edit", "v1.0.0", "--notes", "updated notes"],
+        ctx,
+      );
+    });
+
+    it("forwards short notes-file aliases", async () => {
+      await releaseCommand(["edit", "v1.0.0", "-F", "notes.md"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["release", "edit", "v1.0.0", "--notes-file", "notes.md"],
+        ctx,
+      );
+    });
+
+    it("rejects --body-file with --notes-file", async () => {
+      await withBodyFile("updated notes", async (file) => {
+        await expect(
+          releaseCommand(
+            ["edit", "v1.0.0", "--body-file", file, "--notes-file", "notes.md"],
+            ctx,
+          ),
+        ).rejects.toThrow(/Use only one release notes source/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
+    });
+
+    it("does not consume --notes-file as --body text", async () => {
+      await expect(
+        releaseCommand(
+          ["edit", "v1.0.0", "--body", "--notes-file", "notes.md"],
+          ctx,
+        ),
+      ).rejects.toThrow("--body requires text");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe("repo context threading", () => {

@@ -17,6 +17,7 @@ interface TakeBodyOptions {
   required?: boolean;
   inlineFlags?: string[];
   fileFlags?: string[];
+  valueBoundaryFlags?: string[];
   label?: string;
   suggestions?: string[];
 }
@@ -31,7 +32,16 @@ function isMissingValue(value: string | undefined): boolean {
   return value === undefined || value.trim() === "";
 }
 
-function takeFlagMatches(args: string[], flags: string[]): BodyFlagMatch[] {
+function isValueBoundary(arg: string | undefined, flags: string[]): boolean {
+  if (arg === undefined) return false;
+  return flags.some((flag) => arg === flag || arg.startsWith(`${flag}=`));
+}
+
+function takeFlagMatches(
+  args: string[],
+  flags: string[],
+  valueBoundaryFlags: string[],
+): BodyFlagMatch[] {
   const matches: BodyFlagMatch[] = [];
 
   for (let index = 0; index < args.length; index++) {
@@ -41,7 +51,11 @@ function takeFlagMatches(args: string[], flags: string[]): BodyFlagMatch[] {
     for (const flag of flags) {
       const equalsPrefix = `${flag}=`;
       if (arg === flag) {
-        const value = args[index + 1];
+        const next = args[index + 1];
+        const value =
+          next !== undefined && !isValueBoundary(next, valueBoundaryFlags)
+            ? next
+            : undefined;
         const consumeCount = value === undefined ? 1 : 2;
         args.splice(index, consumeCount);
         index--;
@@ -116,10 +130,17 @@ export function takeBody(
 ): string | undefined {
   const inlineFlags = options.inlineFlags ?? ["--body"];
   const fileFlags = options.fileFlags ?? ["--body-file"];
+  const valueBoundaryFlags = [
+    ...new Set([
+      ...inlineFlags,
+      ...fileFlags,
+      ...(options.valueBoundaryFlags ?? []),
+    ]),
+  ];
   const label = options.label ?? "body";
   const suggestions = options.suggestions ?? defaultSuggestions(label);
-  const inlineMatches = takeFlagMatches(args, inlineFlags);
-  const fileMatches = takeFlagMatches(args, fileFlags);
+  const inlineMatches = takeFlagMatches(args, inlineFlags, valueBoundaryFlags);
+  const fileMatches = takeFlagMatches(args, fileFlags, valueBoundaryFlags);
   const matches = [...inlineMatches, ...fileMatches];
 
   if (matches.length === 0) {

@@ -69,6 +69,25 @@ describe('takeBody', () => {
       );
     }));
 
+  it('does not consume another body source flag as inline text', () =>
+    withTempDir((dir) => {
+      const file = join(dir, 'body.md');
+      writeFileSync(file, 'file body', 'utf8');
+
+      expect(() => takeBody(['--body', '--body-file', file])).toThrow(
+        /Use only one body source/,
+      );
+    }));
+
+  it('treats configured value boundary flags as missing body text', () => {
+    expect(() =>
+      takeBody(['--body', '--notes-file', 'notes.md'], {
+        label: 'release notes',
+        valueBoundaryFlags: ['--notes-file'],
+      }),
+    ).toThrow('--body requires text');
+  });
+
   it('rejects --body-file without a path', () => {
     expect(() => takeBody(['--body-file'])).toThrow('--body-file requires path');
   });
