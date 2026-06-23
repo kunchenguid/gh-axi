@@ -55,6 +55,10 @@ vi.mock("../src/commands/api.js", () => ({
   apiCommand: vi.fn().mockResolvedValue("api output"),
   API_HELP: "api help",
 }));
+vi.mock("../src/commands/push.js", () => ({
+  pushCommand: vi.fn().mockResolvedValue("push output"),
+  PUSH_HELP: "push help",
+}));
 
 vi.mock("../src/context.js", () => ({
   resolveRepo: vi.fn().mockReturnValue({
@@ -69,6 +73,7 @@ import { main, TOP_HELP } from "../src/cli.js";
 import { homeCommand } from "../src/commands/home.js";
 import { issueCommand } from "../src/commands/issue.js";
 import { releaseCommand } from "../src/commands/release.js";
+import { pushCommand } from "../src/commands/push.js";
 import { resolveRepo } from "../src/context.js";
 
 const packageVersion = JSON.parse(
@@ -84,6 +89,7 @@ describe("main CLI", () => {
     vi.mocked(homeCommand).mockResolvedValue("home output");
     vi.mocked(issueCommand).mockResolvedValue("issue output");
     vi.mocked(releaseCommand).mockResolvedValue("release output");
+    vi.mocked(pushCommand).mockResolvedValue("push output");
     vi.mocked(resolveRepo).mockReturnValue({
       owner: "octo",
       name: "repo",
@@ -106,6 +112,8 @@ describe("main CLI", () => {
 
   it("documents explicit hook setup in help output", () => {
     expect(TOP_HELP).toContain("setup");
+    expect(TOP_HELP).toContain("push");
+    expect(TOP_HELP).toContain("gh-axi push");
     expect(TOP_HELP).toContain("gh-axi setup hooks");
   });
 
@@ -321,6 +329,28 @@ describe("main CLI", () => {
     );
     expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(
       ["transfer", "123", "--to-repo", "dest/repo"],
+      ctx,
+    );
+  });
+
+  it("runs push without repo-context rewriting", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.push(
+      ["origin", "main:main", "-R", "other/repo"],
+      ctx,
+    );
+
+    expect(vi.mocked(pushCommand)).toHaveBeenCalledWith(
+      ["origin", "main:main", "-R", "other/repo"],
       ctx,
     );
   });

@@ -8,6 +8,7 @@ import { REPO_HELP } from "../src/commands/repo.js";
 import { LABEL_HELP } from "../src/commands/label.js";
 import { SEARCH_HELP } from "../src/commands/search.js";
 import { API_HELP } from "../src/commands/api.js";
+import { PUSH_HELP } from "../src/commands/push.js";
 import { TOP_HELP } from "../src/cli.js";
 
 /**
@@ -51,6 +52,7 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("LABEL_HELP", LABEL_HELP);
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);
   assertHelpHasExamples("API_HELP", API_HELP);
+  assertHelpHasExamples("PUSH_HELP", PUSH_HELP);
 });
 
 describe("--body-file discoverability", () => {

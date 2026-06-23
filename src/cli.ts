@@ -14,6 +14,7 @@ import { labelCommand, LABEL_HELP } from "./commands/label.js";
 import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
+import { pushCommand, PUSH_HELP } from "./commands/push.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
@@ -27,8 +28,8 @@ type MainOptions = {
 };
 
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
-commands[11]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, search, api, setup
+commands[12]:
+  (none)=dashboard, issue, pr, run, workflow, release, repo, label, search, api, setup, push
 flags[3]:
   -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --help, -v/-V/--version
 examples:
@@ -37,6 +38,7 @@ examples:
   gh-axi issue list -R owner/name
   gh-axi issue list --repo=owner/name
   gh-axi pr view 42
+  gh-axi push
   gh-axi setup hooks
 `;
 
@@ -51,6 +53,7 @@ const COMMAND_HELP: Record<string, string> = {
   search: SEARCH_HELP,
   api: API_HELP,
   setup: SETUP_HELP,
+  push: PUSH_HELP,
 };
 
 type CommandFn = (args: string[], ctx?: RepoContext) => Promise<string>;
@@ -66,6 +69,7 @@ const COMMANDS: Record<string, CommandFn> = {
   search: withRepoContext("search", searchCommand),
   api: withRepoContext("api", apiCommand),
   setup: setupCommand,
+  push: pushCommand,
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {

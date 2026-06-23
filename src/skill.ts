@@ -4,9 +4,9 @@ import { DESCRIPTION, TOP_HELP } from "./cli.js";
 // Kept terse and outcome-focused so it fires on "needs GitHub" intents.
 export const SKILL_DESCRIPTION =
   "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, " +
-  "releases, repositories, labels, search, and raw API access. Use whenever a task touches " +
+  "releases, repositories, labels, search, git pushes, and raw API access. Use whenever a task touches " +
   "GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, cutting " +
-  "releases, or querying the GitHub API.";
+  "releases, pushing refs, or querying the GitHub API.";
 
 export const SKILL_AUTHOR = "Kun Chen (kunchenguid)";
 
@@ -63,7 +63,7 @@ gh-axi requires the [\`gh\`](https://cli.github.com/) CLI installed and authenti
 
 ## When to use
 
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; managing releases, repositories, or labels; searching issues, PRs, repos, commits, or code; or calling the GitHub API directly.
+Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; managing releases, repositories, or labels; pushing git refs; searching issues, PRs, repos, commits, or code; or calling the GitHub API directly.
 
 ## Workflow
 
@@ -88,6 +88,7 @@ Run \`npx -y gh-axi --help\` for global flags, or \`npx -y gh-axi <command> --he
 - Truncated workflow logs keep the final 20,000 characters and may include a temp \`full_log\` path for targeted grep searches.
 - Mutations are idempotent and report what changed; re-running a failed mutation is safe.
 - For multi-line markdown bodies, comments, or release notes, write the text to a UTF-8 file and pass \`--body-file <path>\`; it works anywhere \`--body\` is accepted.
+- Use \`push\` for Git ref transport instead of raw \`git push\`; run \`npx -y gh-axi push --dry-run\` first when you want a preview.
 - Use \`api\` for anything the dedicated commands do not cover, e.g. \`npx -y gh-axi api repos/{owner}/{repo}/topics\`.
 `;
 }

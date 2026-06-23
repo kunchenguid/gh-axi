@@ -86,6 +86,8 @@ gh-axi pr view 42               # view pull request #42
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
+gh-axi push --dry-run           # preview publishing the current branch
+gh-axi push                     # publish the current branch with upstream tracking
 gh-axi setup hooks              # install optional agent session hooks
 ```
 
@@ -109,6 +111,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 | `search`   | Search issues, PRs, repos, commits, code                            |
 | `api`      | Raw GitHub API access                                               |
 | `setup`    | Install optional agent session hooks                                |
+| `push`     | Git ref transport with compact output and dry-run support           |
 
 ### Global flags
 

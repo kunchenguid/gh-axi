@@ -561,14 +561,17 @@ describe("runCommand", () => {
 
       const fullLogPath = result.match(/^\s*full_log: "?([^"\n]+)"?$/m)?.[1];
       expect(fullLogPath).toBeDefined();
-      expect(fullLogPath).toContain(join(tmpdir(), "gh-axi-logs-"));
-      expect(fullLogPath).toContain("100-job-555-log-failed.log");
-      expect(result).toContain(`full_log: ${fullLogPath}`);
+      const normalizedFullLogPath = fullLogPath.replace(/\\\\/g, "\\");
+      expect(normalizedFullLogPath).toContain(join(tmpdir(), "gh-axi-logs-"));
+      expect(normalizedFullLogPath).toContain("100-job-555-log-failed.log");
+      expect(result).toContain("full_log:");
       expect(result).toContain("help[1]:");
       expect(result).toContain("Output shows the last 20000 of");
       await expect(readFile(fullLogPath!, "utf8")).resolves.toBe(output);
-      expect((await stat(dirname(fullLogPath!))).mode & 0o777).toBe(0o700);
-      expect((await stat(fullLogPath!)).mode & 0o777).toBe(0o600);
+      if (process.platform !== "win32") {
+        expect((await stat(dirname(fullLogPath!))).mode & 0o777).toBe(0o700);
+        expect((await stat(fullLogPath!)).mode & 0o777).toBe(0o600);
+      }
     });
 
     it("does not save a log file when output fits within the limit", async () => {
