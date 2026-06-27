@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.23](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.22...gh-axi-v0.1.23) (2026-06-27)
+
+
+### Features
+
+* inherit SDK self-update command ([#51](https://github.com/kunchenguid/gh-axi/issues/51)) ([327c329](https://github.com/kunchenguid/gh-axi/commit/327c3294fae2bac2632580a3920688505156a449))
+
 ## [0.1.22](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.21...gh-axi-v0.1.22) (2026-06-21)
 
 
