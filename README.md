@@ -87,6 +87,7 @@ gh-axi pr view 42               # view pull request #42
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
+gh-axi workflow run ci.yml --ref main     # trigger a workflow
 gh-axi setup hooks              # install optional agent session hooks
 gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
@@ -97,22 +98,23 @@ For releases, `--body` and `--body-file` are aliases for release notes, alongsid
 
 Long `run view --log` and `run view --log-failed` output shows the last 20,000 characters so CI failures stay visible.
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
+`gh-axi run` manages existing workflow runs; use `gh-axi workflow run <name> --ref <ref>` to trigger (dispatch) a workflow.
 
 ### Commands
 
-| Command    | Description                                                         |
-| ---------- | ------------------------------------------------------------------- |
-| `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue |
-| `pr`       | Pull requests — list, view, create, merge, review, checks           |
-| `run`      | Workflow runs — list, view, rerun, cancel, watch                    |
-| `workflow` | Workflows — list, view, run, enable, disable                        |
-| `release`  | Releases — list, view, create, edit, delete                         |
-| `repo`     | Repositories — list, view, create, edit, clone, fork                |
-| `label`    | Labels — list, create, edit, delete                                 |
-| `search`   | Search issues, PRs, repos, commits, code                            |
-| `api`      | Raw GitHub API access                                               |
-| `setup`    | Install optional agent session hooks                                |
-| `update`   | Built-in self-update command inherited from `axi-sdk-js`            |
+| Command    | Description                                                                 |
+| ---------- | --------------------------------------------------------------------------- |
+| `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue         |
+| `pr`       | Pull requests — list, view, create, merge, review, checks                   |
+| `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
+| `workflow` | Workflows - list, view, run (trigger), enable, disable                      |
+| `release`  | Releases — list, view, create, edit, delete                                 |
+| `repo`     | Repositories — list, view, create, edit, clone, fork                        |
+| `label`    | Labels — list, create, edit, delete                                         |
+| `search`   | Search issues, PRs, repos, commits, code                                    |
+| `api`      | Raw GitHub API access                                                       |
+| `setup`    | Install optional agent session hooks                                        |
+| `update`   | Built-in self-update command inherited from `axi-sdk-js`                    |
 
 ### Global flags
 
