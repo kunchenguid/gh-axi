@@ -67,7 +67,12 @@ describe("CLI entrypoint", () => {
 
     await main({ argv: ["--help"], stdout: output.stdout });
 
-    expect(output.read()).toBe(TOP_HELP);
+    // The runtime renders TOP_HELP, then the SDK appends the inherited
+    // built-in commands (the self-update `update` command).
+    const rendered = output.read();
+    expect(rendered.startsWith(TOP_HELP)).toBe(true);
+    expect(rendered).toContain('"built-in":');
+    expect(rendered).toContain("update --check");
   });
 
   it.each(["-v", "-V", "--version"])(
