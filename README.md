@@ -75,6 +75,7 @@ gh-axi setup hooks
 
 This installs a `SessionStart` hook for **Claude Code**, **Codex**, and **OpenCode** that surfaces the current repo state and usage guidance at the start of each session.
 **Restart your agent session after running this** so the new hook takes effect.
+For global installs, run `gh-axi update --check` to see whether a newer release is available, or `gh-axi update` to upgrade.
 
 ## Usage
 
@@ -87,6 +88,8 @@ gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 gh-axi setup hooks              # install optional agent session hooks
+gh-axi update --check           # check whether a newer release exists
+gh-axi update                   # upgrade a global install
 ```
 
 For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` anywhere `--body` is accepted.
@@ -109,6 +112,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 | `search`   | Search issues, PRs, repos, commits, code                            |
 | `api`      | Raw GitHub API access                                               |
 | `setup`    | Install optional agent session hooks                                |
+| `update`   | Built-in self-update command inherited from `axi-sdk-js`            |
 
 ### Global flags
 

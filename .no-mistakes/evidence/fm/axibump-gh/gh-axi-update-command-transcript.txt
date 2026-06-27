@@ -1,0 +1,37 @@
+Evidence: gh-axi inherits axi-sdk-js update command
+Worktree: /Users/kunchen/.no-mistakes/worktrees/21c6d0f851bd/01KW3M81N2B6MZSEQHNDEZFHAY
+Entry point: bin/gh-axi.ts imported via node --import tsx, with process.argv[1] set to gh-axi to match the installed bin name.
+
+$ node -p "require('./node_modules/axi-sdk-js/package.json').version"
+0.1.8
+
+$ gh-axi --help
+usage: gh-axi [command] [args] [flags]
+commands[11]:
+  (none)=dashboard, issue, pr, run, workflow, release, repo, label, search, api, setup
+flags[3]:
+  -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --help, -v/-V/--version
+examples:
+  gh-axi
+  gh-axi issue list --state open
+  gh-axi issue list -R owner/name
+  gh-axi issue list --repo=owner/name
+  gh-axi pr view 42
+  gh-axi setup hooks
+"built-in":
+  update: Upgrade `gh-axi` to the latest published version
+  "update --check": Report current vs latest without installing
+
+$ gh-axi update --help
+command: update
+description: Upgrade `gh-axi` to the latest published npm version
+flags:
+  "--check": Report current vs latest and exit without installing
+examples[2]: gh-axi update,gh-axi update --check
+
+$ gh-axi update --check
+update:
+  package: gh-axi
+  current: 0.1.22
+  latest: 0.1.22
+  available: false

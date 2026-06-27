@@ -80,6 +80,10 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 ${extractCommandsBlock()}
 \`\`\`
 
+Installed copies also inherit the SDK built-in \`update\` command.
+Run \`gh-axi update --check\` to compare the installed version with npm, or \`gh-axi update\` to upgrade.
+When using \`npx -y gh-axi\`, npx already resolves the package on demand.
+
 Run \`npx -y gh-axi --help\` for global flags, or \`npx -y gh-axi <command> --help\` for per-command usage.
 
 ## Tips
