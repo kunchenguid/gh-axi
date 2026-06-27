@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.24](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.23...gh-axi-v0.1.24) (2026-06-27)
+
+
+### Bug Fixes
+
+* **run:** cross-reference workflow dispatch command ([#53](https://github.com/kunchenguid/gh-axi/issues/53)) ([2a775c6](https://github.com/kunchenguid/gh-axi/commit/2a775c693c2154848db6c55cc97c0726a866467e))
+
 ## [0.1.23](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.22...gh-axi-v0.1.23) (2026-06-27)
 
 
