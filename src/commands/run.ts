@@ -24,6 +24,8 @@ import { getSuggestions } from "../suggestions.js";
 export const RUN_HELP = `usage: gh-axi run <subcommand> [flags]
 subcommands[7]:
   list, view <id>, watch <id>, rerun <id>, cancel <id>, delete <id>, download <id>
+note:
+  manages existing runs; to trigger (dispatch) a workflow, use \`gh-axi workflow run <name> --ref <ref>\`
 flags{list}:
   --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c>
 flags{view}:
