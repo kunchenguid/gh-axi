@@ -102,7 +102,9 @@ Long `run view --log` and `run view --log-failed` output shows the last 20,000 c
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
 `gh-axi run` manages existing workflow runs; use `gh-axi workflow run <name> --ref <ref>` to trigger (dispatch) a workflow.
 
-`gh-axi secret set <name>` reads the value from `--body`/`-b` or piped stdin — never from a hardcoded prompt — and `gh-axi secret list` never prints values, matching `gh secret list`. `gh-axi variable` follows the same `--body`/stdin input, but variable values are not secret and are shown in `list` output.
+`gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
+`gh-axi secret list` never prints values, matching `gh secret list`.
+`gh-axi variable` accepts `--body`/`-b` or piped stdin, and variable values are shown in `list` output because variables are not secret.
 
 ### Commands
 

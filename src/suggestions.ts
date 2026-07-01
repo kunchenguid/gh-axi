@@ -479,7 +479,7 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "secret" && c.action === "list" && !c.isEmpty,
     lines: (c) => [
-      `Run \`gh-axi secret set <name>${repoFlag(c)}\` to add or update a secret`,
+      `Run \`echo -n "<value>" | gh-axi secret set <name>${repoFlag(c)}\` to add or update a secret`,
     ],
   },
   {
