@@ -18,6 +18,18 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.25](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.24...gh-axi-v0.1.25) (2026-07-01)
+
+
+### Features
+
+* **commands:** add secret and variable commands ([#59](https://github.com/kunchenguid/gh-axi/issues/59)) ([e3d00d8](https://github.com/kunchenguid/gh-axi/commit/e3d00d83b8b16106d81be5de1ed804028cb73622))
+
+
+### Bug Fixes
+
+* **commands:** apply all repeated --label flags on issue and pr create ([#57](https://github.com/kunchenguid/gh-axi/issues/57)) ([0d75865](https://github.com/kunchenguid/gh-axi/commit/0d758656d00c07651cf199eef18ffc1bb5ca9281))
+
 ## [0.1.24](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.23...gh-axi-v0.1.24) (2026-06-27)
 
 
