@@ -88,6 +88,8 @@ gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 gh-axi workflow run ci.yml --ref main     # trigger a workflow
+echo -n "sk-..." | gh-axi secret set OPENAI_API_KEY  # set a secret from stdin
+gh-axi variable set NODE_ENV --body production        # set a variable from a flag
 gh-axi setup hooks              # install optional agent session hooks
 gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
@@ -100,6 +102,8 @@ Long `run view --log` and `run view --log-failed` output shows the last 20,000 c
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
 `gh-axi run` manages existing workflow runs; use `gh-axi workflow run <name> --ref <ref>` to trigger (dispatch) a workflow.
 
+`gh-axi secret set <name>` reads the value from `--body`/`-b` or piped stdin — never from a hardcoded prompt — and `gh-axi secret list` never prints values, matching `gh secret list`. `gh-axi variable` follows the same `--body`/stdin input, but variable values are not secret and are shown in `list` output.
+
 ### Commands
 
 | Command    | Description                                                                 |
@@ -111,6 +115,8 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 | `release`  | Releases — list, view, create, edit, delete                                 |
 | `repo`     | Repositories — list, view, create, edit, clone, fork                        |
 | `label`    | Labels — list, create, edit, delete                                         |
+| `secret`   | Actions secrets — list, set, delete                                         |
+| `variable` | Actions variables — list, set, delete                                       |
 | `search`   | Search issues, PRs, repos, commits, code                                    |
 | `api`      | Raw GitHub API access                                                       |
 | `setup`    | Install optional agent session hooks                                        |

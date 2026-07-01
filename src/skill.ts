@@ -4,9 +4,9 @@ import { DESCRIPTION, TOP_HELP } from "./cli.js";
 // Kept terse and outcome-focused so it fires on "needs GitHub" intents.
 export const SKILL_DESCRIPTION =
   "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, " +
-  "releases, repositories, labels, search, and raw API access. Use whenever a task touches " +
-  "GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, triggering " +
-  "workflows, cutting releases, or querying the GitHub API.";
+  "releases, repositories, labels, Actions secrets and variables, search, and raw API access. " +
+  "Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, " +
+  "checking CI runs, triggering workflows, cutting releases, or managing Actions secrets/variables.";
 
 export const SKILL_AUTHOR = "Kun Chen (kunchenguid)";
 
@@ -63,7 +63,7 @@ gh-axi requires the [\`gh\`](https://cli.github.com/) CLI installed and authenti
 
 ## When to use
 
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; searching issues, PRs, repos, commits, or code; or calling the GitHub API directly.
+Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; or calling the GitHub API directly.
 
 ## Workflow
 

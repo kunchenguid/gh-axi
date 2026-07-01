@@ -11,6 +11,8 @@ import { workflowCommand, WORKFLOW_HELP } from "./commands/workflow.js";
 import { releaseCommand, RELEASE_HELP } from "./commands/release.js";
 import { repoCommand, REPO_HELP } from "./commands/repo.js";
 import { labelCommand, LABEL_HELP } from "./commands/label.js";
+import { secretCommand, SECRET_HELP } from "./commands/secret.js";
+import { variableCommand, VARIABLE_HELP } from "./commands/variable.js";
 import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
@@ -27,8 +29,8 @@ type MainOptions = {
 };
 
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
-commands[11]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, search, api, setup
+commands[13]:
+  (none)=dashboard, issue, pr, run, workflow, release, repo, label, secret, variable, search, api, setup
 flags[3]:
   -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --help, -v/-V/--version
 examples:
@@ -37,6 +39,7 @@ examples:
   gh-axi issue list -R owner/name
   gh-axi issue list --repo=owner/name
   gh-axi pr view 42
+  gh-axi secret list
   gh-axi setup hooks
 `;
 
@@ -48,6 +51,8 @@ const COMMAND_HELP: Record<string, string> = {
   release: RELEASE_HELP,
   repo: REPO_HELP,
   label: LABEL_HELP,
+  secret: SECRET_HELP,
+  variable: VARIABLE_HELP,
   search: SEARCH_HELP,
   api: API_HELP,
   setup: SETUP_HELP,
@@ -63,6 +68,8 @@ const COMMANDS: Record<string, CommandFn> = {
   release: withRepoContext("release", releaseCommand),
   repo: withRepoContext("repo", repoCommand),
   label: withRepoContext("label", labelCommand),
+  secret: withRepoContext("secret", secretCommand),
+  variable: withRepoContext("variable", variableCommand),
   search: withRepoContext("search", searchCommand),
   api: withRepoContext("api", apiCommand),
   setup: setupCommand,

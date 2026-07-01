@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { execFile } from "node:child_process";
-import { ghJson, ghExec, ghRaw } from "../src/gh.js";
+import { ghJson, ghExec, ghRaw, ghExecWithStdin } from "../src/gh.js";
 import type { RepoContext } from "../src/context.js";
 import { AxiError } from "../src/errors.js";
 
@@ -25,6 +25,22 @@ function mockExecFileResult(
     (callback as ExecFileCallback)(error, stdout, stderr);
     return {} as ReturnType<typeof execFile>;
   });
+}
+
+/** Helper to make mockedExecFile call its callback and capture what was written to child.stdin. */
+function mockExecFileResultWithStdin(
+  error: (Error & { code?: string | number }) | null,
+  stdout: string,
+  stderr: string,
+) {
+  const stdinEnd = vi.fn();
+  mockedExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+    (callback as ExecFileCallback)(error, stdout, stderr);
+    return { stdin: { end: stdinEnd } } as unknown as ReturnType<
+      typeof execFile
+    >;
+  });
+  return stdinEnd;
 }
 
 /** Helper to simulate ENOENT (gh not installed). */
@@ -218,5 +234,63 @@ describe("ghRaw", () => {
     const callArgs = mockedExecFile.mock.calls[0][1] as string[];
     expect(callArgs).toContain("--repo");
     expect(callArgs).toContain("o/r");
+  });
+});
+
+describe("ghExecWithStdin", () => {
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  it("writes input to the child process stdin and returns stdout", async () => {
+    const stdinEnd = mockExecFileResultWithStdin(null, "ok", "");
+    const result = await ghExecWithStdin(["secret", "set", "FOO"], "shh");
+    expect(result).toBe("ok");
+    expect(stdinEnd).toHaveBeenCalledWith("shh");
+  });
+
+  it("never passes the input value as a CLI argument", async () => {
+    mockExecFileResultWithStdin(null, "ok", "");
+    await ghExecWithStdin(["secret", "set", "FOO"], "super-secret-value");
+    const callArgs = mockedExecFile.mock.calls[0][1] as string[];
+    expect(callArgs).not.toContain("super-secret-value");
+  });
+
+  it("throws on non-zero exit code", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResultWithStdin(error, "", "HTTP 403: Forbidden");
+    await expect(
+      ghExecWithStdin(["secret", "set", "FOO"], "shh"),
+    ).rejects.toThrow(AxiError);
+  });
+
+  it("throws ghNotInstalledError on ENOENT", async () => {
+    const stdinEnd = vi.fn();
+    mockedExecFile.mockImplementation((_cmd, _args, _opts, callback) => {
+      const err = new Error("spawn gh ENOENT") as Error & { code: string };
+      err.code = "ENOENT";
+      (callback as ExecFileCallback)(err, "", "");
+      return { stdin: { end: stdinEnd } } as unknown as ReturnType<
+        typeof execFile
+      >;
+    });
+    await expect(
+      ghExecWithStdin(["secret", "set", "FOO"], "shh"),
+    ).rejects.toThrow(AxiError);
+  });
+
+  it("appends --repo for non-git sources", async () => {
+    const stdinEnd = mockExecFileResultWithStdin(null, "ok", "");
+    const ctx: RepoContext = {
+      owner: "cli",
+      name: "cli",
+      nwo: "cli/cli",
+      source: "flag",
+    };
+    await ghExecWithStdin(["secret", "set", "FOO"], "shh", ctx);
+    const callArgs = mockedExecFile.mock.calls[0][1] as string[];
+    expect(callArgs).toEqual(["secret", "set", "FOO", "--repo", "cli/cli"]);
+    expect(stdinEnd).toHaveBeenCalledWith("shh");
   });
 });

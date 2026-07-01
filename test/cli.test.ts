@@ -47,6 +47,14 @@ vi.mock("../src/commands/label.js", () => ({
   labelCommand: vi.fn().mockResolvedValue("label output"),
   LABEL_HELP: "label help",
 }));
+vi.mock("../src/commands/secret.js", () => ({
+  secretCommand: vi.fn().mockResolvedValue("secret output"),
+  SECRET_HELP: "secret help",
+}));
+vi.mock("../src/commands/variable.js", () => ({
+  variableCommand: vi.fn().mockResolvedValue("variable output"),
+  VARIABLE_HELP: "variable help",
+}));
 vi.mock("../src/commands/search.js", () => ({
   searchCommand: vi.fn().mockResolvedValue("search output"),
   SEARCH_HELP: "search help",
@@ -185,7 +193,48 @@ describe("main CLI", () => {
 
     const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
     expect(options.getCommandHelp("issue")).toBe("issue help");
+    expect(options.getCommandHelp("secret")).toBe("secret help");
+    expect(options.getCommandHelp("variable")).toBe("variable help");
     expect(options.getCommandHelp("missing")).toBeUndefined();
+  });
+
+  it("lists secret and variable in the top-level command index", () => {
+    expect(TOP_HELP).toContain("secret");
+    expect(TOP_HELP).toContain("variable");
+  });
+
+  it("strips -R before invoking the secret handler", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.secret(["list", "-R", "owner/name"], ctx);
+
+    const { secretCommand } = await import("../src/commands/secret.js");
+    expect(vi.mocked(secretCommand)).toHaveBeenCalledWith(["list"], ctx);
+  });
+
+  it("strips -R before invoking the variable handler", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.variable(["list", "-R", "owner/name"], ctx);
+
+    const { variableCommand } = await import("../src/commands/variable.js");
+    expect(vi.mocked(variableCommand)).toHaveBeenCalledWith(["list"], ctx);
   });
 
   it("resolves repo context lazily from -R after the command", async () => {
