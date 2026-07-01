@@ -1,0 +1,7 @@
+{"args":["secret","list","--json","name,updatedAt","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+{"args":["secret","set","API_KEY","--repo","owner/repo"],"stdinLength":18,"stdinSha256":"bef317f2fd425404b82f1883a786d66addc74a65c3c7c43f0abe049e8de5ad54"}
+{"args":["secret","delete","API_KEY","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+{"args":["variable","list","--json","name,value,updatedAt","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+{"args":["variable","set","NODE_ENV","--repo","owner/repo"],"stdinLength":10,"stdinSha256":"ab8e18ef4ebebeddc0b3152ce9c9006e14fc05242e3fc9ce32246ea6a9543074"}
+{"args":["variable","set","NODE_ENV","--repo","owner/repo"],"stdinLength":7,"stdinSha256":"e919a75364398a449f860aeadddc57fa0502145a4e63959ddb33c417a48dc0da"}
+{"args":["variable","delete","NODE_ENV","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}

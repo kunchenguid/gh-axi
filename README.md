@@ -46,7 +46,7 @@ You still need [`gh`](https://cli.github.com/) installed and authenticated via `
 
 The skill is not a user-facing slash command (`user-invocable: false`).
 Its frontmatter also includes Hermes Agent metadata (`metadata.hermes`) so Hermes can categorize it as a `devops` skill for GitHub, git, CI, pull requests, and releases.
-Just ask for anything that touches GitHub - filing issues, reviewing PRs, checking CI runs, cutting releases - and the agent loads the skill on its own when it recognizes the task.
+Just ask for anything that touches GitHub - filing issues, reviewing PRs, checking CI runs, cutting releases, or managing GitHub Actions secrets and variables - and the agent loads the skill on its own when it recognizes the task.
 
 `-g` installs the skill for all projects (`~/.claude/skills/`, for example); drop it to install for the current project only (`.claude/skills/`).
 
@@ -95,8 +95,9 @@ gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
 ```
 
-For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` anywhere `--body` is accepted.
+For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` on the relevant command.
 For releases, `--body` and `--body-file` are aliases for release notes, alongside `--notes` and `--notes-file`.
+For multi-line variable values, pipe stdin to `gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
 
 Long `run view --log` and `run view --log-failed` output shows the last 20,000 characters so CI failures stay visible.
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.

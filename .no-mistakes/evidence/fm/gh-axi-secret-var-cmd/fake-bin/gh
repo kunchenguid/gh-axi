@@ -1,0 +1,54 @@
+#!/usr/bin/env node
+import { appendFileSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+
+const args = process.argv.slice(2);
+const shouldReadStdin =
+  (args[0] === "secret" || args[0] === "variable") && args[1] === "set";
+let stdin = "";
+
+if (shouldReadStdin) {
+  try {
+    stdin = readFileSync(0, "utf8");
+  } catch {
+    stdin = "";
+  }
+}
+
+const stdinSha256 = createHash("sha256").update(stdin).digest("hex");
+const logPath = process.env.FAKE_GH_LOG;
+
+if (logPath) {
+  appendFileSync(
+    logPath,
+    JSON.stringify({
+      args,
+      stdinLength: stdin.length,
+      stdinSha256,
+    }) + "\n",
+  );
+}
+
+if (args[0] === "secret" && args[1] === "list") {
+  console.log(
+    JSON.stringify([
+      { name: "API_KEY", updatedAt: "2026-06-30T12:00:00Z" },
+    ]),
+  );
+  process.exit(0);
+}
+
+if (args[0] === "variable" && args[1] === "list") {
+  console.log(
+    JSON.stringify([
+      {
+        name: "NODE_ENV",
+        value: "production",
+        updatedAt: "2026-06-30T12:00:00Z",
+      },
+    ]),
+  );
+  process.exit(0);
+}
+
+process.exit(0);

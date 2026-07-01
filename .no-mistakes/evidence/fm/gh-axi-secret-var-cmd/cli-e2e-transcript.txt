@@ -1,0 +1,82 @@
+
+$ pnpm exec tsx bin/gh-axi.ts --help | sed -n '1,12p'
+usage: gh-axi [command] [args] [flags]
+commands[13]:
+  (none)=dashboard, issue, pr, run, workflow, release, repo, label, secret, variable, search, api, setup
+flags[3]:
+  -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --help, -v/-V/--version
+examples:
+  gh-axi
+  gh-axi issue list --state open
+  gh-axi issue list -R owner/name
+  gh-axi issue list --repo=owner/name
+  gh-axi pr view 42
+  gh-axi secret list
+exit=0
+
+$ pnpm exec tsx bin/gh-axi.ts secret list -R owner/repo
+count: 1
+secrets[1]{name,updated}:
+  API_KEY,1d ago
+help[1]:
+  Run `echo -n "<value>" | gh-axi secret set <name> -R owner/repo` to add or update a secret
+exit=0
+
+$ printf '%s' '<synthetic-secret>' | pnpm exec tsx bin/gh-axi.ts secret set API_KEY -R owner/repo
+set: ok
+secret: API_KEY
+help[1]:
+  Run `gh-axi secret list -R owner/repo` to see all secrets
+exit=0
+
+$ pnpm exec tsx bin/gh-axi.ts secret set API_KEY --body '<synthetic-secret>' -R owner/repo
+error: Secret values must be piped via stdin; --body/-b is not accepted because flags are visible in process argv
+code: VALIDATION_ERROR
+help[1]: "echo -n \"<value>\" | gh-axi secret set <name>"
+exit=2
+
+$ pnpm exec tsx bin/gh-axi.ts secret delete API_KEY -R owner/repo
+delete: ok
+secret: API_KEY
+help[1]:
+  Run `gh-axi secret list -R owner/repo` to see remaining secrets
+exit=0
+
+$ pnpm exec tsx bin/gh-axi.ts variable list -R owner/repo
+count: 1
+variables[1]{name,value,updated}:
+  NODE_ENV,production,1d ago
+help[1]:
+  Run `gh-axi variable set <name> --body <value> -R owner/repo` to add or update a variable
+exit=0
+
+$ pnpm exec tsx bin/gh-axi.ts variable set NODE_ENV --body production -R owner/repo
+set: ok
+variable: NODE_ENV
+help[1]:
+  Run `gh-axi variable list -R owner/repo` to see all variables
+exit=0
+
+$ printf '%s' 'staging' | pnpm exec tsx bin/gh-axi.ts variable set NODE_ENV -R owner/repo
+set: ok
+variable: NODE_ENV
+help[1]:
+  Run `gh-axi variable list -R owner/repo` to see all variables
+exit=0
+
+$ pnpm exec tsx bin/gh-axi.ts variable delete NODE_ENV -R owner/repo
+delete: ok
+variable: NODE_ENV
+help[1]:
+  Run `gh-axi variable list -R owner/repo` to see remaining variables
+exit=0
+
+fake gh child argv/stdin log:
+call_count: 7
+1: {"args":["secret","list","--json","name,updatedAt","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+2: {"args":["secret","set","API_KEY","--repo","owner/repo"],"stdinLength":18,"stdinSha256":"bef317f2fd425404b82f1883a786d66addc74a65c3c7c43f0abe049e8de5ad54"}
+3: {"args":["secret","delete","API_KEY","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+4: {"args":["variable","list","--json","name,value,updatedAt","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+5: {"args":["variable","set","NODE_ENV","--repo","owner/repo"],"stdinLength":10,"stdinSha256":"ab8e18ef4ebebeddc0b3152ce9c9006e14fc05242e3fc9ce32246ea6a9543074"}
+6: {"args":["variable","set","NODE_ENV","--repo","owner/repo"],"stdinLength":7,"stdinSha256":"e919a75364398a449f860aeadddc57fa0502145a4e63959ddb33c417a48dc0da"}
+7: {"args":["variable","delete","NODE_ENV","--repo","owner/repo"],"stdinLength":0,"stdinSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
