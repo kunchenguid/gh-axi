@@ -50,6 +50,44 @@ describe('getSuggestions', () => {
     expect(lines.every((l) => !l.includes('-R'))).toBe(true);
   });
 
+  it('places explicit repo flags after secret commands', () => {
+    const repo = { owner: 'cli', name: 'cli', nwo: 'cli/cli', source: 'flag' as const };
+
+    const lines = [
+      ...getSuggestions({ domain: 'secret', action: 'list', isEmpty: false, repo }),
+      ...getSuggestions({ domain: 'secret', action: 'list', isEmpty: true, repo }),
+      ...getSuggestions({ domain: 'secret', action: 'set', repo }),
+      ...getSuggestions({ domain: 'secret', action: 'delete', repo }),
+    ];
+
+    expect(lines).toEqual([
+      'Run `gh-axi secret set <name> -R cli/cli` to add or update a secret',
+      'Run `echo -n "<value>" | gh-axi secret set <name> -R cli/cli` to add a secret',
+      'Run `gh-axi secret list -R cli/cli` to see all secrets',
+      'Run `gh-axi secret list -R cli/cli` to see remaining secrets',
+    ]);
+    expect(lines.every((l) => !l.includes('gh-axi -R'))).toBe(true);
+  });
+
+  it('places explicit repo flags after variable commands', () => {
+    const repo = { owner: 'cli', name: 'cli', nwo: 'cli/cli', source: 'flag' as const };
+
+    const lines = [
+      ...getSuggestions({ domain: 'variable', action: 'list', isEmpty: false, repo }),
+      ...getSuggestions({ domain: 'variable', action: 'list', isEmpty: true, repo }),
+      ...getSuggestions({ domain: 'variable', action: 'set', repo }),
+      ...getSuggestions({ domain: 'variable', action: 'delete', repo }),
+    ];
+
+    expect(lines).toEqual([
+      'Run `gh-axi variable set <name> --body <value> -R cli/cli` to add or update a variable',
+      'Run `gh-axi variable set <name> --body <value> -R cli/cli` to add a variable',
+      'Run `gh-axi variable list -R cli/cli` to see all variables',
+      'Run `gh-axi variable list -R cli/cli` to see remaining variables',
+    ]);
+    expect(lines.every((l) => !l.includes('gh-axi -R'))).toBe(true);
+  });
+
   it('returns PR merge suggestions', () => {
     const lines = getSuggestions({ domain: 'pr', action: 'merge', id: 10 });
     expect(lines.some((l) => l.includes('revert'))).toBe(true);

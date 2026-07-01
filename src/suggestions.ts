@@ -479,14 +479,14 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "secret" && c.action === "list" && !c.isEmpty,
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} secret set <name>\` to add or update a secret`,
+      `Run \`gh-axi secret set <name>${repoFlag(c)}\` to add or update a secret`,
     ],
   },
   {
     match: (c) =>
       c.domain === "secret" && c.action === "list" && c.isEmpty === true,
     lines: (c) => [
-      `Run \`echo -n "<value>" | gh-axi${repoFlag(c)} secret set <name>\` to add a secret`,
+      `Run \`echo -n "<value>" | gh-axi secret set <name>${repoFlag(c)}\` to add a secret`,
     ],
   },
 
@@ -494,13 +494,13 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "secret" && c.action === "set",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} secret list\` to see all secrets`,
+      `Run \`gh-axi secret list${repoFlag(c)}\` to see all secrets`,
     ],
   },
   {
     match: (c) => c.domain === "secret" && c.action === "delete",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} secret list\` to see remaining secrets`,
+      `Run \`gh-axi secret list${repoFlag(c)}\` to see remaining secrets`,
     ],
   },
 
@@ -508,14 +508,14 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "variable" && c.action === "list" && !c.isEmpty,
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} variable set <name> --body <value>\` to add or update a variable`,
+      `Run \`gh-axi variable set <name> --body <value>${repoFlag(c)}\` to add or update a variable`,
     ],
   },
   {
     match: (c) =>
       c.domain === "variable" && c.action === "list" && c.isEmpty === true,
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} variable set <name> --body <value>\` to add a variable`,
+      `Run \`gh-axi variable set <name> --body <value>${repoFlag(c)}\` to add a variable`,
     ],
   },
 
@@ -523,13 +523,13 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "variable" && c.action === "set",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} variable list\` to see all variables`,
+      `Run \`gh-axi variable list${repoFlag(c)}\` to see all variables`,
     ],
   },
   {
     match: (c) => c.domain === "variable" && c.action === "delete",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} variable list\` to see remaining variables`,
+      `Run \`gh-axi variable list${repoFlag(c)}\` to see remaining variables`,
     ],
   },
 
