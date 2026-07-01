@@ -32,14 +32,22 @@ const listSchema: FieldDef[] = [
   relativeTime("updatedAt", "updated"),
 ];
 
-async function listVariables(_args: string[], ctx?: RepoContext): Promise<string> {
+async function listVariables(
+  _args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
   const variables = await ghJson<Record<string, unknown>[]>(
     ["variable", "list", "--json", "name,value,updatedAt"],
     ctx,
   );
   const isEmpty = variables.length === 0;
 
-  const suggestions = getSuggestions({ domain: "variable", action: "list", isEmpty, repo: ctx });
+  const suggestions = getSuggestions({
+    domain: "variable",
+    action: "list",
+    isEmpty,
+    repo: ctx,
+  });
   return renderOutput([
     `count: ${variables.length}`,
     renderList("variables", variables, listSchema),
@@ -53,29 +61,57 @@ async function setVariable(args: string[], ctx?: RepoContext): Promise<string> {
   const positionals = remaining.filter((a) => !a.startsWith("-"));
   const name = positionals[0];
   if (!name) {
-    throw new AxiError("Variable name is required: gh-axi variable set <name>", "VALIDATION_ERROR");
+    throw new AxiError(
+      "Variable name is required: gh-axi variable set <name>",
+      "VALIDATION_ERROR",
+    );
   }
 
   const value = await resolveValue(flagValue, "variable");
   await ghExecWithStdin(["variable", "set", name], value, ctx);
 
-  const suggestions = getSuggestions({ domain: "variable", action: "set", id: name, repo: ctx });
-  return renderOutput([encode({ set: "ok", variable: name }), renderHelp(suggestions)]);
+  const suggestions = getSuggestions({
+    domain: "variable",
+    action: "set",
+    id: name,
+    repo: ctx,
+  });
+  return renderOutput([
+    encode({ set: "ok", variable: name }),
+    renderHelp(suggestions),
+  ]);
 }
 
-async function deleteVariable(args: string[], ctx?: RepoContext): Promise<string> {
+async function deleteVariable(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
   const positionals = args.filter((a) => !a.startsWith("-"));
   const name = positionals[1];
   if (!name) {
-    throw new AxiError("Variable name is required: gh-axi variable delete <name>", "VALIDATION_ERROR");
+    throw new AxiError(
+      "Variable name is required: gh-axi variable delete <name>",
+      "VALIDATION_ERROR",
+    );
   }
 
   await ghExec(["variable", "delete", name], ctx);
-  const suggestions = getSuggestions({ domain: "variable", action: "delete", id: name, repo: ctx });
-  return renderOutput([encode({ delete: "ok", variable: name }), renderHelp(suggestions)]);
+  const suggestions = getSuggestions({
+    domain: "variable",
+    action: "delete",
+    id: name,
+    repo: ctx,
+  });
+  return renderOutput([
+    encode({ delete: "ok", variable: name }),
+    renderHelp(suggestions),
+  ]);
 }
 
-export async function variableCommand(args: string[], ctx?: RepoContext): Promise<string> {
+export async function variableCommand(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
   const sub = args[0];
 
   if (sub === "--help" || sub === undefined) return VARIABLE_HELP;
