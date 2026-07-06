@@ -17,6 +17,7 @@ You do not need gh-axi installed globally - invoke it with `npx -y gh-axi <comma
 If gh-axi output shows a follow-up command starting with `gh-axi`, run it as `npx -y gh-axi ...` instead.
 
 gh-axi requires the [`gh`](https://cli.github.com/) CLI installed and authenticated (`gh auth login`). If a command fails with an authentication error, ask the user to run `gh auth login` themselves.
+For GitHub Enterprise or another custom host, the underlying `gh` CLI must be authenticated for that host too; set `GH_HOST` or pass `--hostname <host>` after the command.
 
 ## When to use
 
@@ -27,10 +28,11 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 1. Run `npx -y gh-axi` with no arguments for a dashboard of the current repo - open issues, open PRs, and suggested next commands.
 2. Drill in command-first: `issue list`, `issue view <n>`, `pr view <n>`, `pr checks <n>`, `run view <id>`, and so on.
 3. Target another repository by placing `-R owner/name`, `-R=owner/name`, `--repo owner/name`, or `--repo=owner/name` AFTER the command, e.g. `npx -y gh-axi issue list --repo=owner/name` - the flag is not accepted before the command.
-4. Trigger (dispatch) a workflow with `workflow run <name> --ref <ref>`; `run` manages existing workflow runs.
-5. Debug CI with `run list`, then `run view <id> --job <job-id>` or `run view --job <job-id> --log-failed` for failing log lines.
+4. Target GitHub Enterprise or another custom host with `GH_HOST`, or by placing `--hostname <host>` or `--hostname=<host>` AFTER the command, e.g. `npx -y gh-axi issue list --hostname=git.example.com`.
+5. Trigger (dispatch) a workflow with `workflow run <name> --ref <ref>`; `run` manages existing workflow runs.
+6. Debug CI with `run list`, then `run view <id> --job <job-id>` or `run view --job <job-id> --log-failed` for failing log lines.
    Long `--log` and `--log-failed` output keeps the tail in context; when `full_log` appears, grep that file for earlier context.
-6. Every response ends with contextual next-step hints under `help:` - follow them.
+7. Every response ends with contextual next-step hints under `help:` - follow them.
 
 ## Commands
 

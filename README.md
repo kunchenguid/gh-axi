@@ -43,6 +43,7 @@ npx skills add kunchenguid/gh-axi --skill gh-axi -g
 That is the entire setup - no npm install needed.
 The skill teaches your agent to run gh-axi through `npx -y gh-axi`, so the CLI comes along on demand.
 You still need [`gh`](https://cli.github.com/) installed and authenticated via `gh auth login` (Node 20+ required).
+For GitHub Enterprise or another custom host, authenticate `gh` for that host and either pass `--hostname <host>` after the command or set `GH_HOST`.
 
 The skill is not a user-facing slash command (`user-invocable: false`).
 Its frontmatter also includes Hermes Agent metadata (`metadata.hermes`) so Hermes can categorize it as a `devops` skill for GitHub, git, CI, pull requests, and releases.
@@ -85,6 +86,7 @@ gh-axi issue list               # list issues in current repo
 gh-axi issue subissue list 16   # list sub-issues for issue #16
 gh-axi pr view 42               # view pull request #42
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
+gh-axi issue list --hostname git.example.com  # target a GitHub Enterprise host
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 gh-axi workflow run ci.yml --ref main     # trigger a workflow
@@ -129,14 +131,17 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 
 - `--help` — show help for any command
 - `-v`, `-V`, `--version` — show the installed `gh-axi` version
+- `--hostname <host>` / `--hostname=<host>` — target a custom GitHub host; explicit flags win over `GH_HOST`
 
-Repository targeting is command-first too:
+Repository and host targeting are command-first too:
 
 - `gh-axi issue list -R owner/name`
 - `gh-axi issue list --repo owner/name`
 - `gh-axi issue list --repo=owner/name`
 - `gh-axi run list -R owner/name`
 - `gh-axi search issues "login bug" --repo owner/name`
+- `gh-axi issue list --hostname git.example.com`
+- `gh-axi issue list --hostname=git.example.com`
 
 When a command also needs a destination repository, use a dedicated flag for it:
 

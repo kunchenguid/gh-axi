@@ -34,13 +34,14 @@ export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
 commands[13]:
   (none)=dashboard, issue, pr, run, workflow, release, repo, label, secret, variable, search, api, setup
 flags[4]:
-  -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --hostname <host> (after command) or GH_HOST env, --help, -v/-V/--version
+  -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
 examples:
   gh-axi
   gh-axi issue list --state open
   gh-axi issue list -R owner/name
   gh-axi issue list --repo=owner/name
   gh-axi issue list --hostname git.example.com
+  gh-axi issue list --hostname=git.example.com
   gh-axi pr view 42
   gh-axi secret list
   gh-axi setup hooks
