@@ -1,5 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { escapeRegExp, resolveHost, type HostContext } from './host.js';
+import { execFileSync } from "node:child_process";
+import { escapeRegExp, resolveHost, type HostContext } from "./host.js";
 
 export interface RepoContext {
   owner: string;
@@ -7,7 +7,7 @@ export interface RepoContext {
   /** Full "OWNER/NAME" string */
   nwo: string;
   /** How the repo was resolved — determines whether to append --repo to gh calls */
-  source: 'flag' | 'env' | 'git';
+  source: "flag" | "env" | "git";
   host?: HostContext;
 }
 
@@ -17,18 +17,18 @@ export interface RepoContext {
  */
 export function resolveRepo(flagValue?: string): RepoContext | undefined {
   if (flagValue) {
-    return parseNwo(flagValue, 'flag');
+    return parseNwo(flagValue, "flag");
   }
 
-  const envRepo = process.env['GH_REPO'];
+  const envRepo = process.env["GH_REPO"];
   if (envRepo) {
-    return parseNwo(envRepo, 'env');
+    return parseNwo(envRepo, "env");
   }
 
   try {
-    const url = execFileSync('git', ['remote', 'get-url', 'origin'], {
-      encoding: 'utf-8',
-      stdio: ['ignore', 'pipe', 'ignore'],
+    const url = execFileSync("git", ["remote", "get-url", "origin"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     return parseRemoteUrl(url);
   } catch {
@@ -36,8 +36,11 @@ export function resolveRepo(flagValue?: string): RepoContext | undefined {
   }
 }
 
-function parseNwo(nwo: string, source: 'flag' | 'env'): RepoContext | undefined {
-  const parts = nwo.split('/');
+function parseNwo(
+  nwo: string,
+  source: "flag" | "env",
+): RepoContext | undefined {
+  const parts = nwo.split("/");
   if (parts.length !== 2 || !parts[0] || !parts[1]) return undefined;
   return { owner: parts[0], name: parts[1], nwo, source };
 }
@@ -53,7 +56,7 @@ function parseRemoteUrl(url: string): RepoContext | undefined {
   if (sshMatch) {
     const owner = sshMatch[1];
     const name = sshMatch[2];
-    return { owner, name, nwo: `${owner}/${name}`, source: 'git' };
+    return { owner, name, nwo: `${owner}/${name}`, source: "git" };
   }
   // HTTPS: https://<host>/OWNER/NAME.git
   const httpsMatch = url.match(
@@ -62,7 +65,7 @@ function parseRemoteUrl(url: string): RepoContext | undefined {
   if (httpsMatch) {
     const owner = httpsMatch[1];
     const name = httpsMatch[2];
-    return { owner, name, nwo: `${owner}/${name}`, source: 'git' };
+    return { owner, name, nwo: `${owner}/${name}`, source: "git" };
   }
   return undefined;
 }

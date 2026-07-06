@@ -140,7 +140,10 @@ function withRepoContext(
 ): WrappedCommandFn {
   return (args, ctx) =>
     withSuggestionHost(ctx?.host, () =>
-      handler(parseRepoContextArgs(command, args).strippedArgs, repoContext(ctx)),
+      handler(
+        parseRepoContextArgs(command, args).strippedArgs,
+        repoContext(ctx),
+      ),
     );
 }
 
