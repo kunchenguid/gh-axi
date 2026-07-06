@@ -41,7 +41,6 @@ examples:
   gh-axi issue list -R owner/name
   gh-axi issue list --repo=owner/name
   gh-axi issue list --hostname git.example.com
-  gh-axi issue list --hostname=git.example.com
   gh-axi pr view 42
   gh-axi secret list
   gh-axi setup hooks

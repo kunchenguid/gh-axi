@@ -141,7 +141,6 @@ Repository and host targeting are command-first too:
 - `gh-axi run list -R owner/name`
 - `gh-axi search issues "login bug" --repo owner/name`
 - `gh-axi issue list --hostname git.example.com`
-- `gh-axi issue list --hostname=git.example.com`
 
 When a command also needs a destination repository, use a dedicated flag for it:
 
