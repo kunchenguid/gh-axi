@@ -76,6 +76,7 @@ vi.mock("../src/context.js", () => ({
 import { main, TOP_HELP } from "../src/cli.js";
 import { homeCommand } from "../src/commands/home.js";
 import { issueCommand } from "../src/commands/issue.js";
+import { prCommand } from "../src/commands/pr.js";
 import { releaseCommand } from "../src/commands/release.js";
 import { resolveRepo } from "../src/context.js";
 
@@ -106,8 +107,11 @@ describe("main CLI", () => {
   });
 
   it("documents the top-level version flags in help output", () => {
-    expect(TOP_HELP).toContain("flags[3]:");
+    expect(TOP_HELP).toContain("flags[4]:");
     expect(TOP_HELP).toContain("-R/--repo <OWNER/NAME> (after command)");
+    expect(TOP_HELP).toContain(
+      "--hostname <host> (after command) or GH_HOST env",
+    );
     expect(TOP_HELP).toContain("--help");
     expect(TOP_HELP).toContain("-v/-V/--version");
   });
@@ -372,5 +376,111 @@ describe("main CLI", () => {
       ["transfer", "123", "--to-repo", "dest/repo"],
       ctx,
     );
+  });
+
+  describe("--hostname / GH_HOST", () => {
+    const originalHost = process.env.GH_HOST;
+
+    afterEach(() => {
+      if (originalHost === undefined) {
+        delete process.env.GH_HOST;
+      } else {
+        process.env.GH_HOST = originalHost;
+      }
+    });
+
+    it("documents --hostname in the top-level help", () => {
+      expect(TOP_HELP).toContain("--hostname <host>");
+      expect(TOP_HELP).toContain(
+        "gh-axi issue list --hostname git.example.com",
+      );
+    });
+
+    it("resolves --hostname after the command into GH_HOST", async () => {
+      delete process.env.GH_HOST;
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      options.resolveContext({
+        command: "issue",
+        args: ["list", "--hostname", "git.example.com"],
+      });
+
+      expect(process.env.GH_HOST).toBe("git.example.com");
+    });
+
+    it("accepts --hostname=value form", async () => {
+      delete process.env.GH_HOST;
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      options.resolveContext({
+        command: "pr",
+        args: ["view", "42", "--hostname=git.example.com"],
+      });
+
+      expect(process.env.GH_HOST).toBe("git.example.com");
+    });
+
+    it("lets an explicit --hostname win over an existing GH_HOST env", async () => {
+      process.env.GH_HOST = "env.example.com";
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      options.resolveContext({
+        command: "issue",
+        args: ["list", "--hostname", "flag.example.com"],
+      });
+
+      expect(process.env.GH_HOST).toBe("flag.example.com");
+    });
+
+    it("leaves GH_HOST untouched when no --hostname is given", async () => {
+      process.env.GH_HOST = "env.example.com";
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      options.resolveContext({ command: "issue", args: ["list"] });
+
+      expect(process.env.GH_HOST).toBe("env.example.com");
+    });
+
+    it("strips --hostname before invoking command handlers", async () => {
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      const ctx = {
+        owner: "octo",
+        name: "repo",
+        nwo: "octo/repo",
+        source: "git",
+      };
+
+      await options.commands.issue(
+        ["list", "--hostname", "git.example.com"],
+        ctx,
+      );
+
+      expect(vi.mocked(issueCommand)).toHaveBeenCalledWith(["list"], ctx);
+    });
+
+    it("strips --hostname=value before invoking command handlers", async () => {
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      const ctx = {
+        owner: "octo",
+        name: "repo",
+        nwo: "octo/repo",
+        source: "git",
+      };
+
+      await options.commands.pr(
+        ["view", "42", "--hostname=git.example.com"],
+        ctx,
+      );
+
+      expect(vi.mocked(prCommand)).toHaveBeenCalledWith(["view", "42"], ctx);
+    });
   });
 });

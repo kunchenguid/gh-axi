@@ -31,13 +31,14 @@ type MainOptions = {
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
 commands[13]:
   (none)=dashboard, issue, pr, run, workflow, release, repo, label, secret, variable, search, api, setup
-flags[3]:
-  -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --help, -v/-V/--version
+flags[4]:
+  -R/--repo <OWNER/NAME> (after command), accepts space or equals form, --hostname <host> (after command) or GH_HOST env, --help, -v/-V/--version
 examples:
   gh-axi
   gh-axi issue list --state open
   gh-axi issue list -R owner/name
   gh-axi issue list --repo=owner/name
+  gh-axi issue list --hostname git.example.com
   gh-axi pr view 42
   gh-axi secret list
   gh-axi setup hooks
@@ -85,8 +86,18 @@ export async function main(options: MainOptions = {}): Promise<void> {
     home: withRepoContext(undefined, homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
-    resolveContext: ({ command, args }) =>
-      resolveRepo(parseRepoContextArgs(command, args).repoFlag),
+    resolveContext: ({ command, args }) => {
+      const { repoFlag, hostFlag } = parseRepoContextArgs(command, args);
+      // Explicit --hostname wins over the GH_HOST env var. Setting GH_HOST here
+      // means the child `gh` process (which inherits process.env) targets the
+      // configured host, and resolveHost() reflects it for URL parsing/building.
+      // When no --hostname is given we leave GH_HOST untouched, so default and
+      // env-only behavior stay unchanged.
+      if (hostFlag !== undefined) {
+        process.env["GH_HOST"] = hostFlag;
+      }
+      return resolveRepo(repoFlag);
+    },
   });
 }
 
@@ -123,9 +134,14 @@ function withRepoContext(
 function parseRepoContextArgs(
   command: string | undefined,
   args: string[],
-): { repoFlag: string | undefined; strippedArgs: string[] } {
+): {
+  repoFlag: string | undefined;
+  hostFlag: string | undefined;
+  strippedArgs: string[];
+} {
   const stripped: string[] = [];
   let repoFlag: string | undefined;
+  let hostFlag: string | undefined;
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -163,8 +179,21 @@ function parseRepoContextArgs(
       continue;
     }
 
+    // --hostname routes to GH_HOST for the child gh process; it is never a
+    // subcommand flag, so strip it for every command.
+    if (arg === "--hostname" && index + 1 < args.length) {
+      hostFlag = args[index + 1];
+      index++;
+      continue;
+    }
+
+    if (arg.startsWith("--hostname=") && arg.length > "--hostname=".length) {
+      hostFlag = arg.slice("--hostname=".length);
+      continue;
+    }
+
     stripped.push(arg);
   }
 
-  return { repoFlag, strippedArgs: stripped };
+  return { repoFlag, hostFlag, strippedArgs: stripped };
 }

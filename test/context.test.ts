@@ -14,6 +14,7 @@ describe('resolveRepo', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env['GH_REPO'];
+    delete process.env['GH_HOST'];
     mockedExecFileSync.mockReset();
   });
 
@@ -117,5 +118,35 @@ describe('resolveRepo', () => {
     const result = resolveRepo();
     expect(result!.source).toBe('env');
     expect(result!.nwo).toBe('env-owner/env-repo');
+  });
+
+  it('parses SSH remotes on a GitHub Enterprise host from GH_HOST', () => {
+    process.env['GH_HOST'] = 'git.example.com';
+    mockedExecFileSync.mockReturnValue('git@git.example.com:cli/cli.git\n');
+    const result = resolveRepo();
+    expect(result).toEqual({
+      owner: 'cli',
+      name: 'cli',
+      nwo: 'cli/cli',
+      source: 'git',
+    });
+  });
+
+  it('parses HTTPS remotes on a GitHub Enterprise host from GH_HOST', () => {
+    process.env['GH_HOST'] = 'git.example.com';
+    mockedExecFileSync.mockReturnValue('https://git.example.com/owner/repo.git\n');
+    const result = resolveRepo();
+    expect(result).toEqual({
+      owner: 'owner',
+      name: 'repo',
+      nwo: 'owner/repo',
+      source: 'git',
+    });
+  });
+
+  it('does not match a github.com remote when GH_HOST names another host', () => {
+    process.env['GH_HOST'] = 'git.example.com';
+    mockedExecFileSync.mockReturnValue('git@github.com:cli/cli.git\n');
+    expect(resolveRepo()).toBeUndefined();
   });
 });

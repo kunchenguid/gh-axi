@@ -679,6 +679,50 @@ describe("issueCommand", () => {
         "dest/repo",
       ]);
     });
+
+    it("builds the fallback URL on the configured host when the follow-up view fails", async () => {
+      const originalHost = process.env.GH_HOST;
+      process.env.GH_HOST = "git.example.com";
+      try {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockRejectedValue(new AxiError("nope", "NOT_FOUND"));
+
+        const result = await issueCommand(
+          ["transfer", "10", "--to-repo", "dest/repo"],
+          ctx,
+        );
+
+        expect(result).toContain("https://git.example.com/dest/repo/issues/10");
+      } finally {
+        if (originalHost === undefined) {
+          delete process.env.GH_HOST;
+        } else {
+          process.env.GH_HOST = originalHost;
+        }
+      }
+    });
+
+    it("builds the fallback URL on github.com by default", async () => {
+      const originalHost = process.env.GH_HOST;
+      delete process.env.GH_HOST;
+      try {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockRejectedValue(new AxiError("nope", "NOT_FOUND"));
+
+        const result = await issueCommand(
+          ["transfer", "10", "--to-repo", "dest/repo"],
+          ctx,
+        );
+
+        expect(result).toContain("https://github.com/dest/repo/issues/10");
+      } finally {
+        if (originalHost === undefined) {
+          delete process.env.GH_HOST;
+        } else {
+          process.env.GH_HOST = originalHost;
+        }
+      }
+    });
   });
 
   describe("view with sub-issue relationships", () => {

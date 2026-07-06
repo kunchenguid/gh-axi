@@ -448,7 +448,7 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   if (project) ghArgs.push("--project", project);
 
   const stdout = await ghExec(ghArgs, ctx);
-  // Parse PR number from URL: https://github.com/OWNER/REPO/pull/123
+  // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
   const urlMatch = stdout.match(/\/pull\/(\d+)/);
   const num = urlMatch ? Number(urlMatch[1]) : undefined;
   const url = stdout.trim().split("\n").pop()?.trim() ?? "";

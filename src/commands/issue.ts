@@ -1,4 +1,5 @@
 import type { RepoContext } from "../context.js";
+import { resolveHost } from "../host.js";
 import { ghJson, ghExec, ghRaw } from "../gh.js";
 import { AxiError, mapGhError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
@@ -985,7 +986,10 @@ async function transferIssue(
     ]);
   } catch {
     // Fallback: return what we know
-    item = { number: num, url: `https://github.com/${destRepo}/issues/${num}` };
+    item = {
+      number: num,
+      url: `https://${resolveHost()}/${destRepo}/issues/${num}`,
+    };
   }
 
   const blocks: string[] = [renderDetail("issue", item, transferResultSchema)];
