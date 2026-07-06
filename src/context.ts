@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { escapeRegExp, resolveHost } from './host.js';
+import { escapeRegExp, resolveHost, type HostContext } from './host.js';
 
 export interface RepoContext {
   owner: string;
@@ -8,6 +8,7 @@ export interface RepoContext {
   nwo: string;
   /** How the repo was resolved — determines whether to append --repo to gh calls */
   source: 'flag' | 'env' | 'git';
+  host?: HostContext;
 }
 
 /**
@@ -46,14 +47,18 @@ function parseRemoteUrl(url: string): RepoContext | undefined {
   // GitHub Enterprise host such as git.example.com resolve too.
   const host = escapeRegExp(resolveHost());
   // SSH: git@<host>:OWNER/NAME.git
-  const sshMatch = url.match(new RegExp(`${host}[:/]([^/]+)/([^/]+?)(?:\\.git)?$`));
+  const sshMatch = url.match(
+    new RegExp(`(?:^|@|/)${host}[:/]([^/]+)/([^/]+?)(?:\\.git)?$`),
+  );
   if (sshMatch) {
     const owner = sshMatch[1];
     const name = sshMatch[2];
     return { owner, name, nwo: `${owner}/${name}`, source: 'git' };
   }
   // HTTPS: https://<host>/OWNER/NAME.git
-  const httpsMatch = url.match(new RegExp(`${host}/([^/]+)/([^/]+?)(?:\\.git)?$`));
+  const httpsMatch = url.match(
+    new RegExp(`(?:^|@|/)${host}/([^/]+)/([^/]+?)(?:\\.git)?$`),
+  );
   if (httpsMatch) {
     const owner = httpsMatch[1];
     const name = httpsMatch[2];

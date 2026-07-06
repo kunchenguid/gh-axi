@@ -1,4 +1,5 @@
 import type { RepoContext } from "./context.js";
+import { DEFAULT_HOST, type HostContext } from "./host.js";
 
 interface SuggestionContext {
   domain: string;
@@ -8,6 +9,7 @@ interface SuggestionContext {
   /** The entity number/id/tag for substitution */
   id?: string | number;
   repo?: RepoContext;
+  host?: HostContext;
 }
 
 type SuggestionEntry = {
@@ -24,6 +26,37 @@ function repoFlag(ctx: SuggestionContext): string {
 
 function normalizeRepoFlagLine(line: string): string {
   return line.replace(/`gh-axi -R ([^`\s]+) ([^`]+)`/g, "`gh-axi $2 -R $1`");
+}
+
+let activeHost: HostContext | undefined;
+
+export async function withSuggestionHost<T>(
+  host: HostContext | undefined,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const previousHost = activeHost;
+  activeHost = host;
+  try {
+    return await callback();
+  } finally {
+    activeHost = previousHost;
+  }
+}
+
+function hostnameFlag(ctx: SuggestionContext): string {
+  const host = ctx.host ?? ctx.repo?.host ?? activeHost;
+  if (!host || host.source !== "flag" || host.value === DEFAULT_HOST) {
+    return "";
+  }
+  return ` --hostname ${host.value}`;
+}
+
+function appendHostnameFlag(line: string, ctx: SuggestionContext): string {
+  const flag = hostnameFlag(ctx);
+  if (!flag) {
+    return line;
+  }
+  return line.replace(/`([^`]*\bgh-axi\b[^`]*)`/g, `\`$1${flag}\``);
 }
 
 const table: SuggestionEntry[] = [
@@ -553,7 +586,10 @@ const table: SuggestionEntry[] = [
 export function getSuggestions(ctx: SuggestionContext): string[] {
   for (const entry of table) {
     if (entry.match(ctx)) {
-      return entry.lines(ctx).map(normalizeRepoFlagLine);
+      return entry
+        .lines(ctx)
+        .map(normalizeRepoFlagLine)
+        .map((line) => appendHostnameFlag(line, ctx));
     }
   }
   return [];

@@ -149,4 +149,10 @@ describe('resolveRepo', () => {
     mockedExecFileSync.mockReturnValue('git@github.com:cli/cli.git\n');
     expect(resolveRepo()).toBeUndefined();
   });
+
+  it('does not match a subdomain-prefixed remote host', () => {
+    process.env['GH_HOST'] = 'git.example.com';
+    mockedExecFileSync.mockReturnValue('git@old-git.example.com:cli/cli.git\n');
+    expect(resolveRepo()).toBeUndefined();
+  });
 });

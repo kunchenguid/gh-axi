@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSuggestions } from "../src/suggestions.js";
+import { getSuggestions, withSuggestionHost } from "../src/suggestions.js";
 
 describe("getSuggestions", () => {
   it("returns home suggestions", () => {
@@ -61,6 +61,64 @@ describe("getSuggestions", () => {
     expect(lines.every((l) => !l.includes("gh-axi -R"))).toBe(true);
     expect(lines).toContain(
       "Run `gh-axi issue view <number> -R cli/cli` to view details",
+    );
+  });
+
+  it("carries explicit non-default hostname flags", () => {
+    const lines = getSuggestions({
+      domain: "issue",
+      action: "list",
+      isEmpty: false,
+      repo: {
+        owner: "cli",
+        name: "cli",
+        nwo: "cli/cli",
+        source: "flag",
+        host: { value: "git.example.com", source: "flag" },
+      },
+    });
+
+    expect(lines).toEqual([
+      "Run `gh-axi issue view <number> -R cli/cli --hostname git.example.com` to view details",
+      'Run `gh-axi issue create --title "..." --body-file <path> -R cli/cli --hostname git.example.com` to create',
+    ]);
+  });
+
+  it("does not carry env-only hostname flags", () => {
+    const lines = getSuggestions({
+      domain: "issue",
+      action: "list",
+      isEmpty: false,
+      host: { value: "git.example.com", source: "env" },
+    });
+
+    expect(lines.every((l) => !l.includes("--hostname"))).toBe(true);
+  });
+
+  it("does not carry default hostname flags", () => {
+    const lines = getSuggestions({
+      domain: "issue",
+      action: "list",
+      isEmpty: false,
+      host: { value: "github.com", source: "flag" },
+    });
+
+    expect(lines.every((l) => !l.includes("--hostname"))).toBe(true);
+  });
+
+  it("carries host-only CLI context into suggestions", async () => {
+    const lines = await withSuggestionHost(
+      { value: "git.example.com", source: "flag" },
+      async () =>
+        getSuggestions({
+          domain: "issue",
+          action: "list",
+          isEmpty: false,
+        }),
+    );
+
+    expect(lines).toContain(
+      "Run `gh-axi issue view <number> --hostname git.example.com` to view details",
     );
   });
 

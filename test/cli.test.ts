@@ -409,6 +409,23 @@ describe("main CLI", () => {
       expect(process.env.GH_HOST).toBe("git.example.com");
     });
 
+    it("tracks explicit --hostname in resolved context", async () => {
+      delete process.env.GH_HOST;
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+      const context = options.resolveContext({
+        command: "issue",
+        args: ["list", "--hostname", "git.example.com"],
+      });
+
+      expect(context).toEqual(
+        expect.objectContaining({
+          host: { value: "git.example.com", source: "flag" },
+        }),
+      );
+    });
+
     it("accepts --hostname=value form", async () => {
       delete process.env.GH_HOST;
       await main();

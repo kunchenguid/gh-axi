@@ -16,6 +16,8 @@ import { variableCommand, VARIABLE_HELP } from "./commands/variable.js";
 import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
+import { resolveHost, type HostContext } from "./host.js";
+import { withSuggestionHost } from "./suggestions.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
@@ -59,9 +61,12 @@ const COMMAND_HELP: Record<string, string> = {
   setup: SETUP_HELP,
 };
 
+type HostOnlyContext = { host: HostContext };
+type CliContext = RepoContext | HostOnlyContext;
 type CommandFn = (args: string[], ctx?: RepoContext) => Promise<string>;
+type WrappedCommandFn = (args: string[], ctx?: CliContext) => Promise<string>;
 
-const COMMANDS: Record<string, CommandFn> = {
+const COMMANDS: Record<string, WrappedCommandFn> = {
   issue: withRepoContext("issue", issueCommand),
   pr: withRepoContext("pr", prCommand),
   run: withRepoContext("run", runCommand),
@@ -77,7 +82,7 @@ const COMMANDS: Record<string, CommandFn> = {
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {
-  await runAxiCli<RepoContext | undefined>({
+  await runAxiCli<CliContext | undefined>({
     ...(options.argv ? { argv: options.argv } : {}),
     description: DESCRIPTION,
     version: VERSION,
@@ -96,7 +101,12 @@ export async function main(options: MainOptions = {}): Promise<void> {
       if (hostFlag !== undefined) {
         process.env["GH_HOST"] = hostFlag;
       }
-      return resolveRepo(repoFlag);
+      const repo = resolveRepo(repoFlag);
+      const host = resolveHostContext(hostFlag);
+      if (repo && host) {
+        return { ...repo, host };
+      }
+      return repo ?? (host ? { host } : undefined);
     },
   });
 }
@@ -126,9 +136,24 @@ function readPackageVersion(): string {
 function withRepoContext(
   command: string | undefined,
   handler: CommandFn,
-): CommandFn {
+): WrappedCommandFn {
   return (args, ctx) =>
-    handler(parseRepoContextArgs(command, args).strippedArgs, ctx);
+    withSuggestionHost(ctx?.host, () =>
+      handler(parseRepoContextArgs(command, args).strippedArgs, repoContext(ctx)),
+    );
+}
+
+function repoContext(ctx?: CliContext): RepoContext | undefined {
+  return ctx && "nwo" in ctx ? ctx : undefined;
+}
+
+function resolveHostContext(
+  hostFlag: string | undefined,
+): HostContext | undefined {
+  if (hostFlag === undefined) {
+    return undefined;
+  }
+  return { value: resolveHost(hostFlag), source: "flag" };
 }
 
 function parseRepoContextArgs(

@@ -1,6 +1,11 @@
 /** Default GitHub host used when none is configured. */
 export const DEFAULT_HOST = "github.com";
 
+export interface HostContext {
+  value: string;
+  source: "flag" | "env" | "default";
+}
+
 /**
  * Resolve the effective GitHub host.
  * Priority: explicit --hostname flag > GH_HOST env > github.com.
