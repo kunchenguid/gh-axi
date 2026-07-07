@@ -122,22 +122,33 @@ const KNOWN_ITEM_KEYS = new Set([
   "content",
 ]);
 
+function isProjectItem(value: unknown): value is ProjectItem {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function itemContent(item: ProjectItem): ProjectItem {
+  return isProjectItem(item.content) ? item.content : item;
+}
+
 /** Render project items, surfacing any custom project field (Status, Priority, ...) as a flat column. */
 function renderProjectItems(items: ProjectItem[]): string {
   const rows = items.map((item) => {
+    const content = itemContent(item);
     const row: Record<string, unknown> = {
       id: item.id ?? null,
-      title: item.title ?? null,
-      type: item.type ?? null,
+      title: content.title ?? item.title ?? null,
+      type: content.type ?? item.type ?? null,
     };
-    if (item.number !== undefined) row.number = item.number;
-    if (item.repository !== undefined) row.repository = item.repository;
-    if (Array.isArray(item.labels) && item.labels.length > 0)
-      row.labels = (item.labels as unknown[]).join(",");
-    if (Array.isArray(item.assignees) && item.assignees.length > 0)
-      row.assignees = (item.assignees as unknown[]).join(",");
-    if (typeof item.body === "string" && item.body)
-      row.body = truncateBody(item.body, 300);
+    if (content.id !== undefined && content.id !== item.id)
+      row.content_id = content.id;
+    if (content.number !== undefined) row.number = content.number;
+    if (content.repository !== undefined) row.repository = content.repository;
+    if (Array.isArray(content.labels) && content.labels.length > 0)
+      row.labels = (content.labels as unknown[]).join(",");
+    if (Array.isArray(content.assignees) && content.assignees.length > 0)
+      row.assignees = (content.assignees as unknown[]).join(",");
+    if (typeof content.body === "string" && content.body)
+      row.body = truncateBody(content.body, 300);
     for (const [key, value] of Object.entries(item)) {
       if (
         !KNOWN_ITEM_KEYS.has(key) &&
@@ -148,7 +159,7 @@ function renderProjectItems(items: ProjectItem[]): string {
         row[key] = value;
       }
     }
-    if (item.url !== undefined) row.url = item.url;
+    if (content.url !== undefined) row.url = content.url;
     return row;
   });
   return encode({ items: rows });
@@ -246,9 +257,7 @@ async function projectView(args: string[], ctx?: RepoContext): Promise<string> {
   ];
 
   const project = await ghJson<ProjectRecord>(ghArgs);
-  return renderOutput([
-    renderDetail("project", project, projectViewSchema),
-  ]);
+  return renderOutput([renderDetail("project", project, projectViewSchema)]);
 }
 
 async function projectItemList(
@@ -426,7 +435,7 @@ async function projectItemEdit(args: string[]): Promise<string> {
   const id = takeFlag(args, "--id");
   if (!id)
     throw new AxiError(
-      "--id is required: gh-axi project item-edit --id <item-id> [--field-id <id> --project-id <id> --text \"...\"]",
+      '--id is required: gh-axi project item-edit --id <item-id> [--field-id <id> --project-id <id> --text "..."]',
       "VALIDATION_ERROR",
     );
   const projectId = takeFlag(args, "--project-id");
@@ -459,9 +468,7 @@ async function projectItemEdit(args: string[]): Promise<string> {
       field("id"),
       field("status"),
     ]),
-    renderHelp(
-      getSuggestions({ domain: "project", action: "item-edit", id }),
-    ),
+    renderHelp(getSuggestions({ domain: "project", action: "item-edit", id })),
   ]);
 }
 
@@ -640,7 +647,9 @@ async function projectClose(
     "json",
     ...ownerArgs(owner),
   ]);
-  const alreadyDesired = undo ? current.closed === false : current.closed === true;
+  const alreadyDesired = undo
+    ? current.closed === false
+    : current.closed === true;
   if (alreadyDesired) {
     return renderOutput([
       renderDetail(
@@ -666,11 +675,10 @@ async function projectClose(
 
   await ghJson<ProjectRecord>(ghArgs);
   return renderOutput([
-    renderDetail(
-      undo ? "reopened" : "closed",
-      { number: num, status: "ok" },
-      [field("number"), field("status")],
-    ),
+    renderDetail(undo ? "reopened" : "closed", { number: num, status: "ok" }, [
+      field("number"),
+      field("status"),
+    ]),
     renderHelp(
       getSuggestions({ domain: "project", action: "close", id: num, owner }),
     ),
@@ -683,7 +691,7 @@ async function projectCopy(args: string[], ctx?: RepoContext): Promise<string> {
   const targetOwner = takeFlag(args, "--target-owner");
   if (!targetOwner)
     throw new AxiError(
-      "--target-owner is required: gh-axi project copy <number> --target-owner <login> --title \"...\"",
+      '--target-owner is required: gh-axi project copy <number> --target-owner <login> --title "..."',
       "VALIDATION_ERROR",
     );
   const title = takeFlag(args, "--title");

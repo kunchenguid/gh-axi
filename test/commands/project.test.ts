@@ -162,31 +162,49 @@ describe("projectCommand", () => {
         items: [
           {
             id: "PVTI_1",
-            title: "Fix bug",
-            type: "ISSUE",
-            number: 42,
-            repository: "octo/repo",
-            url: "https://github.com/octo/repo/issues/42",
-            Status: "In Progress",
+            content: {
+              title: "Fix bug",
+              type: "Issue",
+              number: 42,
+              repository: "octo/repo",
+              body: "The issue body",
+              url: "https://github.com/octo/repo/issues/42",
+            },
+            status: "In Progress",
+          },
+          {
+            id: "PVTI_2",
+            content: {
+              id: "DI_1",
+              title: "Draft note",
+              type: "DraftIssue",
+              body: "Draft body",
+            },
+            priority: "High",
           },
         ],
-        totalCount: 1,
+        totalCount: 2,
       });
 
       const result = await projectCommand(["item-list", "3"], ctx);
 
       expect(result).toContain("Fix bug");
+      expect(result).toContain("Issue");
+      expect(result).toContain("42");
+      expect(result).toContain("octo/repo");
+      expect(result).toContain("The issue body");
+      expect(result).toContain("https://github.com/octo/repo/issues/42");
       expect(result).toContain("In Progress");
-      expect(result).toContain("count: 1 of 1 total");
+      expect(result).toContain("DI_1");
+      expect(result).toContain("Draft note");
+      expect(result).toContain("High");
+      expect(result).toContain("count: 2 of 2 total");
     });
 
     it("passes --query through to gh", async () => {
       mockedGhJson.mockResolvedValue({ items: [], totalCount: 0 });
 
-      await projectCommand(
-        ["item-list", "3", "--query", "status:Todo"],
-        ctx,
-      );
+      await projectCommand(["item-list", "3", "--query", "status:Todo"], ctx);
 
       expect(mockedGhJson).toHaveBeenCalledWith(
         expect.arrayContaining(["--query", "status:Todo"]),
@@ -237,9 +255,9 @@ describe("projectCommand", () => {
     });
 
     it("throws when --url is missing", async () => {
-      await expect(
-        projectCommand(["item-add", "3"], ctx),
-      ).rejects.toThrow(AxiError);
+      await expect(projectCommand(["item-add", "3"], ctx)).rejects.toThrow(
+        AxiError,
+      );
     });
   });
 
@@ -259,9 +277,9 @@ describe("projectCommand", () => {
     });
 
     it("throws when --title is missing", async () => {
-      await expect(
-        projectCommand(["item-create", "3"], ctx),
-      ).rejects.toThrow(AxiError);
+      await expect(projectCommand(["item-create", "3"], ctx)).rejects.toThrow(
+        AxiError,
+      );
     });
   });
 
@@ -332,9 +350,9 @@ describe("projectCommand", () => {
     });
 
     it("throws when --id is missing", async () => {
-      await expect(
-        projectCommand(["item-archive", "3"], ctx),
-      ).rejects.toThrow(AxiError);
+      await expect(projectCommand(["item-archive", "3"], ctx)).rejects.toThrow(
+        AxiError,
+      );
     });
   });
 
@@ -351,9 +369,9 @@ describe("projectCommand", () => {
     });
 
     it("throws when --id is missing", async () => {
-      await expect(
-        projectCommand(["item-delete", "3"], ctx),
-      ).rejects.toThrow(AxiError);
+      await expect(projectCommand(["item-delete", "3"], ctx)).rejects.toThrow(
+        AxiError,
+      );
     });
   });
 
@@ -377,9 +395,7 @@ describe("projectCommand", () => {
     });
 
     it("throws when --title is missing", async () => {
-      await expect(projectCommand(["create"], ctx)).rejects.toThrow(
-        AxiError,
-      );
+      await expect(projectCommand(["create"], ctx)).rejects.toThrow(AxiError);
     });
   });
 
@@ -439,14 +455,7 @@ describe("projectCommand", () => {
       });
 
       const result = await projectCommand(
-        [
-          "copy",
-          "3",
-          "--target-owner",
-          "dest",
-          "--title",
-          "Copied Roadmap",
-        ],
+        ["copy", "3", "--target-owner", "dest", "--title", "Copied Roadmap"],
         ctx,
       );
 
