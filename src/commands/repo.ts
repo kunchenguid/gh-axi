@@ -70,6 +70,12 @@ async function viewRepo(args: string[], ctx?: RepoContext): Promise<string> {
   const positionals = args.filter((a) => !a.startsWith("-"));
   const repoArg = positionals[1];
   const extraArg = positionals[2];
+  if (repoArg && ctx?.source === "flag") {
+    throw new AxiError(
+      `Unsupported positional argument for repo view with --repo: ${repoArg}. Use --repo <owner/name> to select a repository.`,
+      "VALIDATION_ERROR",
+    );
+  }
   if (extraArg) {
     throw new AxiError(
       `Unsupported positional argument for repo view: ${extraArg}. Use --repo <owner/name> to select a repository.`,

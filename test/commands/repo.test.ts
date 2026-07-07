@@ -75,14 +75,35 @@ describe("repoCommand", () => {
       expect(callArgs).toContain("octo/repo");
     });
 
-    it("passes a positional owner/name repo to gh repo view", async () => {
+    it("passes a positional owner/name repo to gh repo view without flag context", async () => {
       mockedGhJson.mockResolvedValue({ name: "agent-os" });
 
-      await repoCommand(["view", "minekube/agent-os"], ctx);
+      await repoCommand(["view", "minekube/agent-os"], {
+        ...ctx,
+        source: "git",
+      });
 
       const callArgs = mockedGhJson.mock.calls[0][0];
       expect(callArgs).toContain("minekube/agent-os");
       expect(callArgs).not.toContain("octo/repo");
+    });
+
+    it("rejects a positional repo selector when repo context comes from --repo", async () => {
+      await expect(
+        repoCommand(["view", "minekube/agent-os"], ctx),
+      ).rejects.toThrow(
+        "Unsupported positional argument for repo view with --repo: minekube/agent-os. Use --repo <owner/name> to select a repository.",
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects the positional repo selector first when --repo also has extra positionals", async () => {
+      await expect(
+        repoCommand(["view", "minekube/agent-os", "extra"], ctx),
+      ).rejects.toThrow(
+        "Unsupported positional argument for repo view with --repo: minekube/agent-os. Use --repo <owner/name> to select a repository.",
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
     it("keeps bare ambient repo view when no repo context exists", async () => {
@@ -100,7 +121,10 @@ describe("repoCommand", () => {
 
     it("rejects extra positional args for repo view", async () => {
       await expect(
-        repoCommand(["view", "minekube/agent-os", "extra"], ctx),
+        repoCommand(["view", "minekube/agent-os", "extra"], {
+          ...ctx,
+          source: "git",
+        }),
       ).rejects.toThrow(
         "Unsupported positional argument for repo view: extra. Use --repo <owner/name> to select a repository.",
       );
