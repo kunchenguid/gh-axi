@@ -107,7 +107,7 @@ function ownerArgs(owner: string | undefined): string[] {
   return owner ? ["--owner", owner] : [];
 }
 
-const KNOWN_ITEM_KEYS = new Set([
+const CONTENT_ITEM_KEYS = new Set([
   "id",
   "title",
   "type",
@@ -115,11 +115,6 @@ const KNOWN_ITEM_KEYS = new Set([
   "repository",
   "body",
   "url",
-  "labels",
-  "assignees",
-  "reviewers",
-  "milestone",
-  "content",
 ]);
 
 function isProjectItem(value: unknown): value is ProjectItem {
@@ -130,9 +125,59 @@ function itemContent(item: ProjectItem): ProjectItem {
   return isProjectItem(item.content) ? item.content : item;
 }
 
+function renderProjectItemValue(
+  value: unknown,
+): string | number | boolean | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  )
+    return value;
+  if (Array.isArray(value)) {
+    const values = value
+      .map((v) => renderProjectItemValue(v))
+      .filter((v) => v !== undefined && v !== "")
+      .map(String);
+    return values.length > 0 ? values.join(",") : undefined;
+  }
+  if (!isProjectItem(value)) return undefined;
+
+  const values = Object.entries(value)
+    .map(([key, childValue]) => {
+      const rendered = renderProjectItemValue(childValue);
+      if (rendered === undefined || rendered === "") return undefined;
+      return [key, rendered] as const;
+    })
+    .filter((entry) => entry !== undefined);
+  if (values.length === 0) return undefined;
+  if (
+    values.length === 1 &&
+    ["title", "name", "login", "url"].includes(values[0][0])
+  )
+    return values[0][1];
+  return values.map(([key, rendered]) => `${key}:${rendered}`).join(",");
+}
+
+function setProjectItemField(
+  row: Record<string, unknown>,
+  key: string,
+  value: unknown,
+) {
+  const rendered = renderProjectItemValue(value);
+  if (rendered === undefined || rendered === "") return;
+  if (row[key] === undefined || row[key] === null || row[key] === "") {
+    row[key] = rendered;
+    return;
+  }
+  if (String(row[key]) !== String(rendered)) row[`${key}_field`] = rendered;
+}
+
 /** Render project items, surfacing any custom project field (Status, Priority, ...) as a flat column. */
 function renderProjectItems(items: ProjectItem[]): string {
   const rows = items.map((item) => {
+    const hasNestedContent = isProjectItem(item.content);
     const content = itemContent(item);
     const row: Record<string, unknown> = {
       id: item.id ?? null,
@@ -143,23 +188,17 @@ function renderProjectItems(items: ProjectItem[]): string {
       row.content_id = content.id;
     if (content.number !== undefined) row.number = content.number;
     if (content.repository !== undefined) row.repository = content.repository;
-    if (Array.isArray(content.labels) && content.labels.length > 0)
-      row.labels = (content.labels as unknown[]).join(",");
-    if (Array.isArray(content.assignees) && content.assignees.length > 0)
-      row.assignees = (content.assignees as unknown[]).join(",");
+    setProjectItemField(row, "labels", content.labels);
+    setProjectItemField(row, "assignees", content.assignees);
     if (typeof content.body === "string" && content.body)
       row.body = truncateBody(content.body, 300);
-    for (const [key, value] of Object.entries(item)) {
-      if (
-        !KNOWN_ITEM_KEYS.has(key) &&
-        value !== null &&
-        value !== undefined &&
-        typeof value !== "object"
-      ) {
-        row[key] = value;
-      }
-    }
     if (content.url !== undefined) row.url = content.url;
+    for (const [key, value] of Object.entries(item)) {
+      if (key === "content") continue;
+      if (hasNestedContent && key === "id") continue;
+      if (!hasNestedContent && CONTENT_ITEM_KEYS.has(key)) continue;
+      setProjectItemField(row, key, value);
+    }
     return row;
   });
   return encode({ items: rows });

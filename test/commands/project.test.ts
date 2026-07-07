@@ -157,7 +157,7 @@ describe("projectCommand", () => {
   });
 
   describe("item-list", () => {
-    it("returns items with totalCount and surfaces custom fields", async () => {
+    it("returns items with totalCount and surfaces custom field values", async () => {
       mockedGhJson.mockResolvedValue({
         items: [
           {
@@ -171,6 +171,20 @@ describe("projectCommand", () => {
               url: "https://github.com/octo/repo/issues/42",
             },
             status: "In Progress",
+            labels: ["bug", "urgent"],
+            assignees: ["monalisa", "hubot"],
+            reviewers: ["octo-team", "maintainer"],
+            milestone: {
+              title: "v1.0",
+              dueOn: "2026-08-01",
+            },
+            linkedPullRequests: ["https://github.com/octo/repo/pull/5"],
+            iteration: {
+              title: "Sprint 1",
+              startDate: "2026-07-01",
+              duration: 14,
+              iterationId: "ITER_1",
+            },
           },
           {
             id: "PVTI_2",
@@ -195,6 +209,14 @@ describe("projectCommand", () => {
       expect(result).toContain("The issue body");
       expect(result).toContain("https://github.com/octo/repo/issues/42");
       expect(result).toContain("In Progress");
+      expect(result).toContain("bug,urgent");
+      expect(result).toContain("monalisa,hubot");
+      expect(result).toContain("octo-team,maintainer");
+      expect(result).toContain("title:v1.0,dueOn:2026-08-01");
+      expect(result).toContain("https://github.com/octo/repo/pull/5");
+      expect(result).toContain(
+        "title:Sprint 1,startDate:2026-07-01,duration:14,iterationId:ITER_1",
+      );
       expect(result).toContain("DI_1");
       expect(result).toContain("Draft note");
       expect(result).toContain("High");
