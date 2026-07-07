@@ -70,7 +70,7 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 
 1. Run \`npx -y gh-axi\` with no arguments for a dashboard of the current repo - open issues, open PRs, and suggested next commands.
 2. Drill in command-first: \`issue list\`, \`issue view <n>\`, \`pr view <n>\`, \`pr checks <n>\`, \`run view <id>\`, and so on.
-3. Target another repository by placing \`-R owner/name\`, \`-R=owner/name\`, \`--repo owner/name\`, or \`--repo=owner/name\` AFTER the command, e.g. \`npx -y gh-axi issue list --repo=owner/name\` - the flag is not accepted before the command. \`repo view\` also accepts \`repo view owner/name\` as a command-specific compatibility exception for \`gh repo view [<repository>]\`; do not generalize that positional form to other commands.
+3. Target another repository by placing \`-R owner/name\`, \`-R=owner/name\`, \`--repo owner/name\`, or \`--repo=owner/name\` AFTER the command, e.g. \`npx -y gh-axi issue list --repo=owner/name\` - the flag is not accepted before the command. \`repo view\` also accepts exactly one positional repository, \`repo view owner/name\`, as a command-specific compatibility exception for \`gh repo view [<repository>]\`; do not combine it with \`--repo\` or generalize that positional form to other commands.
 4. Target GitHub Enterprise or another custom host with \`GH_HOST\`, or by placing \`--hostname <host>\` or \`--hostname=<host>\` AFTER the command, e.g. \`npx -y gh-axi issue list --hostname=git.example.com\`.
 5. Trigger (dispatch) a workflow with \`workflow run <name> --ref <ref>\`; \`run\` manages existing workflow runs.
 6. Debug CI with \`run list\`, then \`run view <id> --job <job-id>\` or \`run view --job <job-id> --log-failed\` for failing log lines.

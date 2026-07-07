@@ -23,7 +23,7 @@ export const REPO_HELP = `usage: gh-axi repo <subcommand> [flags]
 subcommands[6]:
   view [owner/name], create <name>, edit, clone <repo>, fork [repo], list [owner]
 flags{view}:
-  --repo <owner/name> (general gh-axi targeting form); one positional owner/name is also accepted for gh repo view parity
+  --repo <owner/name> or exactly one positional owner/name; choose one selector
 flags{create}:
   --public, --private, --internal, --description, --clone, --template
 flags{edit}:
