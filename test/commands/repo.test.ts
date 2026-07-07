@@ -70,6 +70,35 @@ describe('repoCommand', () => {
       expect(callArgs).toContain('octo/repo');
     });
 
+    it('passes a positional owner/name repo to gh repo view', async () => {
+      mockedGhJson.mockResolvedValue({ name: 'agent-os' });
+
+      await repoCommand(['view', 'minekube/agent-os'], ctx);
+
+      const callArgs = mockedGhJson.mock.calls[0][0];
+      expect(callArgs).toContain('minekube/agent-os');
+      expect(callArgs).not.toContain('octo/repo');
+    });
+
+    it('keeps bare ambient repo view when no repo context exists', async () => {
+      mockedGhJson.mockResolvedValue({ name: 'repo' });
+
+      await repoCommand(['view']);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo',
+        'view',
+        '--json',
+        'name,description,defaultBranchRef,stargazerCount,forkCount,issues,pullRequests,visibility,primaryLanguage',
+      ]);
+    });
+
+    it('rejects extra positional args for repo view', async () => {
+      await expect(
+        repoCommand(['view', 'minekube/agent-os', 'extra'], ctx),
+      ).rejects.toThrow('Unsupported positional argument for repo view: extra. Use --repo <owner/name> to select a repository.');
+    });
+
     it('omits help suggestions from detail view', async () => {
       mockedGhJson.mockResolvedValue({
         name: 'repo', description: 'test', defaultBranchRef: { name: 'main' },

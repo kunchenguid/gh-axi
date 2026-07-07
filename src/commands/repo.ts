@@ -21,7 +21,7 @@ import { getSuggestions } from '../suggestions.js';
 
 export const REPO_HELP = `usage: gh-axi repo <subcommand> [flags]
 subcommands[6]:
-  view, create <name>, edit, clone <repo>, fork [repo], list [owner]
+  view [owner/name], create <name>, edit, clone <repo>, fork [repo], list [owner]
 flags{create}:
   --public, --private, --internal, --description, --clone, --template
 flags{edit}:
@@ -32,6 +32,7 @@ flags{list}:
   --limit <n> (default 30), --visibility, --language, --archived
 examples:
   gh-axi repo view
+  gh-axi repo view owner/name
   gh-axi repo create my-project --public --description "A new project"
   gh-axi repo list --visibility public --language TypeScript`;
 
@@ -58,9 +59,21 @@ const listSchema: FieldDef[] = [
 
 
 async function viewRepo(args: string[], ctx?: RepoContext): Promise<string> {
+  const positionals = args.filter((a) => !a.startsWith('-'));
+  const repoArg = positionals[1];
+  const extraArg = positionals[2];
+  if (extraArg) {
+    throw new AxiError(
+      `Unsupported positional argument for repo view: ${extraArg}. Use --repo <owner/name> to select a repository.`,
+      'VALIDATION_ERROR',
+    );
+  }
+
   const ghArgs = ['repo', 'view'];
-  // repo view takes the repo as a positional arg — always pass it if available
-  if (ctx) ghArgs.push(ctx.nwo);
+  // repo view takes the repo as a positional arg. Use an explicit positional
+  // first, then the resolved context repo, and otherwise leave gh ambient.
+  if (repoArg) ghArgs.push(repoArg);
+  else if (ctx) ghArgs.push(ctx.nwo);
   ghArgs.push('--json', 'name,description,defaultBranchRef,stargazerCount,forkCount,issues,pullRequests,visibility,primaryLanguage');
   const repo = await ghJson<Record<string, unknown>>(ghArgs); // Don't pass ctx — we handle repo arg ourselves
 
