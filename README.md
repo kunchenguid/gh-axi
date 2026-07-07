@@ -108,6 +108,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
 `gh-axi secret list` never prints values, matching `gh secret list`.
 `gh-axi variable` accepts `--body`/`-b` or piped stdin, and variable values are shown in `list` output because variables are not secret.
+`gh-axi project` wraps GitHub Projects (v2) and requires the `project` (or `read:project`) OAuth scope; if a call fails on a missing scope, gh-axi tells you to run `gh auth refresh -s project`. `--owner` defaults to the current repo's owner, falling back to the authenticated user.
 
 ### Commands
 
@@ -120,6 +121,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 | `release`  | Releases — list, view, create, edit, delete                                 |
 | `repo`     | Repositories — list, view, create, edit, clone, fork                        |
 | `label`    | Labels — list, create, edit, delete                                         |
+| `project`  | Projects (v2) — list, view, item-list, item-add, field-list, edit, close    |
 | `secret`   | Actions secrets — list, set, delete                                         |
 | `variable` | Actions variables — list, set, delete                                       |
 | `search`   | Search issues, PRs, repos, commits, code                                    |

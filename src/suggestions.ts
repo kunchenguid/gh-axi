@@ -10,6 +10,8 @@ interface SuggestionContext {
   id?: string | number;
   repo?: RepoContext;
   host?: HostContext;
+  /** Resolved --owner for owner-scoped domains (e.g. project) */
+  owner?: string;
 }
 
 type SuggestionEntry = {
@@ -22,6 +24,10 @@ function repoFlag(ctx: SuggestionContext): string {
     return ` -R ${ctx.repo.nwo}`;
   }
   return "";
+}
+
+function ownerFlag(ctx: SuggestionContext): string {
+  return ctx.owner ? ` --owner ${ctx.owner}` : "";
 }
 
 function normalizeRepoFlagLine(line: string): string {
@@ -509,6 +515,87 @@ const table: SuggestionEntry[] = [
     match: (c) => c.domain === "label" && c.action === "delete",
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} label list\` to see remaining labels`,
+    ],
+  },
+
+  // Project list
+  {
+    match: (c) =>
+      c.domain === "project" && c.action === "list" && !c.isEmpty,
+    lines: (c) => [
+      `Run \`gh-axi project view <number>${ownerFlag(c)}\` to view details`,
+      `Run \`gh-axi project create --title "..."${ownerFlag(c)}\` to create a project`,
+    ],
+  },
+  {
+    match: (c) =>
+      c.domain === "project" && c.action === "list" && c.isEmpty === true,
+    lines: (c) => [
+      `Run \`gh-axi project create --title "..."${ownerFlag(c)}\` to create a project`,
+    ],
+  },
+
+  // Project create/edit/close/copy
+  {
+    match: (c) => c.domain === "project" && c.action === "create",
+    lines: (c) => [
+      `Run \`gh-axi project view ${c.id}${ownerFlag(c)}\` to see the new project`,
+      `Run \`gh-axi project item-add ${c.id} --url <issue-or-pr-url>${ownerFlag(c)}\` to add items`,
+    ],
+  },
+  {
+    match: (c) => c.domain === "project" && c.action === "edit",
+    lines: (c) => [
+      `Run \`gh-axi project view ${c.id}${ownerFlag(c)}\` to see the updated project`,
+    ],
+  },
+  {
+    match: (c) => c.domain === "project" && c.action === "close",
+    lines: (c) => [
+      `Run \`gh-axi project close ${c.id} --undo${ownerFlag(c)}\` to reopen`,
+    ],
+  },
+  {
+    match: (c) => c.domain === "project" && c.action === "copy",
+    lines: (c) => [
+      `Run \`gh-axi project view ${c.id}${ownerFlag(c)}\` to see the copied project`,
+    ],
+  },
+
+  // Project item-list / field-list
+  {
+    match: (c) => c.domain === "project" && c.action === "item-list",
+    lines: (c) => [
+      `Run \`gh-axi project item-add ${c.id} --url <issue-or-pr-url>${ownerFlag(c)}\` to add an item`,
+      `Run \`gh-axi project field-list ${c.id}${ownerFlag(c)}\` to see project fields`,
+    ],
+  },
+  {
+    match: (c) => c.domain === "project" && c.action === "field-list",
+    lines: () => [
+      `Run \`gh-axi project item-edit --id <item-id> --field-id <field-id> --project-id <project-id> --text "..."\` to set a field value`,
+    ],
+  },
+
+  // Project item-add/item-create/item-edit/item-archive/item-delete
+  {
+    match: (c) =>
+      c.domain === "project" &&
+      ["item-add", "item-create"].includes(c.action),
+    lines: (c) => [
+      `Run \`gh-axi project item-list ${c.id}${ownerFlag(c)}\` to see all items`,
+    ],
+  },
+  {
+    match: (c) => c.domain === "project" && c.action === "item-edit",
+    lines: () => [],
+  },
+  {
+    match: (c) =>
+      c.domain === "project" &&
+      ["item-archive", "item-delete"].includes(c.action),
+    lines: (c) => [
+      `Run \`gh-axi project item-list ${c.id}${ownerFlag(c)}\` to see remaining items`,
     ],
   },
 

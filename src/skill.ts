@@ -4,16 +4,23 @@ import { DESCRIPTION, TOP_HELP } from "./cli.js";
 // Kept terse and outcome-focused so it fires on "needs GitHub" intents.
 export const SKILL_DESCRIPTION =
   "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, " +
-  "releases, repositories, labels, Actions secrets and variables, search, and raw API access. " +
+  "releases, repositories, labels, Projects (v2), Actions secrets and variables, search, and raw API access. " +
   "Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, " +
-  "checking CI runs, triggering workflows, cutting releases, or managing Actions secrets/variables.";
+  "checking CI runs, triggering workflows, cutting releases, managing Projects boards, or managing Actions secrets/variables.";
 
 export const SKILL_AUTHOR = "Kun Chen (kunchenguid)";
 
 // Extended frontmatter read by Nous Research's Hermes Agent harness
 // (https://hermes-agent.nousresearch.com/docs/user-guide/features/skills).
 // Harnesses that don't know these fields (e.g. Claude Code) ignore them.
-export const HERMES_TAGS = ["github", "git", "ci", "pull-requests", "releases"];
+export const HERMES_TAGS = [
+  "github",
+  "git",
+  "ci",
+  "pull-requests",
+  "releases",
+  "projects",
+];
 export const HERMES_CATEGORY = "devops";
 
 function yamlDoubleQuote(value: string): string {
@@ -64,7 +71,7 @@ For GitHub Enterprise or another custom host, the underlying \`gh\` CLI must be 
 
 ## When to use
 
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; or calling the GitHub API directly.
+Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; or calling the GitHub API directly.
 
 ## Workflow
 

@@ -6,6 +6,7 @@ import { WORKFLOW_HELP } from "../src/commands/workflow.js";
 import { RELEASE_HELP } from "../src/commands/release.js";
 import { REPO_HELP } from "../src/commands/repo.js";
 import { LABEL_HELP } from "../src/commands/label.js";
+import { PROJECT_HELP } from "../src/commands/project.js";
 import { SECRET_HELP } from "../src/commands/secret.js";
 import { VARIABLE_HELP } from "../src/commands/variable.js";
 import { SEARCH_HELP } from "../src/commands/search.js";
@@ -51,6 +52,7 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("RELEASE_HELP", RELEASE_HELP);
   assertHelpHasExamples("REPO_HELP", REPO_HELP);
   assertHelpHasExamples("LABEL_HELP", LABEL_HELP);
+  assertHelpHasExamples("PROJECT_HELP", PROJECT_HELP);
   assertHelpHasExamples("SECRET_HELP", SECRET_HELP);
   assertHelpHasExamples("VARIABLE_HELP", VARIABLE_HELP);
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);

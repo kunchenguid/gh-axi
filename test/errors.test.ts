@@ -77,6 +77,21 @@ describe("mapGhError", () => {
     expect(err.code).toBe("AUTH_REQUIRED");
   });
 
+  it("matches missing OAuth scope pattern (e.g. gh project without project scope)", () => {
+    const err = mapGhError(
+      "error: your authentication token is missing required scopes [read:project]\n" +
+        "To request it, run:  gh auth refresh -s read:project",
+      1,
+    );
+    expect(err.code).toBe("FORBIDDEN");
+    expect(err.message).toBe(
+      "GitHub token is missing required scope(s): read:project",
+    );
+    expect(
+      err.suggestions.some((s) => s.includes("gh auth refresh -s read:project")),
+    ).toBe(true);
+  });
+
   it("matches forbidden pattern", () => {
     const err = mapGhError("HTTP 403: Forbidden", 1);
     expect(err.code).toBe("FORBIDDEN");

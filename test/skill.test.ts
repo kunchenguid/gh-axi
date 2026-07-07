@@ -56,6 +56,7 @@ describe("createSkillMarkdown", () => {
       "ci",
       "pull-requests",
       "releases",
+      "projects",
     ]);
     expect(hermes.category).toBe("devops");
     // gh-axi authenticates via the gh CLI, not an API-key env var.

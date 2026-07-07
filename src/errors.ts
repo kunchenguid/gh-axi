@@ -64,6 +64,15 @@ const patterns: ErrorPattern[] = [
     message: () => "GitHub auth required — run `gh auth login` first",
   },
   {
+    pattern: /authentication token is missing required scopes \[([^\]]+)\]/i,
+    code: "FORBIDDEN",
+    message: (m) => `GitHub token is missing required scope(s): ${m[1]}`,
+    suggestions: (m) => [
+      `Run \`gh auth refresh -s ${m[1]}\` to grant the required scope`,
+      "Then verify with `gh auth status`",
+    ],
+  },
+  {
     pattern: /secondary rate limit/i,
     code: "RATE_LIMITED",
     message: () => "GitHub secondary rate limit hit — wait ~60s and retry",
