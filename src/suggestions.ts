@@ -477,7 +477,7 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "repo" && c.action === "list",
     lines: () => [
-      `Run \`gh-axi repo view -R <owner/name>\` to view a repository`,
+      `Run \`gh-axi repo view <owner/name>\` to view a repository`,
     ],
   },
 

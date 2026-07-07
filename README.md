@@ -144,6 +144,8 @@ Repository and host targeting are command-first too:
 - `gh-axi search issues "login bug" --repo owner/name`
 - `gh-axi issue list --hostname git.example.com`
 
+Only `repo view` accepts `owner/name` as a positional repository target; use `-R` or `--repo` after the command for other repo-scoped commands.
+
 When a command also needs a destination repository, use a dedicated flag for it:
 
 - `gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`
