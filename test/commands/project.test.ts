@@ -93,13 +93,14 @@ describe("projectCommand", () => {
       );
     });
 
-    it("omits --owner when no context or flag is available", async () => {
+    it("defaults --owner to @me when no context or flag is available", async () => {
       mockedGhJson.mockResolvedValue({ projects: [], totalCount: 0 });
 
       await projectCommand(["list"]);
 
-      const calledArgs = mockedGhJson.mock.calls[0]?.[0] as string[];
-      expect(calledArgs).not.toContain("--owner");
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(["--owner", "@me"]),
+      );
     });
 
     it("passes --closed when requested", async () => {
@@ -153,6 +154,16 @@ describe("projectCommand", () => {
 
     it("throws when project number is missing", async () => {
       await expect(projectCommand(["view"], ctx)).rejects.toThrow(AxiError);
+    });
+
+    it("passes @me to gh when no context or owner is available", async () => {
+      mockedGhJson.mockResolvedValue({ number: 3, title: "Personal Roadmap" });
+
+      await projectCommand(["view", "3"]);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(["--owner", "@me"]),
+      );
     });
   });
 
@@ -491,6 +502,26 @@ describe("projectCommand", () => {
           "--source-owner",
           "octo",
         ]),
+      );
+    });
+
+    it("defaults --source-owner to @me when no context or flag is available", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 10,
+        url: "https://github.com/users/dest/projects/10",
+      });
+
+      await projectCommand([
+        "copy",
+        "3",
+        "--target-owner",
+        "dest",
+        "--title",
+        "Copied Roadmap",
+      ]);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(["--source-owner", "@me"]),
       );
     });
 

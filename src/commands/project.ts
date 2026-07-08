@@ -99,12 +99,12 @@ examples:
 // Helpers
 // ---------------------------------------------------------------------------
 
-function resolveOwner(args: string[], ctx?: RepoContext): string | undefined {
-  return takeFlag(args, "--owner") ?? ctx?.owner;
+function resolveOwner(args: string[], ctx?: RepoContext): string {
+  return takeFlag(args, "--owner") ?? ctx?.owner ?? "@me";
 }
 
-function ownerArgs(owner: string | undefined): string[] {
-  return owner ? ["--owner", owner] : [];
+function ownerArgs(owner: string): string[] {
+  return ["--owner", owner];
 }
 
 const CONTENT_ITEM_KEYS = new Set([
@@ -726,7 +726,7 @@ async function projectClose(
 
 async function projectCopy(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "project");
-  const sourceOwner = takeFlag(args, "--source-owner") ?? ctx?.owner;
+  const sourceOwner = takeFlag(args, "--source-owner") ?? ctx?.owner ?? "@me";
   const targetOwner = takeFlag(args, "--target-owner");
   if (!targetOwner)
     throw new AxiError(
@@ -752,7 +752,7 @@ async function projectCopy(args: string[], ctx?: RepoContext): Promise<string> {
     "--format",
     "json",
   ];
-  if (sourceOwner) ghArgs.push("--source-owner", sourceOwner);
+  ghArgs.push("--source-owner", sourceOwner);
   if (drafts) ghArgs.push("--drafts");
 
   const project = await ghJson<ProjectRecord>(ghArgs);
