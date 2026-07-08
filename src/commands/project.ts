@@ -5,7 +5,7 @@ import { AxiError } from "../errors.js";
 import { takeBody, truncateBody } from "../body.js";
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
-import { takeFlag, takeBoolFlag, takeNumber } from "../args.js";
+import { takeFlag, takeBoolFlag } from "../args.js";
 import {
   field,
   pluck,
@@ -87,7 +87,7 @@ flags{copy}:
   --source-owner <login>, --target-owner <login> (required), --title <text> (required), --drafts
 notes:
   --owner defaults to the current repo's owner when run inside a repo, otherwise the authenticated user.
-  Requires the \`project\` (or \`read:project\`) OAuth scope — run \`gh auth refresh -s project\` if a call fails with a scope error.
+  Requires the \`project\` (or \`read:project\`) OAuth scope - run \`gh auth refresh -s project\` if a call fails with a scope error.
 examples:
   gh-axi project list --owner my-org
   gh-axi project view 3 --owner my-org
@@ -116,6 +116,49 @@ const CONTENT_ITEM_KEYS = new Set([
   "body",
   "url",
 ]);
+
+const PROJECT_NUMBER_VALUE_FLAGS = new Set([
+  "--owner",
+  "--query",
+  "--limit",
+  "--url",
+  "--id",
+  "--project-id",
+  "--field-id",
+  "--text",
+  "--number",
+  "--date",
+  "--single-select-option-id",
+  "--iteration-id",
+  "--title",
+  "--body",
+  "--body-file",
+  "--description",
+  "--readme",
+  "--visibility",
+  "--source-owner",
+  "--target-owner",
+]);
+
+const PROJECT_ITEM_BODY_TRUNCATION_OPTIONS = {
+  fullHint: "full body unavailable in project item-list",
+  originalHint: "original body unavailable in project item-list",
+};
+
+function takeProjectNumber(args: string[]): number {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg.startsWith("--")) {
+      if (!arg.includes("=") && PROJECT_NUMBER_VALUE_FLAGS.has(arg)) index++;
+      continue;
+    }
+    if (/^\d+$/.test(arg)) {
+      args.splice(index, 1);
+      return Number(arg);
+    }
+  }
+  throw new AxiError("Missing project number", "VALIDATION_ERROR");
+}
 
 function isProjectItem(value: unknown): value is ProjectItem {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -191,7 +234,11 @@ function renderProjectItems(items: ProjectItem[]): string {
     setProjectItemField(row, "labels", content.labels);
     setProjectItemField(row, "assignees", content.assignees);
     if (typeof content.body === "string" && content.body)
-      row.body = truncateBody(content.body, 300);
+      row.body = truncateBody(
+        content.body,
+        300,
+        PROJECT_ITEM_BODY_TRUNCATION_OPTIONS,
+      );
     if (content.url !== undefined) row.url = content.url;
     for (const [key, value] of Object.entries(item)) {
       if (key === "content") continue;
@@ -292,7 +339,7 @@ async function projectList(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function projectView(args: string[], ctx?: RepoContext): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
 
   const ghArgs = [
     "project",
@@ -312,7 +359,7 @@ async function projectItemList(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const query = takeFlag(args, "--query");
   const limit = takeFlag(args, "--limit") ?? "30";
 
@@ -358,7 +405,7 @@ async function projectFieldList(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const limit = takeFlag(args, "--limit") ?? "30";
 
   const ghArgs = [
@@ -402,7 +449,7 @@ async function projectItemAdd(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const url = takeFlag(args, "--url");
   if (!url)
     throw new AxiError(
@@ -439,7 +486,7 @@ async function projectItemCreate(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const title = takeFlag(args, "--title");
   if (!title)
     throw new AxiError(
@@ -524,7 +571,7 @@ async function projectItemArchive(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const id = takeFlag(args, "--id");
   if (!id)
     throw new AxiError(
@@ -568,7 +615,7 @@ async function projectItemDelete(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const id = takeFlag(args, "--id");
   if (!id)
     throw new AxiError(
@@ -646,7 +693,7 @@ async function projectCreate(
 
 async function projectEdit(args: string[], ctx?: RepoContext): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const title = takeFlag(args, "--title");
   const description = takeFlag(args, "--description");
   const readme = takeFlag(args, "--readme");
@@ -682,7 +729,7 @@ async function projectClose(
   ctx?: RepoContext,
 ): Promise<string> {
   const owner = resolveOwner(args, ctx);
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const undo = takeBoolFlag(args, "--undo");
 
   // Idempotent: check current state before mutating.
@@ -733,7 +780,7 @@ async function projectClose(
 }
 
 async function projectCopy(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = takeNumber(args, "project");
+  const num = takeProjectNumber(args);
   const sourceOwner = takeFlag(args, "--source-owner") ?? ctx?.owner ?? "@me";
   const targetOwner = takeFlag(args, "--target-owner");
   if (!targetOwner)

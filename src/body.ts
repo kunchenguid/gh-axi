@@ -22,6 +22,11 @@ interface TakeBodyOptions {
   suggestions?: string[];
 }
 
+interface TruncateBodyOptions {
+  fullHint?: string;
+  originalHint?: string;
+}
+
 function defaultSuggestions(label: string): string[] {
   return [
     `Use --body "..." for inline ${label}, or --body-file <path> for markdown from a file`,
@@ -222,18 +227,26 @@ export function cleanBody(text: string): string {
  * Cleanups are only applied when truncation is needed.
  * Returns the raw body when it fits within maxLen.
  */
-export function truncateBody(body: unknown, maxLen = 500): string {
+export function truncateBody(
+  body: unknown,
+  maxLen = 500,
+  options: TruncateBodyOptions = {},
+): string {
   if (typeof body !== "string" || !body) return "";
   if (body.length <= maxLen) return body;
+  const originalHint = options.originalHint ?? "use --full to see original";
+  const fullHint = options.fullHint ?? "use --full to see complete body";
   const cleaned = cleanBody(body);
   if (cleaned.length <= maxLen) {
-    // Cleanup made it fit, but content was modified — offer --full for the original
+    // Cleanup made it fit, but content was modified.
     if (cleaned !== body) {
       return (
         cleaned +
         "\n(cleaned, " +
         body.length +
-        " chars original — use --full to see original)"
+        " chars original - " +
+        originalHint +
+        ")"
       );
     }
     return cleaned;
@@ -242,6 +255,8 @@ export function truncateBody(body: unknown, maxLen = 500): string {
     cleaned.slice(0, maxLen) +
     "\n... (truncated, " +
     cleaned.length +
-    " chars total — use --full to see complete body)"
+    " chars total - " +
+    fullHint +
+    ")"
   );
 }

@@ -236,6 +236,28 @@ describe("projectCommand", () => {
       expect(result).toContain("count: 2 of 2 total");
     });
 
+    it("does not suggest --full when truncating item bodies", async () => {
+      mockedGhJson.mockResolvedValue({
+        items: [
+          {
+            id: "PVTI_1",
+            content: {
+              title: "Long draft",
+              type: "DraftIssue",
+              body: "x".repeat(400),
+            },
+          },
+        ],
+        totalCount: 1,
+      });
+
+      const result = await projectCommand(["item-list", "3"], ctx);
+
+      expect(result).toContain("truncated");
+      expect(result).toContain("full body unavailable in project item-list");
+      expect(result).not.toContain("--full");
+    });
+
     it("passes --query through to gh", async () => {
       mockedGhJson.mockResolvedValue({ items: [], totalCount: 0 });
 
@@ -451,6 +473,24 @@ describe("projectCommand", () => {
       expect(mockedGhJson).toHaveBeenCalledWith(
         expect.arrayContaining(["--title", "New title"]),
       );
+    });
+
+    it("does not parse numeric flag values as the project number", async () => {
+      mockedGhJson.mockResolvedValue({ number: 3 });
+
+      await projectCommand(["edit", "--title", "2027", "3"], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        "project",
+        "edit",
+        "3",
+        "--format",
+        "json",
+        "--owner",
+        "octo",
+        "--title",
+        "2027",
+      ]);
     });
   });
 

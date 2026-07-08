@@ -241,7 +241,7 @@ describe("truncateBody", () => {
   it("uses standardized truncation phrasing", () => {
     const text = "x".repeat(600);
     const result = truncateBody(text, 500);
-    // Exact phrasing: "... (truncated, N chars total — use --full to see complete body)"
+    // Exact phrasing: "... (truncated, N chars total - use --full to see complete body)"
     expect(result).toContain("... (truncated, 600 chars total");
     expect(result).toContain("use --full to see complete body)");
   });
@@ -251,7 +251,7 @@ describe("truncateBody", () => {
     const prefix = "Check ";
     const body = prefix + longUrl;
     const result = truncateBody(body, 100);
-    // Exact phrasing: "(cleaned, N chars original — use --full to see original)"
+    // Exact phrasing: "(cleaned, N chars original - use --full to see original)"
     expect(result).toMatch(/\(cleaned, \d+ chars original/);
   });
 });
