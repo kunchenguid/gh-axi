@@ -57,4 +57,6 @@ Run `npx -y gh-axi --help` for global flags, or `npx -y gh-axi <command> --help`
 - Do not pass secrets with `--body` or `-b`; flags are visible in the `gh-axi` process argv.
 - Variable values may use `--body`/`-b` or stdin because Actions variables are not secret.
 - For multi-line variable values, pipe stdin to `npx -y gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
+- Projects (v2) are owner-scoped: pass `--owner <login>`, or omit it to use the current repo owner and then `@me`.
+- Projects calls need the `project` or `read:project` OAuth scope; if scope errors occur, ask the user to run the `gh auth refresh -s ...` command shown by gh-axi.
 - Use `api` for anything the dedicated commands do not cover, e.g. `npx -y gh-axi api repos/{owner}/{repo}/topics`.

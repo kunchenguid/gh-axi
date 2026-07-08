@@ -84,10 +84,10 @@ flags{edit}:
 flags{close}:
   --owner <login>, --undo
 flags{copy}:
-  --source-owner <login>, --target-owner <login> (required), --title <text> (required), --drafts
+  --source-owner <login> (default current repo owner, else @me), --target-owner <login> (required), --title <text> (required), --drafts
 notes:
   --owner defaults to the current repo's owner when run inside a repo, otherwise the authenticated user.
-  Requires the \`project\` (or \`read:project\`) OAuth scope - run \`gh auth refresh -s project\` if a call fails with a scope error.
+  Requires the \`project\` (or \`read:project\`) OAuth scope - scope errors include the exact \`gh auth refresh -s <scope>\` command to run.
 examples:
   gh-axi project list --owner my-org
   gh-axi project view 3 --owner my-org

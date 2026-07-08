@@ -1,0 +1,211 @@
+# gh-axi project CLI evidence
+The child gh executable is a deterministic stub that records argv and returns representative gh project JSON.
+This exercises the real gh-axi entrypoint, argument parsing, TOON rendering, child process execution, and gh error mapping.
+
+$ gh-axi project --help
+usage: gh-axi project <subcommand> [flags]
+subcommands[13]:
+  list, view <number>, item-list <number>, field-list <number>, item-add <number>, item-create <number>, item-edit, item-archive <number>, item-delete <number>, create, edit <number>, close <number>, copy <number>
+flags{list}:
+  --owner <login>, --closed, --limit <n> (default 30)
+flags{view}:
+  --owner <login>
+flags{item-list}:
+  --owner <login>, --query <filter>, --limit <n> (default 30)
+flags{field-list}:
+  --owner <login>, --limit <n> (default 30)
+flags{item-add}:
+  --owner <login>, --url <text> (required)
+flags{item-create}:
+  --owner <login>, --title <text> (required), --body <text> or --body-file <path>
+flags{item-edit}:
+  --id <text> (required), --project-id <text>, --field-id <text>, --text <text>, --number <n>, --date <YYYY-MM-DD>, --single-select-option-id <text>, --iteration-id <text>, --title <text>, --body <text> or --body-file <path>, --clear
+flags{item-archive}:
+  --owner <login>, --id <text> (required), --undo
+flags{item-delete}:
+  --owner <login>, --id <text> (required)
+flags{create}:
+  --owner <login>, --title <text> (required)
+flags{edit}:
+  --owner <login>, --title <text>, --description <text>, --readme <text>, --visibility <PUBLIC|PRIVATE>
+flags{close}:
+  --owner <login>, --undo
+flags{copy}:
+  --source-owner <login>, --target-owner <login> (required), --title <text> (required), --drafts
+notes:
+  --owner defaults to the current repo's owner when run inside a repo, otherwise the authenticated user.
+  Requires the `project` (or `read:project`) OAuth scope - run `gh auth refresh -s project` if a call fails with a scope error.
+examples:
+  gh-axi project list --owner my-org
+  gh-axi project view 3 --owner my-org
+  gh-axi project item-add 3 --owner my-org --url https://github.com/my-org/repo/issues/12
+  gh-axi project item-list 3 --owner my-org
+  gh-axi project create --owner my-org --title "Roadmap"[exit 0]
+
+$ gh-axi project list -R octo/repo
+count: 1 of 1 total
+projects[1]{number,title,state,owner,url}:
+  3,Roadmap,open,octo,"https://github.com/orgs/octo/projects/3"
+help[2]:
+  Run `gh-axi project view <number> --owner octo` to view details
+  Run `gh-axi project create --title "..." --owner octo` to create a project
+[exit 0]
+
+$ gh-axi project view 3 --owner octo
+project:
+  id: PVT_3
+  number: 3
+  title: Roadmap
+  state: open
+  visibility: public
+  owner: octo
+  description: Q3 delivery plan
+  item_count: 2
+  field_count: 2
+  url: "https://github.com/orgs/octo/projects/3"
+[exit 0]
+
+$ gh-axi project item-list 3 --owner octo --query status:Todo
+count: 2 of 2 total
+items[2]:
+  - id: PVTI_1
+    title: Fix bug
+    type: Issue
+    content_id: ISSUE_42
+    number: 42
+    repository: octo/repo
+    body: The issue body
+    url: "https://github.com/octo/repo/issues/42"
+    status: In Progress
+    priority: High
+    assignees: "monalisa,hubot"
+  - id: PVTI_2
+    title: Draft note
+    type: DraftIssue
+    content_id: DRAFT_1
+    body: Draft body
+    status: Todo
+help[2]:
+  Run `gh-axi project item-add 3 --url <issue-or-pr-url> --owner octo` to add an item
+  Run `gh-axi project field-list 3 --owner octo` to see project fields
+[exit 0]
+
+$ gh-axi project field-list 3 --owner octo
+count: 2 of 2 total
+fields[2]:
+  - id: STATUS
+    name: Status
+    type: ProjectV2SingleSelectField
+    options: "Todo:OPT_TODO,Done:OPT_DONE"
+  - id: PRIORITY
+    name: Priority
+    type: ProjectV2Field
+help[1]:
+  Run `gh-axi project item-edit --id <item-id> --field-id <field-id> --project-id <project-id> --text "..."` to set a field value
+[exit 0]
+
+$ gh-axi project item-add 3 --owner octo --url https://github.com/octo/repo/issues/42
+added:
+  id: PVTI_ADDED
+  title: Fix bug
+  status: ok
+help[1]:
+  Run `gh-axi project item-list 3 --owner octo` to see all items
+[exit 0]
+
+$ gh-axi project item-create 3 --owner octo --title Draft note --body details
+created:
+  id: PVTI_DRAFT
+  title: Draft note
+  status: ok
+help[1]:
+  Run `gh-axi project item-list 3 --owner octo` to see all items
+[exit 0]
+
+$ gh-axi project item-edit --id PVTI_1 --project-id PVT_3 --field-id STATUS --text Done
+edited:
+  id: PVTI_1
+  status: ok
+[exit 0]
+
+$ gh-axi project item-archive 3 --owner octo --id PVTI_1
+archived:
+  id: PVTI_1
+  status: ok
+help[1]:
+  Run `gh-axi project item-list 3 --owner octo` to see remaining items
+[exit 0]
+
+$ gh-axi project item-delete 3 --owner octo --id PVTI_2
+deleted:
+  id: PVTI_2
+  status: ok
+help[1]:
+  Run `gh-axi project item-list 3 --owner octo` to see remaining items
+[exit 0]
+
+$ gh-axi project create --owner octo --title Roadmap
+created:
+  number: 9
+  url: "https://github.com/orgs/octo/projects/9"
+help[2]:
+  Run `gh-axi project view 9 --owner octo` to see the new project
+  Run `gh-axi project item-add 9 --url <issue-or-pr-url> --owner octo` to add items
+[exit 0]
+
+$ gh-axi project edit 3 --owner octo --title Roadmap 2026 --visibility PRIVATE
+edited:
+  number: 3
+  status: ok
+help[1]:
+  Run `gh-axi project view 3 --owner octo` to see the updated project
+[exit 0]
+
+$ gh-axi project close 3 --owner octo
+closed:
+  number: 3
+  status: ok
+help[1]:
+  Run `gh-axi project close 3 --undo --owner octo` to reopen
+[exit 0]
+
+$ gh-axi project close 4 --owner octo
+project:
+  number: 4
+  state: closed
+  already: true
+help[1]:
+  Run `gh-axi project close 4 --undo --owner octo` to reopen
+[exit 0]
+
+$ gh-axi project copy 3 --source-owner octo --target-owner dest --title Copied Roadmap --drafts
+copied:
+  number: 10
+  url: "https://github.com/orgs/dest/projects/10"
+help[1]:
+  Run `gh-axi project view 10 --owner dest` to see the copied project
+[exit 0]
+
+$ gh-axi project list --owner scope-missing
+error: "GitHub token is missing required scope(s): read:project"
+code: FORBIDDEN
+help[2]: "Run `gh auth refresh -s read:project` to grant the required scope",Then verify with `gh auth status`
+[exit 1]
+
+# Recorded child gh argv
+{"argv":["project","list","--format","json","--limit","30","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","view","3","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-list","3","--format","json","--limit","30","--owner","octo","--query","status:Todo"],"env":{"GH_HOST":null}}
+{"argv":["project","field-list","3","--format","json","--limit","30","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-add","3","--url","https://github.com/octo/repo/issues/42","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-create","3","--title","Draft note","--format","json","--owner","octo","--body","details"],"env":{"GH_HOST":null}}
+{"argv":["project","item-edit","--id","PVTI_1","--format","json","--project-id","PVT_3","--field-id","STATUS","--text","Done"],"env":{"GH_HOST":null}}
+{"argv":["project","item-archive","3","--id","PVTI_1","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-delete","3","--id","PVTI_2","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","create","--title","Roadmap","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","edit","3","--format","json","--owner","octo","--title","Roadmap 2026","--visibility","PRIVATE"],"env":{"GH_HOST":null}}
+{"argv":["project","view","3","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","close","3","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","view","4","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","copy","3","--target-owner","dest","--title","Copied Roadmap","--format","json","--source-owner","octo","--drafts"],"env":{"GH_HOST":null}}
+{"argv":["project","list","--format","json","--limit","30","--owner","scope-missing"],"env":{"GH_HOST":null}}

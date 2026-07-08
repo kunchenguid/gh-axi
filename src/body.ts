@@ -226,6 +226,7 @@ export function cleanBody(text: string): string {
  * Truncate a body field for display.
  * Cleanups are only applied when truncation is needed.
  * Returns the raw body when it fits within maxLen.
+ * Custom hints let callers avoid suggesting unavailable escape hatches.
  */
 export function truncateBody(
   body: unknown,

@@ -46,8 +46,8 @@ You still need [`gh`](https://cli.github.com/) installed and authenticated via `
 For GitHub Enterprise or another custom host, authenticate `gh` for that host and either pass `--hostname <host>` after the command or set `GH_HOST`.
 
 The skill is not a user-facing slash command (`user-invocable: false`).
-Its frontmatter also includes Hermes Agent metadata (`metadata.hermes`) so Hermes can categorize it as a `devops` skill for GitHub, git, CI, pull requests, and releases.
-Just ask for anything that touches GitHub - filing issues, reviewing PRs, checking CI runs, cutting releases, or managing GitHub Actions secrets and variables - and the agent loads the skill on its own when it recognizes the task.
+Its frontmatter also includes Hermes Agent metadata (`metadata.hermes`) so Hermes can categorize it as a `devops` skill for GitHub, git, CI, pull requests, releases, and projects.
+Just ask for anything that touches GitHub - filing issues, reviewing PRs, checking CI runs, cutting releases, managing Projects boards, or managing GitHub Actions secrets and variables - and the agent loads the skill on its own when it recognizes the task.
 
 `-g` installs the skill for all projects (`~/.claude/skills/`, for example); drop it to install for the current project only (`.claude/skills/`).
 
@@ -90,6 +90,7 @@ gh-axi issue list --hostname git.example.com  # target a GitHub Enterprise host
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 gh-axi workflow run ci.yml --ref main     # trigger a workflow
+gh-axi project list --owner my-org        # list Projects (v2) for an owner
 echo -n "sk-..." | gh-axi secret set OPENAI_API_KEY  # set a secret from stdin
 gh-axi variable set NODE_ENV --body production        # set a variable from a flag
 gh-axi setup hooks              # install optional agent session hooks
@@ -108,7 +109,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
 `gh-axi secret list` never prints values, matching `gh secret list`.
 `gh-axi variable` accepts `--body`/`-b` or piped stdin, and variable values are shown in `list` output because variables are not secret.
-`gh-axi project` wraps GitHub Projects (v2) and requires the `project` (or `read:project`) OAuth scope; if a call fails on a missing scope, gh-axi tells you to run `gh auth refresh -s project`.
+`gh-axi project` wraps GitHub Projects (v2) and requires the `project` (or `read:project`) OAuth scope; if a call fails on a missing scope, gh-axi tells you the `gh auth refresh -s <scope>` command to run.
 `--owner` defaults to the current repo's owner, falling back to explicit `@me` for the authenticated user.
 
 ### Commands
@@ -122,7 +123,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 | `release`  | Releases — list, view, create, edit, delete                                 |
 | `repo`     | Repositories — list, view, create, edit, clone, fork                        |
 | `label`    | Labels — list, create, edit, delete                                         |
-| `project`  | Projects (v2) — list, view, item-list, item-add, field-list, edit, close    |
+| `project`  | Projects (v2) - list, view, create, edit, close, copy, items, fields        |
 | `secret`   | Actions secrets — list, set, delete                                         |
 | `variable` | Actions variables — list, set, delete                                       |
 | `search`   | Search issues, PRs, repos, commits, code                                    |

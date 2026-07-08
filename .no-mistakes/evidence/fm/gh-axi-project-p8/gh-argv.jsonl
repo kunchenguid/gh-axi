@@ -1,0 +1,16 @@
+{"argv":["project","list","--format","json","--limit","30","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","view","3","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-list","3","--format","json","--limit","30","--owner","octo","--query","status:Todo"],"env":{"GH_HOST":null}}
+{"argv":["project","field-list","3","--format","json","--limit","30","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-add","3","--url","https://github.com/octo/repo/issues/42","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-create","3","--title","Draft note","--format","json","--owner","octo","--body","details"],"env":{"GH_HOST":null}}
+{"argv":["project","item-edit","--id","PVTI_1","--format","json","--project-id","PVT_3","--field-id","STATUS","--text","Done"],"env":{"GH_HOST":null}}
+{"argv":["project","item-archive","3","--id","PVTI_1","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","item-delete","3","--id","PVTI_2","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","create","--title","Roadmap","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","edit","3","--format","json","--owner","octo","--title","Roadmap 2026","--visibility","PRIVATE"],"env":{"GH_HOST":null}}
+{"argv":["project","view","3","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","close","3","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","view","4","--format","json","--owner","octo"],"env":{"GH_HOST":null}}
+{"argv":["project","copy","3","--target-owner","dest","--title","Copied Roadmap","--format","json","--source-owner","octo","--drafts"],"env":{"GH_HOST":null}}
+{"argv":["project","list","--format","json","--limit","30","--owner","scope-missing"],"env":{"GH_HOST":null}}

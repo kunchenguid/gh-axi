@@ -1,0 +1,149 @@
+#!/usr/bin/env node
+import { appendFileSync } from "node:fs";
+
+const args = process.argv.slice(2);
+const logPath = process.env.GH_AXI_FAKE_LOG;
+
+if (logPath) {
+  appendFileSync(
+    logPath,
+    `${JSON.stringify({ argv: args, env: { GH_HOST: process.env.GH_HOST ?? null } })}\n`,
+  );
+}
+
+function value(flag) {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+}
+
+function json(data) {
+  process.stdout.write(`${JSON.stringify(data)}\n`);
+}
+
+const [domain, subcommand] = args;
+
+if (domain !== "project") {
+  process.stderr.write(`unexpected domain: ${domain}\n`);
+  process.exit(64);
+}
+
+if (value("--owner") === "scope-missing") {
+  process.stderr.write(
+    "error: your authentication token is missing required scopes [read:project]\n" +
+      "To request it, run:  gh auth refresh -s read:project\n",
+  );
+  process.exit(1);
+}
+
+switch (subcommand) {
+  case "list":
+    json({
+      projects: [
+        {
+          id: "PVT_kwDOA1b2c84A",
+          number: 3,
+          title: "Roadmap",
+          closed: false,
+          owner: { login: value("--owner") ?? "unknown" },
+          url: "https://github.com/orgs/octo/projects/3",
+        },
+      ],
+      totalCount: 1,
+    });
+    break;
+  case "view": {
+    const number = Number(args[2]);
+    json({
+      id: `PVT_${number}`,
+      number,
+      title: number === 4 ? "Already Closed" : "Roadmap",
+      closed: number === 4,
+      public: true,
+      shortDescription: "Q3 delivery plan",
+      owner: { login: value("--owner") ?? "unknown" },
+      items: { totalCount: 2 },
+      fields: { totalCount: 2 },
+      url: `https://github.com/orgs/octo/projects/${number}`,
+    });
+    break;
+  }
+  case "item-list":
+    json({
+      items: [
+        {
+          id: "PVTI_1",
+          content: {
+            id: "ISSUE_42",
+            title: "Fix bug",
+            type: "Issue",
+            number: 42,
+            repository: "octo/repo",
+            body: "The issue body",
+            url: "https://github.com/octo/repo/issues/42",
+          },
+          status: "In Progress",
+          priority: "High",
+          assignees: ["monalisa", "hubot"],
+        },
+        {
+          id: "PVTI_2",
+          content: {
+            id: "DRAFT_1",
+            title: "Draft note",
+            type: "DraftIssue",
+            body: "Draft body",
+          },
+          status: "Todo",
+        },
+      ],
+      totalCount: 2,
+    });
+    break;
+  case "field-list":
+    json({
+      fields: [
+        {
+          id: "STATUS",
+          name: "Status",
+          type: "ProjectV2SingleSelectField",
+          options: [
+            { id: "OPT_TODO", name: "Todo" },
+            { id: "OPT_DONE", name: "Done" },
+          ],
+        },
+        { id: "PRIORITY", name: "Priority", type: "ProjectV2Field" },
+      ],
+      totalCount: 2,
+    });
+    break;
+  case "item-add":
+    json({ id: "PVTI_ADDED", title: "Fix bug" });
+    break;
+  case "item-create":
+    json({ id: "PVTI_DRAFT", title: value("--title") ?? "Draft" });
+    break;
+  case "item-edit":
+    json({ id: value("--id") ?? "PVTI_1" });
+    break;
+  case "item-archive":
+    json({ id: value("--id") ?? "PVTI_1" });
+    break;
+  case "item-delete":
+    json({ id: value("--id") ?? "PVTI_2" });
+    break;
+  case "create":
+    json({ number: 9, url: "https://github.com/orgs/octo/projects/9" });
+    break;
+  case "edit":
+    json({ number: Number(args[2]) });
+    break;
+  case "close":
+    json({ number: Number(args[2]), closed: !args.includes("--undo") });
+    break;
+  case "copy":
+    json({ number: 10, url: "https://github.com/orgs/dest/projects/10" });
+    break;
+  default:
+    process.stderr.write(`unexpected project subcommand: ${subcommand}\n`);
+    process.exit(64);
+}
