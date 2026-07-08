@@ -18,6 +18,19 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.26](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.25...gh-axi-v0.1.26) (2026-07-08)
+
+
+### Features
+
+* **cli:** support GitHub Enterprise hosts ([#63](https://github.com/kunchenguid/gh-axi/issues/63)) ([2236646](https://github.com/kunchenguid/gh-axi/commit/2236646523af56d938b7a1fa1cb5b499aff33e57))
+* **commands:** add GitHub Projects support ([#67](https://github.com/kunchenguid/gh-axi/issues/67)) ([39156c8](https://github.com/kunchenguid/gh-axi/commit/39156c8d88c3ec284e3c8ea2b2178b3c5cdc3274))
+
+
+### Bug Fixes
+
+* **suggestions:** place -R after command in repo-qualified hints ([#60](https://github.com/kunchenguid/gh-axi/issues/60)) ([de3b6f5](https://github.com/kunchenguid/gh-axi/commit/de3b6f5b779f2fc5cd88b31d6e0623a60642f4c6))
+
 ## [0.1.25](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.24...gh-axi-v0.1.25) (2026-07-01)
 
 
