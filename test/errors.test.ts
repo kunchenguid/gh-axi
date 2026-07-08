@@ -88,7 +88,9 @@ describe("mapGhError", () => {
       "GitHub token is missing required scope(s): read:project",
     );
     expect(
-      err.suggestions.some((s) => s.includes("gh auth refresh -s read:project")),
+      err.suggestions.some((s) =>
+        s.includes("gh auth refresh -s read:project"),
+      ),
     ).toBe(true);
   });
 

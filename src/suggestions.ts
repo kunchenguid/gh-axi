@@ -520,8 +520,7 @@ const table: SuggestionEntry[] = [
 
   // Project list
   {
-    match: (c) =>
-      c.domain === "project" && c.action === "list" && !c.isEmpty,
+    match: (c) => c.domain === "project" && c.action === "list" && !c.isEmpty,
     lines: (c) => [
       `Run \`gh-axi project view <number>${ownerFlag(c)}\` to view details`,
       `Run \`gh-axi project create --title "..."${ownerFlag(c)}\` to create a project`,
@@ -580,8 +579,7 @@ const table: SuggestionEntry[] = [
   // Project item-add/item-create/item-edit/item-archive/item-delete
   {
     match: (c) =>
-      c.domain === "project" &&
-      ["item-add", "item-create"].includes(c.action),
+      c.domain === "project" && ["item-add", "item-create"].includes(c.action),
     lines: (c) => [
       `Run \`gh-axi project item-list ${c.id}${ownerFlag(c)}\` to see all items`,
     ],
