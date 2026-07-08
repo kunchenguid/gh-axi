@@ -213,7 +213,14 @@ function renderProjectFields(fields: ProjectItem[]): string {
     };
     if (Array.isArray(f.options) && f.options.length > 0) {
       row.options = (f.options as ProjectItem[])
-        .map((o) => (o && typeof o === "object" && "name" in o ? o.name : o))
+        .map((o) => {
+          if (!isProjectItem(o)) return renderProjectItemValue(o);
+          const name = renderProjectItemValue(o.name);
+          const id = renderProjectItemValue(o.id);
+          if (name !== undefined && id !== undefined) return `${name}:${id}`;
+          return renderProjectItemValue(o);
+        })
+        .filter((o) => o !== undefined && o !== "")
         .join(",");
     }
     return row;
@@ -230,6 +237,7 @@ const projectListSchema: FieldDef[] = [
 ];
 
 const projectViewSchema: FieldDef[] = [
+  field("id"),
   field("number"),
   field("title"),
   custom("state", (item: ProjectRecord) => (item.closed ? "closed" : "open")),

@@ -125,6 +125,7 @@ describe("projectCommand", () => {
   describe("view", () => {
     it("returns project details", async () => {
       mockedGhJson.mockResolvedValue({
+        id: "PVT_kwDOA1b2c84A",
         number: 3,
         title: "Roadmap",
         closed: false,
@@ -138,6 +139,7 @@ describe("projectCommand", () => {
 
       const result = await projectCommand(["view", "3"], ctx);
 
+      expect(result).toContain("PVT_kwDOA1b2c84A");
       expect(result).toContain("Roadmap");
       expect(result).toContain("open");
       expect(result).toContain("public");
@@ -253,7 +255,10 @@ describe("projectCommand", () => {
             id: "PVTF_1",
             name: "Status",
             type: "ProjectV2SingleSelectField",
-            options: [{ name: "Todo" }, { name: "Done" }],
+            options: [
+              { id: "PVTSSF_lADOA1b2c84A", name: "Todo" },
+              { id: "PVTSSF_lADOA1b2c84B", name: "Done" },
+            ],
           },
         ],
         totalCount: 1,
@@ -262,7 +267,8 @@ describe("projectCommand", () => {
       const result = await projectCommand(["field-list", "3"], ctx);
 
       expect(result).toContain("Status");
-      expect(result).toContain("Todo,Done");
+      expect(result).toContain("Todo:PVTSSF_lADOA1b2c84A");
+      expect(result).toContain("Done:PVTSSF_lADOA1b2c84B");
     });
   });
 
