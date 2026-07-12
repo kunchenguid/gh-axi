@@ -18,6 +18,18 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.27](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.26...gh-axi-v0.1.27) (2026-07-12)
+
+
+### Features
+
+* **commands:** support environment-scoped secrets ([#70](https://github.com/kunchenguid/gh-axi/issues/70)) ([ed8ae84](https://github.com/kunchenguid/gh-axi/commit/ed8ae84bf3b138502e23421047b7cc08248c062c))
+
+
+### Bug Fixes
+
+* **repo:** honor positional repo view targets ([#66](https://github.com/kunchenguid/gh-axi/issues/66)) ([b1092e2](https://github.com/kunchenguid/gh-axi/commit/b1092e22d986a8acab2d861905f96daab000e6ff))
+
 ## [0.1.26](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.25...gh-axi-v0.1.26) (2026-07-08)
 
 
