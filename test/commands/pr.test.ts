@@ -637,6 +637,104 @@ describe("prCommand", () => {
       expect(result).toContain("1 skipped");
       expect(result).toContain("3 total");
     });
+
+    it("keeps an unfinished check run pending", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "build", conclusion: null, status: "IN_PROGRESS" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("build,pending");
+      expect(result).toContain("0 passed, 0 failed, 1 pending");
+    });
+
+    it("classifies a successful legacy status context as passing", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ context: "Vercel", state: "SUCCESS" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("Vercel,pass");
+      expect(result).toContain("1 passed, 0 failed");
+      expect(result).not.toContain("pending");
+    });
+
+    it("classifies a failing legacy status context as failing", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ context: "Vercel", state: "FAILURE" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("Vercel,fail");
+      expect(result).toContain("0 passed, 1 failed");
+      expect(result).not.toContain("pending");
+    });
+
+    it("classifies an errored legacy status context as failing", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ context: "Vercel", state: "ERROR" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("Vercel,fail");
+      expect(result).toContain("0 passed, 1 failed");
+    });
+
+    it("keeps a pending legacy status context pending", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ context: "Vercel", state: "PENDING" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("Vercel,pending");
+      expect(result).toContain("0 passed, 0 failed, 1 pending");
+    });
+
+    it("classifies a check run that failed to start as failing", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ name: "build", conclusion: "STARTUP_FAILURE" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("build,fail");
+      expect(result).toContain("0 passed, 1 failed");
+      expect(result).not.toContain("pending");
+    });
+
+    it("classifies a stale check run as failing", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ name: "build", conclusion: "STALE" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("build,fail");
+      expect(result).toContain("0 passed, 1 failed");
+      expect(result).not.toContain("pending");
+    });
+
+    it("counts a mix of check runs and legacy status contexts", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "test", conclusion: null, status: "IN_PROGRESS" },
+          { context: "Vercel", state: "SUCCESS" },
+          { context: "ci/circleci", state: "FAILURE" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("2 passed, 1 failed, 1 pending, 4 total");
+    });
   });
 
   describe("diff", () => {

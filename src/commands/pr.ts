@@ -28,11 +28,22 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-interface CheckRun {
+/**
+ * One entry of `pr view --json statusCheckRollup`. The rollup is a union of two
+ * shapes: a CheckRun (GitHub Actions et al.) reports its verdict in
+ * `conclusion`, while a legacy commit StatusContext has no `conclusion` at all
+ * and reports its verdict in `state`.
+ */
+interface StatusCheck {
+  /** CheckRun: the check run name. */
   name?: string;
+  /** StatusContext: the commit status context name. */
   context?: string;
+  /** CheckRun: SUCCESS | FAILURE | SKIPPED | …; absent while still running. */
   conclusion?: string;
+  /** StatusContext: SUCCESS | PENDING | FAILURE | ERROR | EXPECTED. */
   state?: string;
+  /** CheckRun: QUEUED | IN_PROGRESS | COMPLETED. Carries no verdict. */
   status?: string;
 }
 
@@ -50,7 +61,7 @@ interface PrItem {
   isDraft: boolean;
   reviewDecision: string;
   mergedAt?: string;
-  statusCheckRollup?: CheckRun[];
+  statusCheckRollup?: StatusCheck[];
   body?: string;
   comments?: PrComment[];
   reviews?: unknown[];
@@ -84,20 +95,28 @@ interface RevertResult {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Classify a CI check run into a simple status category. */
-function classifyCheck(c: CheckRun): "pass" | "fail" | "skip" | "pending" {
+/** Classify a status check into a simple status category. */
+function classifyCheck(c: StatusCheck): "pass" | "fail" | "skip" | "pending" {
   const conc = (c.conclusion ?? "").toUpperCase();
-  const st = (c.state ?? c.status ?? "").toUpperCase();
   if (conc === "SUCCESS" || conc === "NEUTRAL") return "pass";
-  if (conc === "FAILURE" || conc === "TIMED_OUT" || conc === "ACTION_REQUIRED")
-    return "fail";
   if (
-    conc === "SKIPPED" ||
-    conc === "CANCELLED" ||
-    st === "EXPECTED" ||
-    st === "NEUTRAL"
+    conc === "FAILURE" ||
+    conc === "TIMED_OUT" ||
+    conc === "ACTION_REQUIRED" ||
+    conc === "STARTUP_FAILURE" ||
+    conc === "STALE"
   )
-    return "skip";
+    return "fail";
+  if (conc === "SKIPPED" || conc === "CANCELLED") return "skip";
+  if (conc) return "pending";
+
+  // No conclusion: either a StatusContext, whose verdict lives in `state`, or a
+  // CheckRun that has not finished yet — a CheckRun's `status` (QUEUED /
+  // IN_PROGRESS / COMPLETED) never carries a verdict, so it stays pending.
+  const state = (c.state ?? "").toUpperCase();
+  if (state === "SUCCESS") return "pass";
+  if (state === "FAILURE" || state === "ERROR") return "fail";
+  if (state === "EXPECTED" || state === "NEUTRAL") return "skip";
   return "pending";
 }
 
@@ -188,13 +207,13 @@ const viewSchema: FieldDef[] = [
     if (!Array.isArray(checks) || checks.length === 0)
       return "0 passed, 0 failed — this PR has no CI checks configured";
     const passed = checks.filter(
-      (c: CheckRun) => classifyCheck(c) === "pass",
+      (c: StatusCheck) => classifyCheck(c) === "pass",
     ).length;
     const failed = checks.filter(
-      (c: CheckRun) => classifyCheck(c) === "fail",
+      (c: StatusCheck) => classifyCheck(c) === "fail",
     ).length;
     const skipped = checks.filter(
-      (c: CheckRun) => classifyCheck(c) === "skip",
+      (c: StatusCheck) => classifyCheck(c) === "skip",
     ).length;
     const parts = [`${passed} passed`, `${failed} failed`];
     if (skipped > 0) parts.push(`${skipped} skipped`);
@@ -662,7 +681,7 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
     ["pr", "view", String(num), "--json", "statusCheckRollup"],
     ctx,
   );
-  const checks: CheckRun[] = Array.isArray(pr.statusCheckRollup)
+  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
     ? pr.statusCheckRollup
     : [];
 
@@ -676,13 +695,13 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
 
   // Pre-compute summary counts so agents don't have to count rows
   const passed = checks.filter(
-    (c: CheckRun) => classifyCheck(c) === "pass",
+    (c: StatusCheck) => classifyCheck(c) === "pass",
   ).length;
   const failed = checks.filter(
-    (c: CheckRun) => classifyCheck(c) === "fail",
+    (c: StatusCheck) => classifyCheck(c) === "fail",
   ).length;
   const skipped = checks.filter(
-    (c: CheckRun) => classifyCheck(c) === "skip",
+    (c: StatusCheck) => classifyCheck(c) === "skip",
   ).length;
   const pending = checks.length - passed - failed - skipped;
 
@@ -692,8 +711,8 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
   summaryParts.push(`${checks.length} total`);
 
   const checksSchema: FieldDef[] = [
-    custom("name", (c: CheckRun) => c.name ?? c.context ?? "check"),
-    custom("conclusion", (c: CheckRun) => classifyCheck(c)),
+    custom("name", (c: StatusCheck) => c.name ?? c.context ?? "check"),
+    custom("conclusion", (c: StatusCheck) => classifyCheck(c)),
   ];
 
   return renderOutput([
