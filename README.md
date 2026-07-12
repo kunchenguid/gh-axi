@@ -92,6 +92,7 @@ gh-axi run view --job 789012 --log-failed # show failed log lines for one job
 gh-axi workflow run ci.yml --ref main     # trigger a workflow
 gh-axi project list --owner my-org        # list Projects (v2) for an owner
 echo -n "sk-..." | gh-axi secret set OPENAI_API_KEY  # set a secret from stdin
+echo -n "sk-..." | gh-axi secret set CSC_LINK --env production  # scope a secret to an environment
 gh-axi variable set NODE_ENV --body production        # set a variable from a flag
 gh-axi setup hooks              # install optional agent session hooks
 gh-axi update --check           # check whether a newer release exists
@@ -108,6 +109,8 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
 `gh-axi secret list` never prints values, matching `gh secret list`.
+`gh-axi secret list`, `set`, and `delete` accept `--env`/`-e <environment>` to scope a secret to a deployment environment; without it the repository scope is used.
+Other `gh secret` scopes (`--org`, `--user`, `--app`) are rejected with a clear error rather than silently falling back to the repository scope.
 `gh-axi variable` accepts `--body`/`-b` or piped stdin, and variable values are shown in `list` output because variables are not secret.
 `gh-axi project` wraps GitHub Projects (v2) and requires the `project` (or `read:project`) OAuth scope; if a call fails on a missing scope, gh-axi tells you the `gh auth refresh -s <scope>` command to run.
 `--owner` defaults to the current repo's owner, falling back to explicit `@me` for the authenticated user.

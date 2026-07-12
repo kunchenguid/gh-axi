@@ -224,6 +224,29 @@ describe("main CLI", () => {
     expect(vi.mocked(secretCommand)).toHaveBeenCalledWith(["list"], ctx);
   });
 
+  it("strips -R but preserves --env when both are passed to the secret handler", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const ctx = {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "flag",
+    };
+
+    await options.commands.secret(
+      ["set", "CSC_LINK", "-R", "owner/name", "--env", "production"],
+      ctx,
+    );
+
+    const { secretCommand } = await import("../src/commands/secret.js");
+    expect(vi.mocked(secretCommand)).toHaveBeenCalledWith(
+      ["set", "CSC_LINK", "--env", "production"],
+      ctx,
+    );
+  });
+
   it("strips -R before invoking the variable handler", async () => {
     await main();
 

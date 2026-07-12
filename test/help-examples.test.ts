@@ -66,3 +66,13 @@ describe("--body-file discoverability", () => {
     expect(RELEASE_HELP).toContain("--body-file");
   });
 });
+
+describe("secret --env discoverability", () => {
+  it("documents the --env/-e environment scope in secret help", () => {
+    expect(SECRET_HELP).toContain("--env/-e <environment>");
+  });
+
+  it("shows an env-scoped example in secret help", () => {
+    expect(SECRET_HELP).toContain("--env production");
+  });
+});

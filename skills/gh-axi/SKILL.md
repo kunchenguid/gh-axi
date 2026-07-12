@@ -55,6 +55,7 @@ Run `npx -y gh-axi --help` for global flags, or `npx -y gh-axi <command> --help`
 - For multi-line markdown bodies, comments, or release notes, write the text to a UTF-8 file and pass `--body-file <path>` or the release `--notes-file <path>` alias on commands that support file-backed text.
 - Secret values are stdin-only: `echo -n "<value>" | npx -y gh-axi secret set <name>`.
 - Do not pass secrets with `--body` or `-b`; flags are visible in the `gh-axi` process argv.
+- Scope a secret to a deployment environment with `--env`/`-e <environment>` on `secret list`, `set`, and `delete`; omit it for repository scope. Other `gh secret` scopes (`--org`, `--user`, `--app`) are rejected, not silently ignored.
 - Variable values may use `--body`/`-b` or stdin because Actions variables are not secret.
 - For multi-line variable values, pipe stdin to `npx -y gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
 - Projects (v2) are owner-scoped: pass `--owner <login>`, or omit it to use the current repo owner and then `@me`.

@@ -71,6 +71,36 @@ describe("secretCommand", () => {
       expect(ghArgs).not.toContain("value");
       expect(ghArgs.join(" ")).not.toMatch(/\bvalue\b/);
     });
+
+    it("produces exact repo-scoped argv without --env", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await secretCommand(["list"]);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["secret", "list", "--json", "name,updatedAt"],
+        undefined,
+      );
+    });
+
+    it.each([
+      ["--env", "production"],
+      ["-e", "production"],
+      ["--env=production"],
+      ["-e=production"],
+    ])(
+      "forwards environment scope to upstream argv for %s",
+      async (...flag) => {
+        mockedGhJson.mockResolvedValue([]);
+
+        await secretCommand(["list", ...flag]);
+
+        expect(mockedGhJson).toHaveBeenCalledWith(
+          ["secret", "list", "--json", "name,updatedAt", "--env", "production"],
+          undefined,
+        );
+      },
+    );
   });
 
   describe("set", () => {
@@ -87,6 +117,48 @@ describe("secretCommand", () => {
       expect(mockedResolveValue).toHaveBeenCalledWith(undefined, "secret");
       expect(mockedGhExecWithStdin).toHaveBeenCalledWith(
         ["secret", "set", "API_KEY"],
+        "super-secret",
+        undefined,
+      );
+    });
+
+    it.each([
+      ["--env", "production"],
+      ["-e", "production"],
+      ["--env=production"],
+      ["-e=production"],
+    ])(
+      "forwards environment scope to upstream argv for %s while keeping the value on stdin only",
+      async (...flag) => {
+        mockedResolveValue.mockResolvedValue("super-secret");
+        mockedGhExecWithStdin.mockResolvedValue("");
+
+        const result = await secretCommand(["set", "API_KEY", ...flag]);
+
+        // The scoped value is passed as the stdin argument, never in argv.
+        expect(mockedGhExecWithStdin).toHaveBeenCalledWith(
+          ["secret", "set", "API_KEY", "--env", "production"],
+          "super-secret",
+          undefined,
+        );
+        const [spawnedArgs, stdinValue] = mockedGhExecWithStdin.mock.calls[0];
+        expect(spawnedArgs).not.toContain("super-secret");
+        expect(spawnedArgs.join(" ")).not.toContain("super-secret");
+        expect(stdinValue).toBe("super-secret");
+        // The secret value never appears in the rendered command output either.
+        expect(result).not.toContain("super-secret");
+        expect(result).toContain("API_KEY");
+      },
+    );
+
+    it("accepts the environment flag before the secret name", async () => {
+      mockedResolveValue.mockResolvedValue("super-secret");
+      mockedGhExecWithStdin.mockResolvedValue("");
+
+      await secretCommand(["set", "--env", "production", "API_KEY"]);
+
+      expect(mockedGhExecWithStdin).toHaveBeenCalledWith(
+        ["secret", "set", "API_KEY", "--env", "production"],
         "super-secret",
         undefined,
       );
@@ -139,8 +211,121 @@ describe("secretCommand", () => {
       );
     });
 
+    it.each([
+      ["--env", "production"],
+      ["-e", "production"],
+      ["--env=production"],
+      ["-e=production"],
+    ])(
+      "forwards environment scope to upstream argv for %s",
+      async (...flag) => {
+        mockedGhExec.mockResolvedValue("");
+
+        await secretCommand(["delete", "API_KEY", ...flag]);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["secret", "delete", "API_KEY", "--env", "production"],
+          undefined,
+        );
+      },
+    );
+
     it("throws when secret name is missing", async () => {
       await expect(secretCommand(["delete"])).rejects.toThrow(AxiError);
+    });
+  });
+
+  describe("scope flag validation", () => {
+    it.each([
+      ["list", ["list", "--org", "acme"]],
+      ["set", ["set", "API_KEY", "--org", "acme"]],
+      ["delete", ["delete", "API_KEY", "--org=acme"]],
+    ])(
+      "rejects the unsupported --org scope for %s instead of silently ignoring it",
+      async (_sub, args) => {
+        await expect(secretCommand(args)).rejects.toThrow(
+          /only repository scope and --env/,
+        );
+
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+        expect(mockedResolveValue).not.toHaveBeenCalled();
+        expect(mockedGhExecWithStdin).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ["--user boolean scope", ["list", "--user"]],
+      ["-u boolean scope", ["delete", "API_KEY", "-u"]],
+      ["--app value scope", ["list", "--app", "codespaces"]],
+      ["-a value scope", ["delete", "API_KEY", "-a", "actions"]],
+    ])("rejects the unsupported %s", async (_label, args) => {
+      await expect(secretCommand(args)).rejects.toThrow(
+        /only repository scope and --env/,
+      );
+
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects --env-file so it cannot bypass the stdin-only value channel", async () => {
+      await expect(
+        secretCommand(["set", "API_KEY", "--env-file", "secrets.env"]),
+      ).rejects.toThrow(/--env-file is not supported/);
+
+      expect(mockedResolveValue).not.toHaveBeenCalled();
+      expect(mockedGhExecWithStdin).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["list", ["list", "--env"]],
+      ["set", ["set", "API_KEY", "--env"]],
+      ["delete", ["delete", "API_KEY", "--env"]],
+      ["empty equals form", ["list", "--env="]],
+      ["value that looks like a flag", ["list", "--env", "--org"]],
+    ])(
+      "rejects a malformed --env with no environment name (%s)",
+      async (_label, args) => {
+        await expect(secretCommand(args)).rejects.toThrow(
+          /--env requires an environment name/,
+        );
+
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+        expect(mockedResolveValue).not.toHaveBeenCalled();
+        expect(mockedGhExecWithStdin).not.toHaveBeenCalled();
+      },
+    );
+
+    it("rejects conflicting --env flags rather than picking one", async () => {
+      await expect(
+        secretCommand(["list", "--env", "staging", "--env", "production"]),
+      ).rejects.toThrow(/conflicting --env flags/);
+
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unknown flag instead of dropping it silently", async () => {
+      await expect(
+        secretCommand(["list", "--visibility", "all"]),
+      ).rejects.toThrow(/unknown flag for gh-axi secret list: --visibility/);
+
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("never echoes an attached =value from an unknown flag into the error", async () => {
+      let message = "";
+      try {
+        await secretCommand(["set", "API_KEY", "--token=super-secret"]);
+      } catch (err) {
+        message = (err as Error).message;
+      }
+
+      expect(message).toContain("unknown flag");
+      expect(message).toContain("--token");
+      expect(message).not.toContain("super-secret");
+      expect(mockedResolveValue).not.toHaveBeenCalled();
+      expect(mockedGhExecWithStdin).not.toHaveBeenCalled();
     });
   });
 });
