@@ -1,0 +1,31 @@
+$ gh-axi secret list -e production
+count: 1
+secrets[1]{name,updated}:
+  CSC_LINK,1d ago
+
+$ printf [23-byte-secret] | gh-axi secret set CSC_LINK --env=production -R acme/signing-app
+set: ok
+secret: CSC_LINK
+
+$ gh-axi secret delete CSC_LINK --env production
+delete: ok
+secret: CSC_LINK
+
+$ gh-axi secret set CSC_LINK --token=[redacted]
+error: "unknown flag for gh-axi secret set: --token"
+code: VALIDATION_ERROR
+help[2]: "gh-axi secret set <name> [--env <environment>]",gh-axi secret --help
+exit_status=2
+
+$ recorded upstream argv
+secret list --json name,updatedAt --env production
+secret set CSC_LINK --env production --repo acme/signing-app
+secret delete CSC_LINK --env production
+
+$ recorded upstream stdin byte counts
+23
+
+$ upstream call count after rejected fourth command
+3
+
+attached secret value absent from rendered error

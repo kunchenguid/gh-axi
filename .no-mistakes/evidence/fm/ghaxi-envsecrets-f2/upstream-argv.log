@@ -1,0 +1,3 @@
+secret list --json name,updatedAt --env production
+secret set CSC_LINK --env production --repo acme/signing-app
+secret delete CSC_LINK --env production

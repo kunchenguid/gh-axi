@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+evidence_dir="${GH_AXI_EVIDENCE_DIR:?}"
+printf '%s\n' "$*" >> "$evidence_dir/upstream-argv.log"
+
+case "$1 $2" in
+  "secret list")
+    printf '[{"name":"CSC_LINK","updatedAt":"2026-07-11T00:00:00Z"}]\n'
+    ;;
+  "secret set")
+    stdin_value=$(cat)
+    printf '%s' "$stdin_value" | wc -c | tr -d ' ' >> "$evidence_dir/upstream-stdin-byte-count.log"
+    printf '\n' >> "$evidence_dir/upstream-stdin-byte-count.log"
+    ;;
+esac
