@@ -721,6 +721,30 @@ describe("prCommand", () => {
       expect(result).not.toContain("pending");
     });
 
+    it("classifies a cancelled check run as failing", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ name: "build", conclusion: "CANCELLED" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("build,fail");
+      expect(result).toContain("0 passed, 1 failed");
+      expect(result).not.toContain("pending");
+    });
+
+    it("keeps a skipped check run skipped", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [{ name: "build", conclusion: "SKIPPED" }],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("build,skip");
+      expect(result).toContain("0 passed, 0 failed");
+      expect(result).toContain("1 skipped");
+    });
+
     it("counts a mix of check runs and legacy status contexts", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [

@@ -104,10 +104,11 @@ function classifyCheck(c: StatusCheck): "pass" | "fail" | "skip" | "pending" {
     conc === "TIMED_OUT" ||
     conc === "ACTION_REQUIRED" ||
     conc === "STARTUP_FAILURE" ||
-    conc === "STALE"
+    conc === "STALE" ||
+    conc === "CANCELLED"
   )
     return "fail";
-  if (conc === "SKIPPED" || conc === "CANCELLED") return "skip";
+  if (conc === "SKIPPED") return "skip";
   if (conc) return "pending";
 
   // No conclusion: either a StatusContext, whose verdict lives in `state`, or a
