@@ -103,7 +103,7 @@ function resolveScope(tokens: string[], sub: SecretSub): ParsedScope {
     // --env / -e (space form)
     if (tok === "--env" || tok === "-e") {
       const val = tokens[i + 1];
-      if (val === undefined || val.startsWith("-")) {
+      if (val === undefined || val.length === 0 || val.startsWith("-")) {
         throw malformedEnvError(sub);
       }
       if (env !== undefined) throw conflictingEnvError(sub);

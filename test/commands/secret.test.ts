@@ -281,6 +281,8 @@ describe("secretCommand", () => {
       ["list", ["list", "--env"]],
       ["set", ["set", "API_KEY", "--env"]],
       ["delete", ["delete", "API_KEY", "--env"]],
+      ["empty long space form", ["list", "--env", ""]],
+      ["empty short space form", ["list", "-e", ""]],
       ["empty equals form", ["list", "--env="]],
       ["value that looks like a flag", ["list", "--env", "--org"]],
     ])(
