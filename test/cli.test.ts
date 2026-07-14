@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { installSessionStartHooks, runAxiCli } = vi.hoisted(() => ({
-  installSessionStartHooks: vi.fn(),
+const { runAxiCli } = vi.hoisted(() => ({
   runAxiCli: vi.fn(),
 }));
 
@@ -11,7 +10,6 @@ vi.mock("axi-sdk-js", async () => {
     await vi.importActual<typeof import("axi-sdk-js")>("axi-sdk-js");
   return {
     ...actual,
-    installSessionStartHooks,
     runAxiCli,
   };
 });
@@ -177,19 +175,6 @@ describe("main CLI", () => {
     }
 
     expect(vi.mocked(runAxiCli).mock.calls[0]?.[0]).not.toHaveProperty("hooks");
-  });
-
-  it("installs session hooks from the explicit setup command", async () => {
-    await main();
-
-    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
-    const output = await options.commands.setup(["hooks"]);
-
-    expect(installSessionStartHooks).toHaveBeenCalledTimes(1);
-    expect(installSessionStartHooks).toHaveBeenCalledWith();
-    expect(output).toContain("hooks:");
-    expect(output).toContain("status: installed");
-    expect(output).toContain("Restart your agent session");
   });
 
   it("wires command help into the runtime", async () => {
