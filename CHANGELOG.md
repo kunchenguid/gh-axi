@@ -18,6 +18,17 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.28](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.27...gh-axi-v0.1.28) (2026-07-23)
+
+
+### Bug Fixes
+
+* **commands:** apply every repeated label, assignee, reviewer and project flag ([#78](https://github.com/kunchenguid/gh-axi/issues/78)) ([2a6f6f4](https://github.com/kunchenguid/gh-axi/commit/2a6f6f45335ef4214db98e16338f274e790047e2))
+* **commands:** count filtered issue and pr lists through search ([#79](https://github.com/kunchenguid/gh-axi/issues/79)) ([6e1dcf4](https://github.com/kunchenguid/gh-axi/commit/6e1dcf4dda91c18111f18475e071a8b8a0dd2977))
+* **commands:** stop api from silently dropping --jq and unknown flags ([#81](https://github.com/kunchenguid/gh-axi/issues/81)) ([dc52d29](https://github.com/kunchenguid/gh-axi/commit/dc52d2938f46833d2663ba0313f7ef22fe4b3933))
+* execute every PR body compliance event ([#82](https://github.com/kunchenguid/gh-axi/issues/82)) ([b8b4f3b](https://github.com/kunchenguid/gh-axi/commit/b8b4f3bc2497a81e3e50076a91b11a9e88de0c7e))
+* **pr:** classify legacy commit statuses and red check runs correctly ([#71](https://github.com/kunchenguid/gh-axi/issues/71)) ([291fc1a](https://github.com/kunchenguid/gh-axi/commit/291fc1af90005f3c9b10b1ae2f640c2ed2d46abb))
+
 ## [0.1.27](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.26...gh-axi-v0.1.27) (2026-07-12)
 
 
