@@ -1,0 +1,22 @@
+Command:
+node .no-mistakes/evidence/fm/nm-body-events-gh-axi-r1/workflow-policy-e2e.mjs
+
+Workflow syntax: valid YAML
+Change shape: exactly two hunks
+Preservation: pull_request trigger, read-only permissions, stable job/check, bot exemptions, signature marker, and no checkout/secrets are unchanged
+Event routing:
+  opened      run-name="PR #81 body compliance - opened - event 410 (run 9001)"
+              group="no-mistakes-required-81-9001" cancel-in-progress=true
+  edited      run-name="PR #81 body compliance - edited - event 411 (run 9002)"
+              group="no-mistakes-required-81-9002" cancel-in-progress=true
+  edited      run-name="PR #81 body compliance - edited - event 412 (run 9003)"
+              group="no-mistakes-required-81-9003" cancel-in-progress=true
+  synchronize run-name="PR #81 body compliance - synchronize - event 413 (run 9004)"
+              group="no-mistakes-required-81-head-change" cancel-in-progress=true
+  reopened    run-name="PR #81 body compliance - reopened - event 414 (run 9005)"
+              group="no-mistakes-required-81-head-change" cancel-in-progress=true
+Compliance replay:
+  signed   exit=0 output="Found no-mistakes signature in PR #81 body."
+  unsigned exit=1 error="::error::This PR was not raised through no-mistakes."
+  signed   exit=0 output="Found no-mistakes signature in PR #81 body."
+RESULT: all workflow policy acceptance checks passed
