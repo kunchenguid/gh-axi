@@ -2,6 +2,14 @@ import { readFileSync } from "node:fs";
 import { AxiError } from "./errors.js";
 
 /**
+ * Multi-line --body text passed through a Windows npx.cmd/cmd.exe shim (the
+ * default npx on Windows) gets its argv truncated at the first embedded
+ * newline before this process ever sees it. --body-file - matches gh's own
+ * stdin convention and sidesteps argv entirely.
+ */
+const STDIN_SENTINEL = "-";
+
+/**
  * Shared body input, cleaning, and truncation for all entity types.
  *
  * Cleanups are only applied when content needs truncation.
@@ -89,6 +97,9 @@ function readBodyFile(
   path: string,
   suggestions: string[],
 ): string {
+  if (path === STDIN_SENTINEL) {
+    return readFileSync(0, "utf8");
+  }
   try {
     return readFileSync(path, "utf8");
   } catch (error) {

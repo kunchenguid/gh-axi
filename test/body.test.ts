@@ -1,9 +1,20 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { cleanBody, takeBody, truncateBody } from "../src/body.js";
 import { AxiError } from "../src/errors.js";
+
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    readFileSync: (path: Parameters<typeof actual.readFileSync>[0], ...rest: unknown[]) =>
+      path === 0
+        ? "from stdin"
+        : (actual.readFileSync as (...a: unknown[]) => string)(path, ...rest),
+  };
+});
 
 function withTempDir<T>(fn: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "gh-axi-body-"));
@@ -47,6 +58,10 @@ describe("takeBody", () => {
 
       expect(takeBody([`--body-file=${file}`])).toBe("from equals");
     }));
+
+  it("reads body from stdin when --body-file is -", () => {
+    expect(takeBody(["--body-file", "-"])).toBe("from stdin");
+  });
 
   it("returns undefined when the body is optional and omitted", () => {
     expect(takeBody(["--label", "bug"])).toBeUndefined();
