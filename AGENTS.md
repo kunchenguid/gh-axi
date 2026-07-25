@@ -55,6 +55,7 @@ Requires the `project` (or `read:project`) OAuth scope on the `gh` token; `src/e
 `gh` accepts `--label`, `--assignee`, `--reviewer`, `--project`, and the `--add-*`/`--remove-*` variants once per value, so gh-axi must collect _every_ occurrence.
 Use `getAllFlags`/`takeAllFlags` plus `pushRepeated`; `getFlag`/`takeFlag` keep only the first occurrence and silently discard the rest, which is the bug that recurred as #55, #57, and #75.
 Both collectors reject a dangling (`--label` with nothing after it) or blank (`--label=`) value with a `VALIDATION_ERROR` instead of dropping it.
+`getFlag`/`takeFlag` similarly reject a flag-like value (one starting with `--`) rather than treating it as the value, so a dangling single-value flag can't silently swallow the next flag's token.
 Pick the collector that matches the surrounding file: `issue.ts` reads args non-destructively (`getAllFlags`), `pr.ts` consumes them (`takeAllFlags`).
 When a flag becomes repeatable, mark it `(repeatable)` in that command's `*_HELP` string.
 
