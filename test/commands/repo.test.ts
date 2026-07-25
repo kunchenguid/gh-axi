@@ -225,6 +225,13 @@ describe('repoCommand', () => {
       ]);
     });
 
+    it('throws instead of misreading an adjacent flag as the --limit value', async () => {
+      await expect(
+        repoCommand(['list', '--limit', '--visibility', 'public'], ctx),
+      ).rejects.toThrow('--limit requires a value');
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
     it('does not mistake --visibility or --language values for the owner positional', async () => {
       mockedGhJson.mockResolvedValue([]);
 

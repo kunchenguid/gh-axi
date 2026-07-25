@@ -455,7 +455,7 @@ describe("runCommand", () => {
         runCommand(["view", "100", "--job", "--log"], ctx),
       ).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
-        message: "Missing value for --job",
+        message: "--job requires a value",
       });
       expect(mockedGhExec).not.toHaveBeenCalled();
       expect(mockedGhJson).not.toHaveBeenCalled();
