@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.29](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.28...gh-axi-v0.1.29) (2026-07-29)
+
+
+### Features
+
+* **gist:** add gist command family with list, view, create, edit, rename, delete, clone ([#88](https://github.com/kunchenguid/gh-axi/issues/88)) ([32d2ea2](https://github.com/kunchenguid/gh-axi/commit/32d2ea219676406b7ba01df2cbefee68c0a295bf))
+
 ## [0.1.28](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.27...gh-axi-v0.1.28) (2026-07-23)
 
 
