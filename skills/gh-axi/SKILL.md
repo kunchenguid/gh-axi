@@ -1,6 +1,6 @@
 ---
 name: gh-axi
-description: "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, or working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`."
+description: "Operate GitHub through the gh-axi CLI - issues, pull requests, stacked PRs, workflow runs, workflows, releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, managing stacked branches and PRs, checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, or working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`."
 user-invocable: false
 author: Kun Chen (kunchenguid)
 metadata:
@@ -17,11 +17,12 @@ You do not need gh-axi installed globally - invoke it with `npx -y gh-axi <comma
 If gh-axi output shows a follow-up command starting with `gh-axi`, run it as `npx -y gh-axi ...` instead.
 
 gh-axi requires the [`gh`](https://cli.github.com/) CLI installed and authenticated (`gh auth login`). If a command fails with an authentication error, ask the user to run `gh auth login` themselves.
+Stack commands additionally require GitHub's official extension: `gh extension install github/gh-stack`.
 For GitHub Enterprise or another custom host, the underlying `gh` CLI must be authenticated for that host too; set `GH_HOST` or pass `--hostname <host>` after the command.
 
 ## When to use
 
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; or calling the GitHub API directly.
+Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, merging, or stacking pull requests; managing stacked branches; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; or calling the GitHub API directly.
 
 ## Workflow
 
@@ -33,12 +34,13 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 6. Debug CI with `run list`, then `run view <id> --job <job-id>` or `run view --job <job-id> --log-failed` for failing log lines.
    Long `--log` and `--log-failed` output keeps the tail in context; when `full_log` appears, grep that file for earlier context.
 7. Every response ends with contextual next-step hints under `help:` - follow them.
+8. Manage stacked PRs from the target repository's working directory. Start with `stack init <branch>`, add layers with `stack add <branch>`, create PRs with `stack submit --open`, and inspect them with `stack view`.
 
 ## Commands
 
 ```
-commands[15]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[16]:
+  (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 ```
 
 Installed copies also inherit the SDK built-in `update` command.
@@ -51,7 +53,9 @@ Run `npx -y gh-axi --help` for global flags, or `npx -y gh-axi <command> --help`
 
 - Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
 - Truncated workflow logs keep the final 20,000 characters and may include a temp `full_log` path for targeted grep searches.
-- Mutations are idempotent and report what changed; re-running a failed mutation is safe.
+- Most mutations are idempotent and report what changed. Stack branch creation and partial pushes require checking the reported status before retrying.
+- Stack operations are cwd-bound and do not accept `-R`, `--repo`, or `GH_REPO`. They preserve the official extension's recovery exits and may partially push branches; inspect the reported status before retrying.
+- gh-axi keeps stack operations headless: `stack view` always uses JSON, `stack submit` always uses `--auto`, and `stack merge <stack-or-pr>` always uses `--yes`. Interactive `gh stack modify` and `gh stack switch` are intentionally not exposed.
 - For multi-line markdown bodies, comments, or release notes, write the text to a UTF-8 file and pass `--body-file <path>` or the release `--notes-file <path>` alias on commands that support file-backed text.
 - Label, assignee, reviewer, and project flags repeat: pass the flag once per value, e.g. `issue edit 42 --add-label bug --add-label chore`, and every value is applied. A repeated flag with a missing or blank value is rejected, never silently dropped.
 - Secret values are stdin-only: `echo -n "<value>" | npx -y gh-axi secret set <name>`.

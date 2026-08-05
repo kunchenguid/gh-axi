@@ -15,9 +15,12 @@ import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { gistCommand, GIST_HELP } from "./commands/gist.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
+import { stackCommand, STACK_HELP } from "./commands/stack.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
+import { AxiError, exitCodeForError, StackError } from "./errors.js";
+import { renderError } from "./toon.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
@@ -30,8 +33,8 @@ type MainOptions = {
 };
 
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
-commands[15]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[16]:
+  (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 flags[4]:
   -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
 examples:
@@ -41,6 +44,7 @@ examples:
   gh-axi issue list --repo=owner/name
   gh-axi issue list --hostname git.example.com
   gh-axi pr view 42
+  gh-axi stack view
   gh-axi secret list
   gh-axi setup hooks
 `;
@@ -60,6 +64,7 @@ const COMMAND_HELP: Record<string, string> = {
   search: SEARCH_HELP,
   api: API_HELP,
   setup: SETUP_HELP,
+  stack: STACK_HELP,
 };
 
 type HostOnlyContext = { host: HostContext };
@@ -85,6 +90,7 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
   search: withRepoContext("search", searchCommand),
   api: withRepoContext("api", apiCommand),
   setup: setupCommand,
+  stack: withLocalRepoContext(stackCommand),
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {
@@ -97,6 +103,22 @@ export async function main(options: MainOptions = {}): Promise<void> {
     home: withRepoContext(undefined, homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
+    formatError: (error) => {
+      const axiError =
+        error instanceof AxiError
+          ? error
+          : new AxiError(
+              error instanceof Error ? error.message : String(error),
+              "UNKNOWN",
+            );
+      return {
+        output: `${renderError(axiError.message, axiError.code, axiError.suggestions)}\n`,
+        exitCode:
+          error instanceof StackError
+            ? error.exitCode
+            : exitCodeForError(axiError),
+      };
+    },
     resolveContext: ({ command, args }) => {
       const { repoFlag, hostFlag } = parseRepoContextArgs(command, args);
       // Explicit --hostname wins over the GH_HOST env var. Setting GH_HOST here
@@ -128,6 +150,24 @@ function withRepoContext(
         repoContext(ctx),
       ),
     );
+}
+
+function withLocalRepoContext(handler: CommandFn): WrappedCommandFn {
+  return (args, ctx) => {
+    const parsed = parseRepoContextArgs("stack", args);
+    const repo = repoContext(ctx);
+    if (
+      parsed.repoFlag !== undefined ||
+      repo?.source === "env" ||
+      process.env["GH_REPO"]
+    ) {
+      throw new AxiError(
+        "stack commands operate on the repository in the current working directory and do not support -R, --repo, or GH_REPO",
+        "VALIDATION_ERROR",
+      );
+    }
+    return withSuggestionHost(ctx?.host, () => handler(parsed.strippedArgs));
+  };
 }
 
 function repoContext(ctx?: CliContext): RepoContext | undefined {

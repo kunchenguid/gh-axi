@@ -12,6 +12,17 @@ export type ErrorCode =
 
 export { AxiError, exitCodeForError };
 
+export class StackError extends AxiError {
+  constructor(
+    message: string,
+    readonly exitCode: number,
+    suggestions: string[] = [],
+  ) {
+    super(message, "STACK_ERROR", suggestions);
+    this.name = "StackError";
+  }
+}
+
 interface ErrorPattern {
   pattern: RegExp;
   code: ErrorCode;

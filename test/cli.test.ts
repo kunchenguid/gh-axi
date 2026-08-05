@@ -63,6 +63,10 @@ vi.mock("../src/commands/api.js", () => ({
   apiCommand: vi.fn().mockResolvedValue("api output"),
   API_HELP: "api help",
 }));
+vi.mock("../src/commands/stack.js", () => ({
+  stackCommand: vi.fn().mockResolvedValue("stack output"),
+  STACK_HELP: "stack help",
+}));
 
 vi.mock("../src/context.js", () => ({
   resolveRepo: vi.fn().mockReturnValue({
@@ -79,6 +83,7 @@ import { issueCommand } from "../src/commands/issue.js";
 import { prCommand } from "../src/commands/pr.js";
 import { releaseCommand } from "../src/commands/release.js";
 import { resolveRepo } from "../src/context.js";
+import { StackError } from "../src/errors.js";
 
 const packageVersion = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -199,7 +204,51 @@ describe("main CLI", () => {
     expect(options.getCommandHelp("issue")).toBe("issue help");
     expect(options.getCommandHelp("secret")).toBe("secret help");
     expect(options.getCommandHelp("variable")).toBe("variable help");
+    expect(options.getCommandHelp("stack")).toBe("stack help");
     expect(options.getCommandHelp("missing")).toBeUndefined();
+  });
+
+  it("keeps stack commands cwd-bound", async () => {
+    await main();
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const { stackCommand } = await import("../src/commands/stack.js");
+
+    await options.commands.stack(["view"], {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "git",
+    });
+    expect(vi.mocked(stackCommand)).toHaveBeenCalledWith(["view"]);
+
+    expect(() =>
+      options.commands.stack(["view", "-R", "other/repo"], {
+        owner: "other",
+        name: "repo",
+        nwo: "other/repo",
+        source: "flag",
+      }),
+    ).toThrow(/current working directory/);
+
+    expect(() =>
+      options.commands.stack(["view"], {
+        owner: "env",
+        name: "repo",
+        nwo: "env/repo",
+        source: "env",
+      }),
+    ).toThrow(/GH_REPO/);
+  });
+
+  it("preserves stack-specific process exit codes", async () => {
+    await main();
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const formatted = options.formatError(
+      new StackError("rebase conflict", 3, ["resolve it"]),
+    );
+
+    expect(formatted.exitCode).toBe(3);
+    expect(formatted.output).toContain("STACK_ERROR");
   });
 
   it("lists secret and variable in the top-level command index", () => {
