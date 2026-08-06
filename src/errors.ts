@@ -59,6 +59,22 @@ const patterns: ErrorPattern[] = [
     suggestions: () => [`Run \`gh-axi run list\` to see recent runs`],
   },
   {
+    // gh tacks a `gh auth login` hint onto its repo-resolution failure, but the
+    // token is fine: gh just could not work out which repository to target from
+    // the git remotes (unknown host, SSH host alias, no GitHub remote). Must sit
+    // ahead of the generic `gh auth login` pattern below, which would otherwise
+    // report a bogus AUTH_REQUIRED.
+    pattern:
+      /none of the git remotes configured for this repository point to a known GitHub host/i,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "Could not determine the target repository from this checkout's git remotes",
+    suggestions: () => [
+      "Pass the repo explicitly: `-R <owner>/<name>` (after the command)",
+      "For a GitHub Enterprise host, add `--hostname <host>` or set GH_HOST",
+    ],
+  },
+  {
     pattern: /gh auth login/,
     code: "AUTH_REQUIRED",
     message: () => "GitHub auth required — run `gh auth login` first",

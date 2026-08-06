@@ -68,6 +68,12 @@ Both collectors reject a dangling (`--label` with nothing after it) or blank (`-
 Pick the collector that matches the surrounding file: `issue.ts` reads args non-destructively (`getAllFlags`), `pr.ts` consumes them (`takeAllFlags`).
 When a flag becomes repeatable, mark it `(repeatable)` in that command's `*_HELP` string.
 
+## gh stderr classification (`src/errors.ts`)
+
+`mapGhError` walks `patterns` in order and returns on the first regex hit, so **order is the contract**: a narrow, specific pattern must sit ahead of any broader one it would otherwise be swallowed by.
+The trap is that gh embeds remediation hints in errors that are not about that remedy - most notably it ends its repo-resolution failure ("none of the git remotes configured ... point to a known GitHub host") with "please use `gh auth login`", which the generic `/gh auth login/` pattern would report as a bogus `AUTH_REQUIRED` under a perfectly valid token.
+When adding a pattern, check it against real gh stderr (`strings "$(command -v gh)" | grep …` finds the literal message templates) rather than the message you expect, and place non-auth carriers of a hint above the generic hint match instead of narrowing the generic one - narrowing risks _missing_ a genuine auth failure.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

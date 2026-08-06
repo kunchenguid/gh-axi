@@ -77,6 +77,15 @@ describe("mapGhError", () => {
     expect(err.code).toBe("AUTH_REQUIRED");
   });
 
+  it("classifies gh's repo-resolution failure as a validation error, not auth", () => {
+    const err = mapGhError(
+      "none of the git remotes configured for this repository point to a known GitHub host. To tell gh about a new GitHub host, please use `gh auth login`",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.suggestions.join(" ")).toContain("-R <owner>/<name>");
+  });
+
   it("matches missing OAuth scope pattern (e.g. gh project without project scope)", () => {
     const err = mapGhError(
       "error: your authentication token is missing required scopes [read:project]\n" +
