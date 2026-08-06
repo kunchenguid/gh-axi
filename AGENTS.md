@@ -71,8 +71,8 @@ When a flag becomes repeatable, mark it `(repeatable)` in that command's `*_HELP
 ## gh stderr classification (`src/errors.ts`)
 
 `mapGhError` walks `patterns` in order and returns on the first regex hit, so **order is the contract**: a narrow, specific pattern must sit ahead of any broader one it would otherwise be swallowed by.
-The trap is that gh embeds remediation hints in errors that are not about that remedy - most notably it ends its repo-resolution failure ("none of the git remotes configured ... point to a known GitHub host") with "please use `gh auth login`", which the generic `/gh auth login/` pattern would report as a bogus `AUTH_REQUIRED` under a perfectly valid token.
-When adding a pattern, check it against real gh stderr (`strings "$(command -v gh)" | grep …` finds the literal message templates) rather than the message you expect, and place non-auth carriers of a hint above the generic hint match instead of narrowing the generic one - narrowing risks _missing_ a genuine auth failure.
+gh sometimes embeds remediation hints in errors with a different root cause, so check new patterns against real stderr and place specific carriers of a generic hint first rather than narrowing the generic match.
+`test/errors.test.ts` pins the repo-resolution and genuine-auth cases.
 
 ## Maintaining this file
 
