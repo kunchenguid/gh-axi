@@ -13,7 +13,7 @@ export interface RepoContext {
 
 /**
  * Resolve the target repository.
- * Priority: --repo flag > GH_REPO env > git remotes (origin first).
+ * Priority: --repo flag > GH_REPO env > git remote origin.
  */
 export function resolveRepo(flagValue?: string): RepoContext | undefined {
   if (flagValue) {
@@ -25,42 +25,14 @@ export function resolveRepo(flagValue?: string): RepoContext | undefined {
     return parseNwo(envRepo, "env");
   }
 
-  const origin = getRemoteUrl("origin");
-  const originRepo = origin ? parseRemoteUrl(origin) : undefined;
-  if (originRepo) return originRepo;
-
-  for (const remote of listRemotes()) {
-    if (remote === "origin") continue;
-    const url = getRemoteUrl(remote);
-    const repo = url ? parseRemoteUrl(url) : undefined;
-    if (repo) return repo;
-  }
-
-  return undefined;
-}
-
-function getRemoteUrl(remote: string): string | undefined {
   try {
-    return execFileSync("git", ["remote", "get-url", remote], {
+    const url = execFileSync("git", ["remote", "get-url", "origin"], {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
+    return parseRemoteUrl(url);
   } catch {
     return undefined;
-  }
-}
-
-function listRemotes(): string[] {
-  try {
-    return execFileSync("git", ["remote"], {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-      .split(/\r?\n/)
-      .map((remote) => remote.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
   }
 }
 

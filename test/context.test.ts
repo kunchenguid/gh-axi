@@ -104,41 +104,14 @@ describe("resolveRepo", () => {
     });
   });
 
-  it("falls back to another GitHub remote when origin is unavailable", () => {
+  it("does not guess the repository from a non-origin remote", () => {
     mockedExecFileSync.mockImplementation((_command, args) => {
-      const gitArgs = args as string[];
-      if (gitArgs.join(" ") === "remote get-url origin") {
-        throw new Error("missing origin");
-      }
-      if (gitArgs.join(" ") === "remote") return "upstream\n";
-      if (gitArgs.join(" ") === "remote get-url upstream") {
-        return "git@github.com:cli/cli.git\n";
-      }
-      throw new Error("unexpected git command");
+      expect(args).toEqual(["remote", "get-url", "origin"]);
+      throw new Error("missing origin");
     });
 
-    expect(resolveRepo()).toEqual({
-      owner: "cli",
-      name: "cli",
-      nwo: "cli/cli",
-      source: "git",
-    });
-  });
-
-  it("falls back when origin is not hosted on the configured GitHub host", () => {
-    mockedExecFileSync.mockImplementation((_command, args) => {
-      const gitArgs = args as string[];
-      if (gitArgs.join(" ") === "remote get-url origin") {
-        return "git@gitlab.com:owner/repo.git\n";
-      }
-      if (gitArgs.join(" ") === "remote") return "origin\nupstream\n";
-      if (gitArgs.join(" ") === "remote get-url upstream") {
-        return "https://github.com/owner/repo.git\n";
-      }
-      throw new Error("unexpected git command");
-    });
-
-    expect(resolveRepo()?.nwo).toBe("owner/repo");
+    expect(resolveRepo()).toBeUndefined();
+    expect(mockedExecFileSync).toHaveBeenCalledOnce();
   });
 
   it("prioritizes flag over env and git", () => {
