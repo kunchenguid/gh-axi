@@ -194,6 +194,8 @@ Repository and host targeting are command-first too:
 
 `repo view` also accepts exactly one positional repository, `gh-axi repo view owner/name`, as a repo-view-specific compatibility exception for `gh repo view [<repository>]`. Do not combine that positional form with `--repo`, and do not pass extra positional arguments. For other commands, use the command-first `--repo owner/name` form.
 
+Three command families are not repo-scoped, so `-R`/`--repo` does not select a target repository for them: gists are user-scoped and `stack` runs against the local git checkout (the flag is accepted and ignored), while `project` is owner-scoped and uses it only to default `--owner`.
+
 When a command also needs a destination repository, use a dedicated flag for it:
 
 - `gh-axi issue transfer 42 -R source/repo --to-repo dest/repo`
