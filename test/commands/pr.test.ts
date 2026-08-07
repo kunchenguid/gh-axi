@@ -861,6 +861,7 @@ describe("prCommand", () => {
         mergedBy: { login: "alice" },
         mergedAt: "2024-01-01T00:00:00Z",
         baseRefName: "main",
+        url: "https://github.com/octo/repo/pull/10",
       });
 
       const result = await prCommand(["merge", "10"], ctx);
@@ -880,6 +881,7 @@ describe("prCommand", () => {
         mockedGhJson.mockResolvedValue({
           state: "OPEN",
           baseRefName: "main",
+          url: "https://github.com/octo/repo/pull/10",
         });
         mockedGhExec.mockResolvedValue("");
 
@@ -909,7 +911,11 @@ describe("prCommand", () => {
     });
 
     it("uses explicit repository mode when another worktree owns the base", async () => {
-      mockedGhJson.mockResolvedValue({ state: "OPEN", baseRefName: "main" });
+      mockedGhJson.mockResolvedValue({
+        state: "OPEN",
+        baseRefName: "main",
+        url: "https://github.com/upstream/project/pull/10",
+      });
       mockedBaseBranchNeedsExplicitRepo.mockReturnValue(true);
       const gitCtx: RepoContext = { ...ctx, source: "git" };
 
@@ -917,13 +923,21 @@ describe("prCommand", () => {
 
       expect(mockedGhExec).toHaveBeenCalledWith(
         ["pr", "merge", "10", "--delete-branch"],
-        gitCtx,
-        { explicitRepo: true },
+        {
+          owner: "upstream",
+          name: "project",
+          nwo: "upstream/project",
+          source: "flag",
+        },
       );
     });
 
     it("keeps local branch cleanup in a single worktree", async () => {
-      mockedGhJson.mockResolvedValue({ state: "OPEN", baseRefName: "main" });
+      mockedGhJson.mockResolvedValue({
+        state: "OPEN",
+        baseRefName: "main",
+        url: "https://github.com/octo/repo/pull/10",
+      });
       const gitCtx: RepoContext = { ...ctx, source: "git" };
 
       await prCommand(["merge", "10", "--delete-branch"], gitCtx);
@@ -934,13 +948,17 @@ describe("prCommand", () => {
       );
     });
 
-    it("fails safely when a conflicting worktree has no repo context", async () => {
-      mockedGhJson.mockResolvedValue({ state: "OPEN", baseRefName: "main" });
+    it("fails safely when a conflicting worktree has no valid PR URL", async () => {
+      mockedGhJson.mockResolvedValue({
+        state: "OPEN",
+        baseRefName: "main",
+        url: "not-a-pull-request-url",
+      });
       mockedBaseBranchNeedsExplicitRepo.mockReturnValue(true);
 
       await expect(
         prCommand(["merge", "10", "--delete-branch"]),
-      ).rejects.toThrow("pass --repo <owner/name>");
+      ).rejects.toThrow("determine repository from pull request URL");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });

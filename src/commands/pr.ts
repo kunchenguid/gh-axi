@@ -75,6 +75,7 @@ interface PrItem {
   reviews?: unknown[];
   mergedBy?: { login: string };
   baseRefName: string;
+  url: string;
 }
 
 interface PrReview {
@@ -610,14 +611,14 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
 
   // Idempotent: check if already merged
   const pr = await ghJson<
-    Pick<PrItem, "state" | "mergedBy" | "mergedAt" | "baseRefName">
+    Pick<PrItem, "state" | "mergedBy" | "mergedAt" | "baseRefName" | "url">
   >(
     [
       "pr",
       "view",
       String(num),
       "--json",
-      "state,mergedBy,mergedAt,baseRefName",
+      "state,mergedBy,mergedAt,baseRefName,url",
     ],
     ctx,
   );
@@ -657,15 +658,8 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
     deleteBranch &&
     (ctx === undefined || ctx.source === "git") &&
     baseBranchNeedsExplicitRepo(pr.baseRefName);
-  if (worktreeConflict && !ctx) {
-    throw new AxiError(
-      "Could not determine repository for a worktree-safe branch deletion — pass --repo <owner/name>",
-      "VALIDATION_ERROR",
-    );
-  }
-
   if (worktreeConflict) {
-    await ghExec(ghArgs, ctx, { explicitRepo: true });
+    await ghExec(ghArgs, pullRequestRepoContext(pr.url, ctx));
   } else {
     await ghExec(ghArgs, ctx);
   }
@@ -680,6 +674,29 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
       getSuggestions({ domain: "pr", action: "merge", id: num, repo: ctx }),
     ),
   ]);
+}
+
+function pullRequestRepoContext(
+  pullRequestUrl: string,
+  fallback?: RepoContext,
+): RepoContext {
+  try {
+    const url = new URL(pullRequestUrl);
+    const [owner, name, resource] = url.pathname.split("/").filter(Boolean);
+    if (!owner || !name || resource !== "pull") throw new Error();
+    return {
+      owner,
+      name,
+      nwo: `${owner}/${name}`,
+      source: "flag",
+      host: fallback?.host,
+    };
+  } catch {
+    throw new AxiError(
+      "Could not determine repository from pull request URL for a worktree-safe branch deletion",
+      "VALIDATION_ERROR",
+    );
+  }
 }
 
 async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
