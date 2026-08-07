@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.30](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.29...gh-axi-v0.1.30) (2026-08-07)
+
+
+### Bug Fixes
+
+* **cli:** speed up standalone version flags ([#98](https://github.com/kunchenguid/gh-axi/issues/98)) ([4c548ee](https://github.com/kunchenguid/gh-axi/commit/4c548eec7d1e9ffba18fe12bd41a1b36cd805dfb))
+* correctly classify workflow repository resolution failures ([#94](https://github.com/kunchenguid/gh-axi/issues/94)) ([fb1f6f6](https://github.com/kunchenguid/gh-axi/commit/fb1f6f692556cc9bcdf275d015fc5da3f96d9a77))
+
 ## [0.1.29](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.28...gh-axi-v0.1.29) (2026-07-29)
 
 
