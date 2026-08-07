@@ -2,6 +2,17 @@ import { describe, it, expect } from "vitest";
 import { getSuggestions, withSuggestionHost } from "../src/suggestions.js";
 
 describe("getSuggestions", () => {
+  it("returns action-specific stack suggestions ahead of the stack catch-all", () => {
+    const init = getSuggestions({ domain: "stack", action: "init" });
+    expect(init.some((l) => l.includes("stack add"))).toBe(true);
+
+    const submit = getSuggestions({ domain: "stack", action: "submit" });
+    expect(submit.some((l) => l.includes("stack merge --yes"))).toBe(true);
+
+    const other = getSuggestions({ domain: "stack", action: "push" });
+    expect(other.some((l) => l.includes("stack view"))).toBe(true);
+  });
+
   it("returns home suggestions", () => {
     const lines = getSuggestions({ domain: "home", action: "home" });
     expect(lines.length).toBeGreaterThan(0);

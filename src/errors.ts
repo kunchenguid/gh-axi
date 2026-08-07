@@ -8,6 +8,7 @@ export type ErrorCode =
   | "VALIDATION_ERROR"
   | "RATE_LIMITED"
   | "GH_NOT_INSTALLED"
+  | "EXTENSION_NOT_INSTALLED"
   | "UNKNOWN";
 
 export { AxiError, exitCodeForError };
@@ -120,6 +121,25 @@ const patterns: ErrorPattern[] = [
     pattern: /issue cannot be a sub-?issue of itself/i,
     code: "VALIDATION_ERROR",
     message: () => "An issue cannot be a sub-issue of itself",
+  },
+  {
+    // Core gh prints this when the gh-stack extension is not installed; the
+    // extension itself never produces it, so it is the reliable absence signal.
+    pattern: /unknown command "stack" for "gh"/,
+    code: "EXTENSION_NOT_INSTALLED",
+    message: () => "gh stack extension is not installed",
+    suggestions: () => [
+      "Run `gh extension install github/gh-stack` (requires gh >= 2.90.0)",
+    ],
+  },
+  {
+    pattern: /is not part of a stack/,
+    code: "VALIDATION_ERROR",
+    message: (_m, stderr) => firstErrorLine(stderr),
+    suggestions: () => [
+      "Run `gh-axi stack init <branch>` to start a stack from this branch",
+      "Run `gh-axi stack checkout <n|pr|branch>` to switch to an existing stack",
+    ],
   },
   {
     pattern: /HTTP 403/,

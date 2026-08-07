@@ -1,6 +1,6 @@
 ---
 name: gh-axi
-description: "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, or working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`."
+description: "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, stacked pull requests, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`, or managing stacked PRs via `stack init`, `stack add`, `stack view`, `stack submit`, `stack sync`, or `stack merge`."
 user-invocable: false
 author: Kun Chen (kunchenguid)
 metadata:
@@ -21,7 +21,7 @@ For GitHub Enterprise or another custom host, the underlying `gh` CLI must be au
 
 ## When to use
 
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; or calling the GitHub API directly.
+Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; managing stacked pull requests; or calling the GitHub API directly.
 
 ## Workflow
 
@@ -37,8 +37,8 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 ## Commands
 
 ```
-commands[15]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[16]:
+  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, stack, api, setup
 ```
 
 Installed copies also inherit the SDK built-in `update` command.
@@ -66,4 +66,5 @@ Run `npx -y gh-axi --help` for global flags, or `npx -y gh-axi <command> --help`
 - Use `gist rename <id|url> <old> <new>` to rename a file within a gist.
 - Use `gist create` to create a gist. Visibility is required: pass `--public` or `--secret` (omitting either, or passing both, is an error). Use positional paths (`gist create a.py b.py`) or repeatable `--file` flags; do not mix the two. Pipe content with `--filename <name>` for stdin input. A secret gist is unlisted — anyone with the URL can read it.
 - Use `gist delete <id|url>` to delete a gist (always confirmed non-interactively). Use `gist clone <id|url>` to clone a gist locally.
+- `stack` wraps GitHub's official gh-stack extension for stacked PRs; if it reports the extension is missing, run `gh extension install github/gh-stack` (requires gh >= 2.90.0). `stack submit` always runs non-interactively (`--auto`, PRs created as drafts; add `--open` to mark ready), and `stack merge` requires an explicit `--yes`. For the interactive `modify`/`switch` TUIs, use `gh stack` directly.
 - Use `api` for anything the dedicated commands do not cover, e.g. `npx -y gh-axi api repos/{owner}/{repo}/topics`.

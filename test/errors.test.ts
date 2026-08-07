@@ -190,6 +190,30 @@ describe("mapGhError", () => {
     expect(err.message).toMatch(/itself/i);
   });
 
+  it("maps missing gh-stack extension to EXTENSION_NOT_INSTALLED with install hint", () => {
+    const err = mapGhError(
+      'unknown command "stack" for "gh"\n\nUsage:  gh <command> <subcommand> [flags]\n\nAvailable commands:\n  browse\n  issue\n  pr',
+      1,
+    );
+    expect(err.code).toBe("EXTENSION_NOT_INSTALLED");
+    expect(err.message).toContain("gh stack extension is not installed");
+    expect(
+      err.suggestions.some((s) =>
+        s.includes("gh extension install github/gh-stack"),
+      ),
+    ).toBe(true);
+  });
+
+  it("maps not-part-of-a-stack errors to VALIDATION_ERROR with init/checkout hints", () => {
+    const err = mapGhError('✗ current branch "main" is not part of a stack', 2);
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("is not part of a stack");
+    expect(err.suggestions.some((s) => s.includes("stack init"))).toBe(true);
+    expect(err.suggestions.some((s) => s.includes("stack checkout"))).toBe(
+      true,
+    );
+  });
+
   it("returns UNKNOWN for unrecognized errors", () => {
     const err = mapGhError("some random error", 1);
     expect(err.code).toBe("UNKNOWN");
@@ -251,6 +275,11 @@ describe("exitCodeForError", () => {
 
   it("returns 1 for GH_NOT_INSTALLED", () => {
     const err = new AxiError("gh missing", "GH_NOT_INSTALLED");
+    expect(exitCodeForError(err)).toBe(1);
+  });
+
+  it("returns 1 for EXTENSION_NOT_INSTALLED", () => {
+    const err = new AxiError("gh stack missing", "EXTENSION_NOT_INSTALLED");
     expect(exitCodeForError(err)).toBe(1);
   });
 

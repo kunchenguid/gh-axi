@@ -60,6 +60,14 @@ Instead, `resolveOwner()` defaults `--owner` to the current repo's owner (`ctx?.
 Since Projects v2 items carry per-project custom fields (Status, Priority, ...) with no fixed schema, `item-list`/`field-list` render through bespoke functions (`renderProjectItems`/`renderProjectFields`) that flatten any unknown scalar top-level key into its own column, rather than a fixed `FieldDef` schema.
 Requires the `project` (or `read:project`) OAuth scope on the `gh` token; `src/errors.ts` matches gh's literal `"authentication token is missing required scopes [...]"` stderr (verified against a live token missing the scope) and maps it to `FORBIDDEN` with a `gh auth refresh -s <scope>` suggestion — this pattern is generic, not project-specific, so it also covers other gh features gated by OAuth scopes.
 
+## Extension-backed commands (`src/commands/stack.ts`)
+
+`gh-axi stack` wraps the official gh-stack extension, not core `gh`, so the subcommand may simply not exist on a user's machine.
+Core gh's stderr for that case — `unknown command "stack" for "gh"` — is mapped in `src/errors.ts` to `EXTENSION_NOT_INSTALLED` with the `gh extension install github/gh-stack` remediation (verified against gh 2.92.0); there is no proactive probing, the failure path is the detection.
+`gh stack` operates on the local git checkout and rejects `--repo`, so `stackCommand` omits the ctx parameter — same structural trick as "User-scoped commands" above, different reason.
+Several gh-stack subcommands are interactive by default; the wrapper guards every trap instead of hanging an agent: `init`/`checkout` require explicit arguments, `submit` always appends `--auto` (draft PRs; `--open` to mark ready), `add -A`/`-u` requires `-m`, and `merge` demands an explicit `--yes`.
+The TUI-only subcommands (`modify`, `switch`, `alias`, `feedback`) are deliberately unwrapped and route to a clear error pointing at plain `gh stack`.
+
 ## Repeatable flags (`src/args.ts`)
 
 `gh` accepts `--label`, `--assignee`, `--reviewer`, `--project`, and the `--add-*`/`--remove-*` variants once per value, so gh-axi must collect _every_ occurrence.

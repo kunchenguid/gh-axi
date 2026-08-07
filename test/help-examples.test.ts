@@ -10,6 +10,7 @@ import { PROJECT_HELP } from "../src/commands/project.js";
 import { SECRET_HELP } from "../src/commands/secret.js";
 import { VARIABLE_HELP } from "../src/commands/variable.js";
 import { SEARCH_HELP } from "../src/commands/search.js";
+import { STACK_HELP } from "../src/commands/stack.js";
 import { API_HELP } from "../src/commands/api.js";
 import { GIST_HELP } from "../src/commands/gist.js";
 import { TOP_HELP } from "../src/cli.js";
@@ -59,6 +60,7 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);
   assertHelpHasExamples("API_HELP", API_HELP);
   assertHelpHasExamples("GIST_HELP", GIST_HELP);
+  assertHelpHasExamples("STACK_HELP", STACK_HELP);
 });
 
 describe("--body-file discoverability", () => {
@@ -91,6 +93,20 @@ describe("GIST_HELP subcommands", () => {
     expect(namesCombined).toContain("create");
     expect(namesCombined).toContain("delete");
     expect(namesCombined).toContain("clone");
+  });
+});
+
+describe("STACK_HELP contract", () => {
+  // Pin the agent-safe subcommand set and the two safety gates so a change
+  // to the wrapped surface fails visibly instead of drifting silently.
+  it("declares exactly 16 subcommands", () => {
+    expect(STACK_HELP).toContain("subcommands[16]:");
+  });
+
+  it("documents the extension prerequisite and safety gates", () => {
+    expect(STACK_HELP).toContain("gh extension install github/gh-stack");
+    expect(STACK_HELP).toContain("--auto");
+    expect(STACK_HELP).toContain("--yes/-y (required");
   });
 });
 

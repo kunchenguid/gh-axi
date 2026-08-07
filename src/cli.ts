@@ -17,6 +17,7 @@ import { variableCommand, VARIABLE_HELP } from "./commands/variable.js";
 import { searchCommand, SEARCH_HELP } from "./commands/search.js";
 import { apiCommand, API_HELP } from "./commands/api.js";
 import { gistCommand, GIST_HELP } from "./commands/gist.js";
+import { stackCommand, STACK_HELP } from "./commands/stack.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { withSuggestionHost } from "./suggestions.js";
@@ -33,8 +34,8 @@ type MainOptions = {
 };
 
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
-commands[15]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[16]:
+  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, stack, api, setup
 flags[4]:
   -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
 examples:
@@ -61,6 +62,7 @@ const COMMAND_HELP: Record<string, string> = {
   secret: SECRET_HELP,
   variable: VARIABLE_HELP,
   search: SEARCH_HELP,
+  stack: STACK_HELP,
   api: API_HELP,
   setup: SETUP_HELP,
 };
@@ -86,6 +88,10 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
   secret: withRepoContext("secret", secretCommand),
   variable: withRepoContext("variable", variableCommand),
   search: withRepoContext("search", searchCommand),
+  // stack is local-git-scoped (gh-stack extension); withRepoContext still
+  // handles hostname context but stackCommand never forwards ctx to gh —
+  // see AGENTS.md "Extension-backed commands" section.
+  stack: withRepoContext("stack", stackCommand),
   api: withRepoContext("api", apiCommand),
   setup: setupCommand,
 };

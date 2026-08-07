@@ -207,6 +207,10 @@ describe("main CLI", () => {
     expect(TOP_HELP).toContain("variable");
   });
 
+  it("lists stack in the top-level command index", () => {
+    expect(TOP_HELP).toContain("stack");
+  });
+
   it("strips -R before invoking the secret handler", async () => {
     await main();
 

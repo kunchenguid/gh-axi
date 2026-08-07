@@ -106,6 +106,10 @@ gh-axi gist create --file a.py --file b.py --secret    # create a secret multi-f
 echo "content" | gh-axi gist create --filename hello.txt --public  # create from piped content
 gh-axi gist delete <id|url>     # delete a gist (always confirmed non-interactively)
 gh-axi gist clone <id|url>      # clone a gist locally
+gh-axi stack init my-feature    # start a stacked-PR stack (needs the gh-stack extension)
+gh-axi stack add -Am "add parser" my-feature-2  # commit and add the next layer
+gh-axi stack submit             # push branches and open the stack's PRs (always --auto)
+gh-axi stack merge --yes        # merge the stack (explicit --yes required)
 gh-axi setup hooks              # install optional agent session hooks
 gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
@@ -143,6 +147,11 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
+`gh-axi stack` wraps GitHub's official [gh-stack extension](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs) for stacked pull requests and requires it to be installed: `gh extension install github/gh-stack` (gh >= 2.90.0).
+When the extension is missing, gh-axi fails with `EXTENSION_NOT_INSTALLED` and the install command instead of a cryptic gh error.
+The wrapped surface is the agent-safe subset: `submit` always runs with `--auto` (no interactive editor; PRs are created as drafts unless `--open`), `init` and `checkout` require explicit arguments instead of opening prompts, `add -A`/`-u` requires `-m`, and `merge` refuses to run without an explicit `--yes`.
+The interactive `modify` and `switch` TUIs are not wrapped — use `gh stack` directly for those.
+
 `gh-axi api` accepts `--field`, `--header`, `--paginate`, `--jq <expression>`, and `--template <format>`; any other flag, an extra positional argument, or a repeated `--jq`/`--template` is rejected with a clear error instead of being silently dropped.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
 
@@ -162,6 +171,7 @@ JSON responses are normally stripped of noisy fields before TOON encoding, but a
 | `secret`   | Actions secrets — list, set, delete                                         |
 | `variable` | Actions variables — list, set, delete                                       |
 | `search`   | Search issues, PRs, repos, commits, code                                    |
+| `stack`    | Stacked PRs (gh-stack extension) — init, add, view, submit, sync, merge, …  |
 | `api`      | Raw GitHub API access                                                       |
 | `setup`    | Install optional agent session hooks                                        |
 | `update`   | Built-in self-update command inherited from `axi-sdk-js`                    |
