@@ -132,6 +132,12 @@ function hasMessage(args: string[]): boolean {
   return hasOpt(args, "m", "--message");
 }
 
+// Only a truthy --local keeps unstack off GitHub; --local=false and any value
+// cobra would reject still need the --yes confirmation.
+function isLocalOnly(args: string[]): boolean {
+  return args.some((a) => a === "--local" || /^--local=(1|t|true)$/i.test(a));
+}
+
 // stackCommand has no ctx parameter — gh stack operates on the local git
 // checkout and rejects --repo, which gh.ts#buildArgs would append for any
 // non-git RepoContext. Same structural trick as the user-scoped commands;
@@ -182,16 +188,14 @@ export async function stackCommand(args: string[]): Promise<string> {
       return runStack(sub, rest);
     case "unstack":
     case "delete": {
-      if (!hasFlag(rest, "--local")) {
-        const long = takeBoolFlag(rest, "--yes");
-        const shortForm = takeBoolFlag(rest, "-y");
-        if (!long && !shortForm)
-          throw new AxiError(
-            `stack ${sub} unstacks the stack on GitHub — confirm with: gh-axi stack ${sub} --yes`,
-            "VALIDATION_ERROR",
-            [`Use \`gh-axi stack ${sub} --local\` to drop local tracking only`],
-          );
-      }
+      const long = takeBoolFlag(rest, "--yes");
+      const shortForm = takeBoolFlag(rest, "-y");
+      if (!long && !shortForm && !isLocalOnly(rest))
+        throw new AxiError(
+          `stack ${sub} unstacks the stack on GitHub — confirm with: gh-axi stack ${sub} --yes`,
+          "VALIDATION_ERROR",
+          [`Use \`gh-axi stack ${sub} --local\` to drop local tracking only`],
+        );
       return runStack(sub, rest);
     }
     case "push":

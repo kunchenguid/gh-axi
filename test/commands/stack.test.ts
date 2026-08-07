@@ -237,10 +237,37 @@ describe("stackCommand", () => {
       },
     );
 
-    it("does not require --yes for --local, which never touches GitHub", async () => {
-      await stackCommand(["unstack", "--local"]);
+    it.each([[["--local"]], [["--local=true"]]])(
+      "does not require --yes for %j, which never touches GitHub",
+      async (local: string[]) => {
+        await stackCommand(["unstack", ...local]);
 
-      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "unstack", "--local"]);
+        expect(mockedGhRaw).toHaveBeenCalledWith([
+          "stack",
+          "unstack",
+          ...local,
+        ]);
+      },
+    );
+
+    it.each([["--yes"], ["-y"]])(
+      "strips a redundant %s alongside --local instead of forwarding it",
+      async (flag: string) => {
+        await stackCommand(["unstack", "--local", flag]);
+
+        expect(mockedGhRaw).toHaveBeenCalledWith([
+          "stack",
+          "unstack",
+          "--local",
+        ]);
+      },
+    );
+
+    it("still requires --yes when --local is explicitly disabled", async () => {
+      await expect(
+        stackCommand(["unstack", "--local=false"]),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhRaw).not.toHaveBeenCalled();
     });
   });
 
