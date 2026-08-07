@@ -11,7 +11,11 @@ export interface ExecResult {
 function buildArgs(args: string[], ctx?: RepoContext): string[] {
   const out = [...args];
   // Append --repo for flag/env sources (git remote is auto-detected by gh)
-  if (ctx && ctx.source !== "git") {
+  if (
+    ctx &&
+    ctx.source !== "git" &&
+    !out.some((arg, index) => arg === "--repo" && index < out.length - 1)
+  ) {
     out.push("--repo", ctx.nwo);
   }
   return out;

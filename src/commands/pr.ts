@@ -183,6 +183,16 @@ const listSchema: FieldDef[] = [
 ];
 
 const LIST_JSON_FIELDS = "number,title,state,author,isDraft,reviewDecision";
+const PR_LIST_INCLUDED_FIELDS = new Set([
+  "number",
+  "title",
+  "state",
+  "author",
+  "isDraft",
+  "reviewDecision",
+  "draft",
+  "review",
+]);
 
 const PR_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
   body: { jsonKey: "body", def: field("body") },
@@ -289,6 +299,7 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
   const { extraDefs, extraJsonKeys } = parseFields(
     fieldsArg,
     PR_LIST_EXTRA_FIELDS,
+    PR_LIST_INCLUDED_FIELDS,
   );
   const state = takeFlag(args, "--state") ?? "open";
   const labels = takeAllFlags(args, "--label");
@@ -626,7 +637,13 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "merge", String(num)];
   if (method) ghArgs.push("--" + method);
   if (auto) ghArgs.push("--auto");
-  if (deleteBranch) ghArgs.push("--delete-branch");
+  if (deleteBranch) {
+    ghArgs.push("--delete-branch");
+    // Explicit repository mode prevents gh from checking out the base branch
+    // before deleting the remote head. That local checkout is unsafe in a
+    // multi-worktree repository where another worktree already owns main.
+    if (ctx) ghArgs.push("--repo", ctx.nwo);
+  }
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
 

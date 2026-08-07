@@ -79,4 +79,14 @@ describe("parseFields", () => {
     expect(result.extraDefs).toHaveLength(1);
     expect(result.extraJsonKeys).toEqual(["body"]);
   });
+
+  it("accepts already-included fields without duplicating them", () => {
+    const result = parseFields(
+      "number,body,title",
+      available,
+      new Set(["number", "title"]),
+    );
+    expect(result.extraDefs).toEqual([field("body")]);
+    expect(result.extraJsonKeys).toEqual(["body"]);
+  });
 });

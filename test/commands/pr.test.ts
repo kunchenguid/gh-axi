@@ -662,6 +662,26 @@ describe("prCommand", () => {
       );
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
+
+    it("accepts default identity fields alongside optional list fields", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await prCommand(
+        ["list", "--fields", "number,title,state,author,createdAt,url"],
+        ctx,
+      );
+
+      expect(mockedGhJson.mock.calls[0][0]).toEqual([
+        "pr",
+        "list",
+        "--json",
+        "number,title,state,author,isDraft,reviewDecision,createdAt,url",
+        "--state",
+        "open",
+        "--limit",
+        "30",
+      ]);
+    });
   });
 
   describe("edit with repeatable flags", () => {
@@ -856,7 +876,15 @@ describe("prCommand", () => {
         );
 
         expect(mockedGhExec).toHaveBeenCalledWith(
-          ["pr", "merge", "10", ghFlag, "--delete-branch"],
+          [
+            "pr",
+            "merge",
+            "10",
+            ghFlag,
+            "--delete-branch",
+            "--repo",
+            "octo/repo",
+          ],
           ctx,
         );
         expect(result).toContain(`method: ${method}`);

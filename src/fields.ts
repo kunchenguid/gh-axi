@@ -26,6 +26,7 @@ export interface ParseFieldsResult {
 export function parseFields(
   fieldsArg: string | undefined,
   available: Record<string, ExtraFieldSpec>,
+  included: ReadonlySet<string> = new Set(),
 ): ParseFieldsResult {
   if (fieldsArg === undefined) {
     return { extraDefs: [], extraJsonKeys: [] };
@@ -35,9 +36,13 @@ export function parseFields(
     fieldsArg.split(',').map((f) => f.trim()).filter(Boolean),
   )];
 
-  const unknown = requested.filter((f) => !(f in available));
+  const unknown = requested.filter(
+    (f) => !(f in available) && !included.has(f),
+  );
   if (unknown.length > 0) {
-    const availableNames = Object.keys(available).sort().join(', ');
+    const availableNames = [
+      ...new Set([...Object.keys(available), ...included]),
+    ].sort().join(', ');
     throw new AxiError(
       `Unknown field(s): ${unknown.join(', ')}. Available: ${availableNames}`,
       'VALIDATION_ERROR',
@@ -48,6 +53,7 @@ export function parseFields(
   const extraJsonKeys: string[] = [];
 
   for (const name of requested) {
+    if (included.has(name)) continue;
     const spec = available[name];
     extraDefs.push(spec.def);
     extraJsonKeys.push(spec.jsonKey);
