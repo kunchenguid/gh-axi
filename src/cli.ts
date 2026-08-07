@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runAxiCli } from "axi-sdk-js";
 import { resolveRepo, type RepoContext } from "./context.js";
+import { AxiError } from "./errors.js";
 import { homeCommand } from "./commands/home.js";
 import { issueCommand, ISSUE_HELP } from "./commands/issue.js";
 import { prCommand, PR_HELP } from "./commands/pr.js";
@@ -89,9 +90,10 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
   variable: withRepoContext("variable", variableCommand),
   search: withRepoContext("search", searchCommand),
   // stack is local-git-scoped (gh-stack extension); withRepoContext still
-  // handles hostname context but stackCommand never forwards ctx to gh —
-  // see AGENTS.md "Extension-backed commands" section.
-  stack: withRepoContext("stack", stackCommand),
+  // handles hostname context but stackCommand never forwards ctx to gh, so a
+  // repo target could only ever be wrong — see AGENTS.md "Extension-backed
+  // commands" section.
+  stack: rejectRepoFlag("stack", withRepoContext("stack", stackCommand)),
   api: withRepoContext("api", apiCommand),
   setup: setupCommand,
 };
@@ -159,6 +161,21 @@ function withRepoContext(
         repoContext(ctx),
       ),
     );
+}
+
+function rejectRepoFlag(
+  command: string,
+  handler: WrappedCommandFn,
+): WrappedCommandFn {
+  return async (args, ctx) => {
+    if (parseRepoContextArgs(command, args).repoFlag !== undefined)
+      throw new AxiError(
+        `gh-axi ${command} acts on the local git checkout, so -R/--repo cannot select a target`,
+        "VALIDATION_ERROR",
+        [`Run \`gh-axi ${command}\` from a checkout of the target repository`],
+      );
+    return handler(args, ctx);
+  };
 }
 
 function repoContext(ctx?: CliContext): RepoContext | undefined {

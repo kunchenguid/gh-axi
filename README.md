@@ -149,7 +149,7 @@ To create a gist from piped content, use `--filename <name>` together with a pip
 
 `gh-axi stack` wraps GitHub's official [gh-stack extension](https://docs.github.com/en/pull-requests/get-started/about-stacked-prs) for stacked pull requests and requires it to be installed: `gh extension install github/gh-stack` (gh >= 2.90.0).
 When the extension is missing, gh-axi fails with `EXTENSION_NOT_INSTALLED` and the install command instead of a cryptic gh error.
-The wrapped surface is the agent-safe subset: `submit` always runs with `--auto` (no interactive editor; PRs are created as drafts unless `--open`), `init` and `checkout` require explicit arguments instead of opening prompts, `add -A`/`-u` requires `-m`, and `merge` refuses to run without an explicit `--yes`.
+The wrapped surface is the agent-safe subset: `submit` always runs with `--auto` (no interactive editor; PRs are created as drafts unless `--open`), `init` and `checkout` require explicit arguments instead of opening prompts, `add -A`/`-u` requires `-m`, and `merge` and `unstack` refuse to run without an explicit `--yes` (`unstack --local` only drops local tracking, so it needs no confirmation).
 Four subcommands are not wrapped — use `gh stack` directly for those: the interactive `modify` and `switch` TUIs, plus the `alias` and `feedback` local utilities.
 
 `gh-axi api` accepts `--field`, `--header`, `--paginate`, `--jq <expression>`, and `--template <format>`; any other flag, an extra positional argument, or a repeated `--jq`/`--template` is rejected with a clear error instead of being silently dropped.
@@ -194,7 +194,7 @@ Repository and host targeting are command-first too:
 
 `repo view` also accepts exactly one positional repository, `gh-axi repo view owner/name`, as a repo-view-specific compatibility exception for `gh repo view [<repository>]`. Do not combine that positional form with `--repo`, and do not pass extra positional arguments. For other commands, use the command-first `--repo owner/name` form.
 
-Three command families are not repo-scoped, so `-R`/`--repo` does not select a target repository for them: gists are user-scoped and `stack` runs against the local git checkout (the flag is accepted and ignored), while `project` is owner-scoped and uses it only to default `--owner`.
+Three command families are not repo-scoped, so `-R`/`--repo` does not select a target repository for them: gists are user-scoped (the flag is accepted and ignored), `project` is owner-scoped and uses it only to default `--owner`, and `stack` runs against the local git checkout and rejects the flag outright rather than acting on the wrong repository.
 
 When a command also needs a destination repository, use a dedicated flag for it:
 

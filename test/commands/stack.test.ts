@@ -84,6 +84,14 @@ describe("stackCommand", () => {
       },
     );
 
+    it("rejects --short with --json instead of dropping --json", async () => {
+      await expect(
+        stackCommand(["view", "--short", "--json"]),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it("returns help for --help rather than dumping the stack", async () => {
       const result = await stackCommand(["view", "--help"]);
 
@@ -166,6 +174,74 @@ describe("stackCommand", () => {
         "add feature",
       ]);
     });
+
+    it('accepts a glued short value (-Am"fix parser")', async () => {
+      await stackCommand(["add", "-Amfix parser"]);
+
+      expect(mockedGhRaw).toHaveBeenCalledWith([
+        "stack",
+        "add",
+        "-Amfix parser",
+      ]);
+    });
+
+    it("does not read a message value as a staging flag", async () => {
+      await stackCommand(["add", "-munstage the parser"]);
+
+      expect(mockedGhRaw).toHaveBeenCalledWith([
+        "stack",
+        "add",
+        "-munstage the parser",
+      ]);
+    });
+
+    it.each([[["--all=true"]], [["--update=true"]]])(
+      "requires -m for the equals form %j",
+      async (extra: string[]) => {
+        await expect(stackCommand(["add", ...extra])).rejects.toMatchObject({
+          code: "VALIDATION_ERROR",
+        });
+        expect(mockedGhRaw).not.toHaveBeenCalled();
+      },
+    );
+
+    it("accepts --all=true with --message=", async () => {
+      await stackCommand(["add", "--all=true", "--message=add parser"]);
+
+      expect(mockedGhRaw).toHaveBeenCalledWith([
+        "stack",
+        "add",
+        "--all=true",
+        "--message=add parser",
+      ]);
+    });
+  });
+
+  describe("unstack", () => {
+    it.each([["unstack"], ["delete"]])(
+      "refuses to unstack on GitHub without --yes (%s)",
+      async (sub: string) => {
+        await expect(stackCommand([sub, "7"])).rejects.toMatchObject({
+          code: "VALIDATION_ERROR",
+        });
+        expect(mockedGhRaw).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([["--yes"], ["-y"]])(
+      "strips %s before forwarding (gh stack unstack has no such flag)",
+      async (flag: string) => {
+        await stackCommand(["unstack", "7", flag]);
+
+        expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "unstack", "7"]);
+      },
+    );
+
+    it("does not require --yes for --local, which never touches GitHub", async () => {
+      await stackCommand(["unstack", "--local"]);
+
+      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "unstack", "--local"]);
+    });
   });
 
   describe("submit", () => {
@@ -241,8 +317,6 @@ describe("stackCommand", () => {
       [["sync", "--prune"]],
       [["rebase", "--continue"]],
       [["link", "feat-a", "feat-b"]],
-      [["unstack", "--local"]],
-      [["delete", "7"]],
       [["up", "2"]],
       [["down"]],
       [["top"]],

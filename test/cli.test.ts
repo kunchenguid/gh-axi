@@ -211,6 +211,24 @@ describe("main CLI", () => {
     expect(TOP_HELP).toContain("stack");
   });
 
+  it.each([
+    [["-R", "owner/name"]],
+    [["-R=owner/name"]],
+    [["--repo", "owner/name"]],
+    [["--repo=owner/name"]],
+  ])(
+    "rejects %j for stack rather than silently running against the local checkout",
+    async (repoArgs: string[]) => {
+      await main();
+
+      const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+
+      await expect(
+        options.commands.stack(["merge", "--yes", ...repoArgs], undefined),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    },
+  );
+
   it("strips -R before invoking the secret handler", async () => {
     await main();
 

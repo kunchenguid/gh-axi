@@ -1,7 +1,7 @@
 import { encode } from "@toon-format/toon";
 import { ghJson, ghExec, ghRaw } from "../gh.js";
 import { AxiError, mapGhError } from "../errors.js";
-import { hasFlag, takeFlag } from "../args.js";
+import { hasFlag, takeBoolFlag, takeFlag } from "../args.js";
 import { renderHelp, renderOutput, renderError } from "../toon.js";
 import { getSuggestions } from "../suggestions.js";
 
@@ -26,9 +26,10 @@ flags{link}:
 flags{merge}:
   --yes/-y (required — merging is irreversible), --squash/--merge/--rebase or --merge-method <method>
 flags{unstack}:
-  --local (remove local tracking only)
+  --yes/-y (required unless --local — unstacking also unstacks on GitHub), --local (remove local tracking only)
 notes:
   not wrapped — use \`gh stack\` directly: modify, switch (interactive TUIs), alias, feedback (local utilities)
+  -R/--repo is rejected — every subcommand acts on the local git checkout
 examples:
   gh-axi stack init my-feature
   gh-axi stack add -Am "add parser" my-feature-2
@@ -54,7 +55,16 @@ async function viewStack(args: string[]): Promise<string> {
       "VALIDATION_ERROR",
       ["stack view takes no positionals and accepts only -s/--short, --json"],
     );
-  if (hasFlag(args, "--short") || hasFlag(args, "-s")) {
+  const short = hasFlag(args, "--short") || hasFlag(args, "-s");
+  if (short && hasFlag(args, "--json"))
+    throw new AxiError(
+      "stack view accepts either --short or --json, not both",
+      "VALIDATION_ERROR",
+      [
+        "--short lists branch names; --json (the default) returns the full stack",
+      ],
+    );
+  if (short) {
     const out = await ghExec(["stack", "view", "--short"]);
     return renderOutput([
       out.trim(),
@@ -90,23 +100,36 @@ function hasPositional(args: string[]): boolean {
   return args.some((a) => !a.startsWith("-"));
 }
 
-/** True when add stages changes (-A/-u/--all/--update, incl. bundled -Am). */
-function stagesChanges(args: string[]): boolean {
+// Shorts that swallow the rest of a bundle as their value, so `-Amfix parser`
+// is -A plus -m "fix parser", not the letters f, i and x.
+const VALUE_SHORTS = "mb";
+
+function shortFlagsOf(arg: string): string {
+  if (!arg.startsWith("-") || arg.startsWith("--")) return "";
+  let flags = "";
+  for (const char of arg.slice(1)) {
+    if (!/[A-Za-z]/.test(char)) break;
+    flags += char;
+    if (VALUE_SHORTS.includes(char)) break;
+  }
+  return flags;
+}
+
+/** True when -short or --long is present, in space, equals or bundled form. */
+function hasOpt(args: string[], short: string, long: string): boolean {
   return args.some(
     (a) =>
-      a === "--all" ||
-      a === "--update" ||
-      (/^-[A-Za-z]+$/.test(a) && /[Au]/.test(a)),
+      a === long || a.startsWith(`${long}=`) || shortFlagsOf(a).includes(short),
   );
 }
 
+/** True when add stages changes (-A/-u/--all/--update, incl. bundled -Am). */
+function stagesChanges(args: string[]): boolean {
+  return hasOpt(args, "A", "--all") || hasOpt(args, "u", "--update");
+}
+
 function hasMessage(args: string[]): boolean {
-  return args.some(
-    (a) =>
-      a === "--message" ||
-      a.startsWith("--message=") ||
-      (/^-[A-Za-z]+$/.test(a) && a.includes("m")),
-  );
+  return hasOpt(args, "m", "--message");
 }
 
 // stackCommand has no ctx parameter — gh stack operates on the local git
@@ -157,12 +180,24 @@ export async function stackCommand(args: string[]): Promise<string> {
           "VALIDATION_ERROR",
         );
       return runStack(sub, rest);
+    case "unstack":
+    case "delete": {
+      if (!hasFlag(rest, "--local")) {
+        const long = takeBoolFlag(rest, "--yes");
+        const shortForm = takeBoolFlag(rest, "-y");
+        if (!long && !shortForm)
+          throw new AxiError(
+            `stack ${sub} unstacks the stack on GitHub — confirm with: gh-axi stack ${sub} --yes`,
+            "VALIDATION_ERROR",
+            [`Use \`gh-axi stack ${sub} --local\` to drop local tracking only`],
+          );
+      }
+      return runStack(sub, rest);
+    }
     case "push":
     case "sync":
     case "rebase":
     case "link":
-    case "unstack":
-    case "delete":
     case "up":
     case "down":
     case "top":
