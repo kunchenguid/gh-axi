@@ -187,6 +187,48 @@ describe("ghExec", () => {
       "cli/cli",
     ]);
   });
+
+  it("does not mistake an option value for an explicit repo flag", async () => {
+    mockExecFileResult(null, "output", "");
+    const ctx: RepoContext = {
+      owner: "cli",
+      name: "cli",
+      nwo: "cli/cli",
+      source: "flag",
+    };
+
+    await ghExec(["pr", "merge", "10", "--subject", "--repo"], ctx);
+
+    expect(mockedExecFile.mock.calls[0][1]).toEqual([
+      "pr",
+      "merge",
+      "10",
+      "--subject",
+      "--repo",
+      "--repo",
+      "cli/cli",
+    ]);
+  });
+
+  it("can explicitly target a git-resolved repository", async () => {
+    mockExecFileResult(null, "output", "");
+    const ctx: RepoContext = {
+      owner: "cli",
+      name: "cli",
+      nwo: "cli/cli",
+      source: "git",
+    };
+
+    await ghExec(["pr", "merge", "10"], ctx, { explicitRepo: true });
+
+    expect(mockedExecFile.mock.calls[0][1]).toEqual([
+      "pr",
+      "merge",
+      "10",
+      "--repo",
+      "cli/cli",
+    ]);
+  });
 });
 
 describe("ghRaw", () => {

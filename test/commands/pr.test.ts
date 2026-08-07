@@ -9,14 +9,22 @@ vi.mock("../../src/gh.js", () => ({
   ghRaw: vi.fn(),
 }));
 
+vi.mock("../../src/worktree.js", () => ({
+  baseBranchNeedsExplicitRepo: vi.fn(),
+}));
+
 import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
 import { AxiError } from "../../src/errors.js";
+import { baseBranchNeedsExplicitRepo } from "../../src/worktree.js";
 import type { RepoContext } from "../../src/context.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
 const mockedGhRaw = vi.mocked(ghRaw);
+const mockedBaseBranchNeedsExplicitRepo = vi.mocked(
+  baseBranchNeedsExplicitRepo,
+);
 
 const ctx: RepoContext = {
   owner: "octo",
@@ -42,6 +50,7 @@ async function withBodyFile<T>(
 describe("prCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockedBaseBranchNeedsExplicitRepo.mockReturnValue(false);
   });
 
   describe("router", () => {
@@ -851,6 +860,7 @@ describe("prCommand", () => {
         state: "MERGED",
         mergedBy: { login: "alice" },
         mergedAt: "2024-01-01T00:00:00Z",
+        baseRefName: "main",
       });
 
       const result = await prCommand(["merge", "10"], ctx);
@@ -867,7 +877,10 @@ describe("prCommand", () => {
     ])(
       "maps %s shorthand to a gh merge method flag",
       async (input, ghFlag, method) => {
-        mockedGhJson.mockResolvedValue({ state: "OPEN" });
+        mockedGhJson.mockResolvedValue({
+          state: "OPEN",
+          baseRefName: "main",
+        });
         mockedGhExec.mockResolvedValue("");
 
         const result = await prCommand(
@@ -876,15 +889,7 @@ describe("prCommand", () => {
         );
 
         expect(mockedGhExec).toHaveBeenCalledWith(
-          [
-            "pr",
-            "merge",
-            "10",
-            ghFlag,
-            "--delete-branch",
-            "--repo",
-            "octo/repo",
-          ],
+          ["pr", "merge", "10", ghFlag, "--delete-branch"],
           ctx,
         );
         expect(result).toContain(`method: ${method}`);
@@ -901,6 +906,42 @@ describe("prCommand", () => {
         ["pr", "merge", "10", "--squash"],
         ctx,
       );
+    });
+
+    it("uses explicit repository mode when another worktree owns the base", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN", baseRefName: "main" });
+      mockedBaseBranchNeedsExplicitRepo.mockReturnValue(true);
+      const gitCtx: RepoContext = { ...ctx, source: "git" };
+
+      await prCommand(["merge", "10", "--delete-branch"], gitCtx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--delete-branch"],
+        gitCtx,
+        { explicitRepo: true },
+      );
+    });
+
+    it("keeps local branch cleanup in a single worktree", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN", baseRefName: "main" });
+      const gitCtx: RepoContext = { ...ctx, source: "git" };
+
+      await prCommand(["merge", "10", "--delete-branch"], gitCtx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--delete-branch"],
+        gitCtx,
+      );
+    });
+
+    it("fails safely when a conflicting worktree has no repo context", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN", baseRefName: "main" });
+      mockedBaseBranchNeedsExplicitRepo.mockReturnValue(true);
+
+      await expect(
+        prCommand(["merge", "10", "--delete-branch"]),
+      ).rejects.toThrow("pass --repo <owner/name>");
+      expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
 

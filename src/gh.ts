@@ -8,14 +8,17 @@ export interface ExecResult {
   exitCode: number;
 }
 
-function buildArgs(args: string[], ctx?: RepoContext): string[] {
+export interface GhExecOptions {
+  explicitRepo?: boolean;
+}
+
+function buildArgs(
+  args: string[],
+  ctx?: RepoContext,
+  options: GhExecOptions = {},
+): string[] {
   const out = [...args];
-  // Append --repo for flag/env sources (git remote is auto-detected by gh)
-  if (
-    ctx &&
-    ctx.source !== "git" &&
-    !out.some((arg, index) => arg === "--repo" && index < out.length - 1)
-  ) {
+  if (ctx && (ctx.source !== "git" || options.explicitRepo)) {
     out.push("--repo", ctx.nwo);
   }
   return out;
@@ -88,8 +91,9 @@ export async function ghJson<T = unknown>(
 export async function ghExec(
   args: string[],
   ctx?: RepoContext,
+  options?: GhExecOptions,
 ): Promise<string> {
-  const result = await run(buildArgs(args, ctx));
+  const result = await run(buildArgs(args, ctx, options));
   if (result.stderr === "ENOENT") throw ghNotInstalledError();
   if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
   return result.stdout;

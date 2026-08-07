@@ -14,6 +14,7 @@ import {
   pushRepeated,
 } from "../args.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
+import { baseBranchNeedsExplicitRepo } from "../worktree.js";
 import {
   field,
   pluck,
@@ -73,6 +74,7 @@ interface PrItem {
   comments?: PrComment[];
   reviews?: unknown[];
   mergedBy?: { login: string };
+  baseRefName: string;
 }
 
 interface PrReview {
@@ -607,8 +609,16 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const subject = takeFlag(args, "--subject");
 
   // Idempotent: check if already merged
-  const pr = await ghJson<Pick<PrItem, "state" | "mergedBy" | "mergedAt">>(
-    ["pr", "view", String(num), "--json", "state,mergedBy,mergedAt"],
+  const pr = await ghJson<
+    Pick<PrItem, "state" | "mergedBy" | "mergedAt" | "baseRefName">
+  >(
+    [
+      "pr",
+      "view",
+      String(num),
+      "--json",
+      "state,mergedBy,mergedAt,baseRefName",
+    ],
     ctx,
   );
   if ((pr.state ?? "").toUpperCase() === "MERGED") {
@@ -639,15 +649,26 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   if (auto) ghArgs.push("--auto");
   if (deleteBranch) {
     ghArgs.push("--delete-branch");
-    // Explicit repository mode prevents gh from checking out the base branch
-    // before deleting the remote head. That local checkout is unsafe in a
-    // multi-worktree repository where another worktree already owns main.
-    if (ctx) ghArgs.push("--repo", ctx.nwo);
   }
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
 
-  await ghExec(ghArgs, ctx);
+  const worktreeConflict =
+    deleteBranch &&
+    (ctx === undefined || ctx.source === "git") &&
+    baseBranchNeedsExplicitRepo(pr.baseRefName);
+  if (worktreeConflict && !ctx) {
+    throw new AxiError(
+      "Could not determine repository for a worktree-safe branch deletion — pass --repo <owner/name>",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  if (worktreeConflict) {
+    await ghExec(ghArgs, ctx, { explicitRepo: true });
+  } else {
+    await ghExec(ghArgs, ctx);
+  }
 
   return renderOutput([
     renderDetail(
