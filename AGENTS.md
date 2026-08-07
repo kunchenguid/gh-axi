@@ -66,7 +66,10 @@ Requires the `project` (or `read:project`) OAuth scope on the `gh` token; `src/e
 Core gh's stderr for that case — `unknown command "stack" for "gh"` — is mapped in `src/errors.ts` to `EXTENSION_NOT_INSTALLED` with the `gh extension install github/gh-stack` remediation (verified against gh 2.92.0); there is no proactive probing, the failure path is the detection.
 `gh stack` operates on the local git checkout and rejects `--repo`, so `stackCommand` omits the ctx parameter — same structural trick as "User-scoped commands" above, different reason.
 Several gh-stack subcommands are interactive by default; the wrapper guards every trap instead of hanging an agent: `init`/`checkout` require explicit arguments, `submit` always appends `--auto` (draft PRs; `--open` to mark ready), `add -A`/`-u` requires `-m`, and `merge` demands an explicit `--yes`.
-The TUI-only subcommands (`modify`, `switch`, `alias`, `feedback`) are deliberately unwrapped and route to a clear error pointing at plain `gh stack`.
+Four subcommands are deliberately unwrapped and route to a clear error pointing at plain `gh stack`: the `modify`/`switch` TUIs, and the `alias`/`feedback` local utilities (which are not interactive — do not describe the set as TUI-only).
+gh-stack writes its human-facing result to **stderr** and leaves stdout empty for every subcommand except `view` (verified against v0.1.0: `init`, `add`, `down` all print `✓ ...` on stderr at exit 0; `view --short`/`--json` print data on stdout).
+`runStack` therefore goes through `ghRaw` and joins both streams — switching it to `ghExec` would silently reduce every action to `<sub>: ok` and drop submit's PR URLs.
+`view` is also the one subcommand whose args gh-axi rebuilds rather than forwards, so gh never sees a typo like `--shrot`; `VIEW_ARGS` rejects anything outside `-s/--short`/`--json` instead of returning the full stack at exit 0.
 
 ## Repeatable flags (`src/args.ts`)
 

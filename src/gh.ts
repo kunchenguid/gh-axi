@@ -40,12 +40,15 @@ function toExecResult(
 
 function run(args: string[]): Promise<ExecResult> {
   return new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       "gh",
       args,
       { maxBuffer: MAX_BUFFER_BYTES },
       toExecResult(resolve),
     );
+    // execFile hands the child an open stdin pipe nothing ever writes to; close
+    // it so a gh subcommand that reads stdin sees EOF instead of blocking.
+    child.stdin?.end();
   });
 }
 

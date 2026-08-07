@@ -3,17 +3,25 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
+  ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec } from "../../src/gh.js";
+import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
 import { stackCommand, STACK_HELP } from "../../src/commands/stack.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhRaw = vi.mocked(ghRaw);
+
+/** gh-stack writes its result to stderr and leaves stdout empty. */
+function ghStderr(stderr: string) {
+  return { stdout: "", stderr, exitCode: 0 };
+}
 
 describe("stackCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockedGhRaw.mockResolvedValue(ghStderr(""));
   });
 
   describe("router", () => {
@@ -32,11 +40,15 @@ describe("stackCommand", () => {
       expect(result).toContain("Unknown subcommand: frobnicate");
     });
 
-    it("points interactive-only subcommands at plain gh stack", async () => {
-      const result = await stackCommand(["modify"]);
-      expect(result).toContain("gh stack");
-      expect(mockedGhExec).not.toHaveBeenCalled();
-    });
+    it.each([["modify"], ["switch"], ["alias"], ["feedback"]])(
+      "points unwrapped subcommand %s at plain gh stack",
+      async (sub: string) => {
+        const result = await stackCommand([sub]);
+        expect(result).toContain(`gh stack ${sub}`);
+        expect(result).not.toContain("interactive-only");
+        expect(mockedGhRaw).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("view", () => {
@@ -60,6 +72,24 @@ describe("stackCommand", () => {
       expect(result).toContain("feat-a");
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
+
+    it.each([[["--shrot"]], [["--full"]], [["-x"]], [["feat-a"]]])(
+      "rejects %j instead of silently ignoring it",
+      async (extra: string[]) => {
+        await expect(stackCommand(["view", ...extra])).rejects.toMatchObject({
+          code: "VALIDATION_ERROR",
+        });
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
+    it("returns help for --help rather than dumping the stack", async () => {
+      const result = await stackCommand(["view", "--help"]);
+
+      expect(result).toBe(STACK_HELP);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
   });
 
   describe("init", () => {
@@ -67,11 +97,11 @@ describe("stackCommand", () => {
       await expect(stackCommand(["init"])).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
       });
-      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
     });
 
     it("forwards branches and --base verbatim", async () => {
-      mockedGhExec.mockResolvedValue("✓ created stack\n");
+      mockedGhRaw.mockResolvedValue(ghStderr("✓ created stack\n"));
 
       const result = await stackCommand([
         "init",
@@ -81,7 +111,7 @@ describe("stackCommand", () => {
         "feat-b",
       ]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith([
+      expect(mockedGhRaw).toHaveBeenCalledWith([
         "stack",
         "init",
         "-b",
@@ -95,18 +125,16 @@ describe("stackCommand", () => {
 
   describe("add", () => {
     it("forwards branch name", async () => {
-      mockedGhExec.mockResolvedValue("");
-
       await stackCommand(["add", "feat-c"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith(["stack", "add", "feat-c"]);
+      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "add", "feat-c"]);
     });
 
     it("requires -m when staging with -A (editor trap)", async () => {
       await expect(stackCommand(["add", "-A"])).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
       });
-      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
     });
 
     it("requires -m when staging with -u (editor trap)", async () => {
@@ -116,11 +144,9 @@ describe("stackCommand", () => {
     });
 
     it("accepts -A with -m", async () => {
-      mockedGhExec.mockResolvedValue("");
-
       await stackCommand(["add", "-A", "-m", "add feature", "feat-c"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith([
+      expect(mockedGhRaw).toHaveBeenCalledWith([
         "stack",
         "add",
         "-A",
@@ -131,11 +157,9 @@ describe("stackCommand", () => {
     });
 
     it("accepts bundled -Am", async () => {
-      mockedGhExec.mockResolvedValue("");
-
       await stackCommand(["add", "-Am", "add feature"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith([
+      expect(mockedGhRaw).toHaveBeenCalledWith([
         "stack",
         "add",
         "-Am",
@@ -146,20 +170,18 @@ describe("stackCommand", () => {
 
   describe("submit", () => {
     it("appends --auto so the interactive editor never opens", async () => {
-      mockedGhExec.mockResolvedValue("✓ created 2 pull requests\n");
+      mockedGhRaw.mockResolvedValue(ghStderr("✓ created 2 pull requests\n"));
 
       const result = await stackCommand(["submit"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith(["stack", "submit", "--auto"]);
+      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "submit", "--auto"]);
       expect(result).toContain("created 2 pull requests");
     });
 
     it("does not duplicate an explicit --auto", async () => {
-      mockedGhExec.mockResolvedValue("");
-
       await stackCommand(["submit", "--auto", "--open"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith([
+      expect(mockedGhRaw).toHaveBeenCalledWith([
         "stack",
         "submit",
         "--auto",
@@ -173,15 +195,15 @@ describe("stackCommand", () => {
       await expect(stackCommand(["merge"])).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
       });
-      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
     });
 
     it("forwards --yes with method and target", async () => {
-      mockedGhExec.mockResolvedValue("✓ merged 2 pull requests\n");
+      mockedGhRaw.mockResolvedValue(ghStderr("✓ merged 2 pull requests\n"));
 
       const result = await stackCommand(["merge", "42", "--yes", "--squash"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith([
+      expect(mockedGhRaw).toHaveBeenCalledWith([
         "stack",
         "merge",
         "42",
@@ -191,12 +213,10 @@ describe("stackCommand", () => {
       expect(result).toContain("merged 2 pull requests");
     });
 
-    it("normalizes -y to --yes", async () => {
-      mockedGhExec.mockResolvedValue("");
-
+    it("forwards -y verbatim (gh stack merge accepts it natively)", async () => {
       await stackCommand(["merge", "-y"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith(["stack", "merge", "--yes"]);
+      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "merge", "-y"]);
     });
   });
 
@@ -205,15 +225,13 @@ describe("stackCommand", () => {
       await expect(stackCommand(["checkout"])).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
       });
-      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
     });
 
     it("forwards the target verbatim", async () => {
-      mockedGhExec.mockResolvedValue("");
-
       await stackCommand(["checkout", "42"]);
 
-      expect(mockedGhExec).toHaveBeenCalledWith(["stack", "checkout", "42"]);
+      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", "checkout", "42"]);
     });
   });
 
@@ -224,33 +242,56 @@ describe("stackCommand", () => {
       [["rebase", "--continue"]],
       [["link", "feat-a", "feat-b"]],
       [["unstack", "--local"]],
+      [["delete", "7"]],
       [["up", "2"]],
       [["down"]],
       [["top"]],
       [["bottom"]],
       [["trunk"]],
     ])("forwards %j verbatim", async (args: string[]) => {
-      mockedGhExec.mockResolvedValue("");
-
       await stackCommand(args);
 
-      expect(mockedGhExec).toHaveBeenCalledWith(["stack", ...args]);
+      expect(mockedGhRaw).toHaveBeenCalledWith(["stack", ...args]);
     });
 
-    it("reports ok when gh produces no stdout", async () => {
-      mockedGhExec.mockResolvedValue("");
-
+    it("reports ok when gh produces no output at all", async () => {
       const result = await stackCommand(["push"]);
 
       expect(result).toContain("push: ok");
     });
 
-    it("passes gh stdout through when present", async () => {
-      mockedGhExec.mockResolvedValue("✓ pushed 3 branches\n");
+    it("surfaces gh-stack's stderr result, which is where it writes it", async () => {
+      mockedGhRaw.mockResolvedValue(ghStderr("✓ pushed 3 branches\n"));
 
       const result = await stackCommand(["push"]);
 
       expect(result).toContain("✓ pushed 3 branches");
+      expect(result).not.toContain("push: ok");
+    });
+
+    it("includes stdout as well when gh-stack writes to both streams", async () => {
+      mockedGhRaw.mockResolvedValue({
+        stdout: "https://github.com/o/r/pull/1\n",
+        stderr: "✓ created 1 pull request\n",
+        exitCode: 0,
+      });
+
+      const result = await stackCommand(["submit"]);
+
+      expect(result).toContain("https://github.com/o/r/pull/1");
+      expect(result).toContain("✓ created 1 pull request");
+    });
+
+    it("maps a non-zero exit to an AxiError instead of returning stderr", async () => {
+      mockedGhRaw.mockResolvedValue({
+        stdout: "",
+        stderr: 'unknown command "stack" for "gh"\n',
+        exitCode: 1,
+      });
+
+      await expect(stackCommand(["push"])).rejects.toMatchObject({
+        code: "EXTENSION_NOT_INSTALLED",
+      });
     });
   });
 });

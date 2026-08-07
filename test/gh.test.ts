@@ -294,3 +294,22 @@ describe("ghExecWithStdin", () => {
     expect(stdinEnd).toHaveBeenCalledWith("shh");
   });
 });
+
+describe("child stdin", () => {
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  // execFile hands the child an open stdin pipe nothing writes to; leaving it
+  // open means a gh subcommand that reads stdin waits forever instead of
+  // seeing EOF.
+  it.each([
+    ["ghExec", () => ghExec(["stack", "add"])],
+    ["ghJson", () => ghJson(["issue", "list", "--json", "number"])],
+    ["ghRaw", () => ghRaw(["stack", "view"])],
+  ])("%s closes it so the child sees EOF", async (_name, invoke) => {
+    const stdinEnd = mockExecFileResultWithStdin(null, "[]", "");
+    await invoke();
+    expect(stdinEnd).toHaveBeenCalledWith();
+  });
+});

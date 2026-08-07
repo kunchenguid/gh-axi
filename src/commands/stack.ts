@@ -1,6 +1,6 @@
 import { encode } from "@toon-format/toon";
-import { ghJson, ghExec } from "../gh.js";
-import { AxiError } from "../errors.js";
+import { ghJson, ghExec, ghRaw } from "../gh.js";
+import { AxiError, mapGhError } from "../errors.js";
 import { hasFlag, takeFlag } from "../args.js";
 import { renderHelp, renderOutput, renderError } from "../toon.js";
 import { getSuggestions } from "../suggestions.js";
@@ -8,7 +8,7 @@ import { getSuggestions } from "../suggestions.js";
 export const STACK_HELP = `usage: gh-axi stack <subcommand> [flags]
 requires: the official gh-stack extension — \`gh extension install github/gh-stack\` (gh >= 2.90.0)
 subcommands[16]:
-  init <branch...>, add [branch], view, push, submit, sync, rebase, link <branch-or-pr...>, merge, checkout <n|pr|branch>, unstack, up [n], down [n], top, bottom, trunk
+  init <branch...>, add [branch], view, push, submit, sync, rebase, link <branch-or-pr...>, merge, checkout <n|pr|branch>, unstack (alias: delete), up [n], down [n], top, bottom, trunk
 flags{init}:
   -b/--base <branch> (trunk, defaults to repo default branch)
 flags{add}:
@@ -28,7 +28,7 @@ flags{merge}:
 flags{unstack}:
   --local (remove local tracking only)
 notes:
-  interactive subcommands (modify, switch) are not wrapped — use \`gh stack\` directly
+  not wrapped — use \`gh stack\` directly: modify, switch (interactive TUIs), alias, feedback (local utilities)
 examples:
   gh-axi stack init my-feature
   gh-axi stack add -Am "add parser" my-feature-2
@@ -36,12 +36,24 @@ examples:
   gh-axi stack submit
   gh-axi stack merge --yes`;
 
-const INTERACTIVE_ONLY = new Set(["modify", "switch", "alias", "feedback"]);
+const UNWRAPPED = new Set(["modify", "switch", "alias", "feedback"]);
 
 const SUBCOMMANDS =
-  "init, add, view, push, submit, sync, rebase, link, merge, checkout, unstack, up, down, top, bottom, trunk";
+  "init, add, view, push, submit, sync, rebase, link, merge, checkout, unstack (alias: delete), up, down, top, bottom, trunk";
+
+// gh stack view is the one subcommand whose args gh-axi rebuilds instead of
+// forwarding, so gh never sees a typo like `--shrot` and cannot reject it.
+const VIEW_ARGS = new Set(["-s", "--short", "--json"]);
 
 async function viewStack(args: string[]): Promise<string> {
+  if (hasFlag(args, "--help") || hasFlag(args, "-h")) return STACK_HELP;
+  const unknown = args.filter((a) => !VIEW_ARGS.has(a));
+  if (unknown.length > 0)
+    throw new AxiError(
+      `Unknown argument(s) for stack view: ${unknown.join(", ")}`,
+      "VALIDATION_ERROR",
+      ["stack view takes no positionals and accepts only -s/--short, --json"],
+    );
   if (hasFlag(args, "--short") || hasFlag(args, "-s")) {
     const out = await ghExec(["stack", "view", "--short"]);
     return renderOutput([
@@ -56,11 +68,20 @@ async function viewStack(args: string[]): Promise<string> {
   ]);
 }
 
-/** Run a gh stack subcommand and pass its (already terse) output through. */
+/**
+ * Run a gh stack subcommand and pass its (already terse) output through.
+ * Every subcommand but `view` writes its result to stderr and leaves stdout
+ * empty (gh-stack v0.1.0), so both streams have to be read or the caller only
+ * ever sees `<sub>: ok` — dropping, among other things, submit's PR URLs.
+ */
 async function runStack(sub: string, ghArgs: string[]): Promise<string> {
-  const out = await ghExec(["stack", sub, ...ghArgs]);
+  const result = await ghRaw(["stack", sub, ...ghArgs]);
+  if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
+  const out = [result.stdout.trim(), result.stderr.trim()]
+    .filter(Boolean)
+    .join("\n");
   return renderOutput([
-    out.trim() || encode({ [sub]: "ok" }),
+    out || encode({ [sub]: "ok" }),
     renderHelp(getSuggestions({ domain: "stack", action: sub })),
   ]);
 }
@@ -128,10 +149,7 @@ export async function stackCommand(args: string[]): Promise<string> {
           "stack merge is irreversible — confirm with: gh-axi stack merge --yes",
           "VALIDATION_ERROR",
         );
-      return runStack(
-        sub,
-        rest.map((a) => (a === "-y" ? "--yes" : a)),
-      );
+      return runStack(sub, rest);
     case "checkout":
       if (!hasPositional(rest))
         throw new AxiError(
@@ -144,6 +162,7 @@ export async function stackCommand(args: string[]): Promise<string> {
     case "rebase":
     case "link":
     case "unstack":
+    case "delete":
     case "up":
     case "down":
     case "top":
@@ -151,9 +170,9 @@ export async function stackCommand(args: string[]): Promise<string> {
     case "trunk":
       return runStack(sub, rest);
     default:
-      if (INTERACTIVE_ONLY.has(sub))
+      if (UNWRAPPED.has(sub))
         return renderError(
-          `\`${sub}\` is interactive-only and not wrapped — run \`gh stack ${sub}\` directly`,
+          `\`${sub}\` is not wrapped — run \`gh stack ${sub}\` directly`,
           "VALIDATION_ERROR",
           [`Available subcommands: ${SUBCOMMANDS}`],
         );
