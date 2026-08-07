@@ -11,8 +11,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       axi-sdk-js:
-        specifier: ^0.1.8
-        version: 0.1.8
+        specifier: ^0.1.10
+        version: 0.1.10
     devDependencies:
       "@eslint/js":
         specifier: ^10.0.1
@@ -800,10 +800,10 @@ packages:
       }
     engines: { node: ">=12" }
 
-  axi-sdk-js@0.1.8:
+  axi-sdk-js@0.1.10:
     resolution:
       {
-        integrity: sha512-N8Qd/9sVBpG8QRVSw0lLevdFuaBfjHHPdcbcj8DCuxr68sA1/c5KCnGEDqO7lI3kt52/bgymCZajmpTqz/rLOw==,
+        integrity: sha512-mktHOya6qUgqDcMpmj5WsNDzArre15N2qfns8bY98nrHGTSqdBnH2Ok77c2zOA2jYbGHO/BhhVZtDGK/UTO70g==,
       }
     engines: { node: ">=20" }
 
@@ -1925,7 +1925,7 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
-  axi-sdk-js@0.1.8:
+  axi-sdk-js@0.1.10:
     dependencies:
       "@toon-format/toon": 2.1.0
 

@@ -1,6 +1,3 @@
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { runAxiCli } from "axi-sdk-js";
 import { resolveRepo, type RepoContext } from "./context.js";
 import { homeCommand } from "./commands/home.js";
@@ -19,11 +16,11 @@ import { apiCommand, API_HELP } from "./commands/api.js";
 import { gistCommand, GIST_HELP } from "./commands/gist.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
 import { resolveHost, type HostContext } from "./host.js";
+import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
-const VERSION = readPackageVersion();
 
 type CliStdout = Pick<NodeJS.WriteStream, "write">;
 
@@ -118,28 +115,6 @@ export async function main(options: MainOptions = {}): Promise<void> {
       return repo ?? (host ? { host } : undefined);
     },
   });
-}
-
-function readPackageVersion(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-
-  for (const candidate of [
-    join(here, "..", "package.json"),
-    join(here, "..", "..", "package.json"),
-  ]) {
-    if (!existsSync(candidate)) {
-      continue;
-    }
-
-    const parsed = JSON.parse(readFileSync(candidate, "utf-8")) as {
-      version?: unknown;
-    };
-    if (typeof parsed.version === "string" && parsed.version.length > 0) {
-      return parsed.version;
-    }
-  }
-
-  throw new Error("Could not determine gh-axi package version");
 }
 
 function withRepoContext(
