@@ -1,5 +1,5 @@
-import { AxiError } from './errors.js';
-import type { FieldDef } from './toon.js';
+import { AxiError } from "./errors.js";
+import type { FieldDef } from "./toon.js";
 
 /**
  * Describes an extra field that can be requested via --fields.
@@ -17,8 +17,9 @@ export interface ParseFieldsResult {
 }
 
 /**
- * Parse a --fields value (comma-separated field names), validate against
- * the available map, and return the extra FieldDefs and JSON keys.
+ * Parse a --fields value (comma-separated field names), validate against the
+ * available extras and already-included fields, and return only the extra
+ * FieldDefs and JSON keys.
  *
  * Returns empty arrays when fieldsArg is undefined (no --fields passed).
  * Throws AxiError with VALIDATION_ERROR for any unknown field names.
@@ -32,9 +33,14 @@ export function parseFields(
     return { extraDefs: [], extraJsonKeys: [] };
   }
 
-  const requested = [...new Set(
-    fieldsArg.split(',').map((f) => f.trim()).filter(Boolean),
-  )];
+  const requested = [
+    ...new Set(
+      fieldsArg
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean),
+    ),
+  ];
 
   const unknown = requested.filter(
     (f) => !(f in available) && !included.has(f),
@@ -42,10 +48,12 @@ export function parseFields(
   if (unknown.length > 0) {
     const availableNames = [
       ...new Set([...Object.keys(available), ...included]),
-    ].sort().join(', ');
+    ]
+      .sort()
+      .join(", ");
     throw new AxiError(
-      `Unknown field(s): ${unknown.join(', ')}. Available: ${availableNames}`,
-      'VALIDATION_ERROR',
+      `Unknown field(s): ${unknown.join(", ")}. Available: ${availableNames}`,
+      "VALIDATION_ERROR",
     );
   }
 
