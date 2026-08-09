@@ -114,8 +114,32 @@ function parseArgs(args: string[]): ParsedApiArgs {
   return parsed;
 }
 
-/** Maximum length for raw (non-JSON) API output before truncation. */
+/** Maximum length for raw (non-JSON) API output the caller did not shape. */
 const RAW_OUTPUT_TRUNCATION_LIMIT = 4000;
+
+/**
+ * Maximum length for raw (non-JSON) output the caller shaped with
+ * `--jq`/`--template`. Deliberately far above RAW_OUTPUT_TRUNCATION_LIMIT so a
+ * realistic multi-page `--paginate --jq` script (thousands of short filtered
+ * lines) survives verbatim, while a single oversized selection — `--jq .body`
+ * on a huge text blob, `--jq .content` on a large file — is still bounded.
+ */
+const CALLER_SHAPED_RAW_OUTPUT_LIMIT = 200_000;
+
+/** Wrap non-JSON output in a TOON envelope, clamped to `limit` characters. */
+function rawOutputEnvelope(trimmed: string, limit: number): string {
+  const truncated = trimmed.length > limit;
+  const result: Record<string, unknown> = {
+    api_response: {
+      body: truncated ? trimmed.slice(0, limit) : trimmed,
+      truncated,
+    },
+  };
+  if (truncated) {
+    (result.api_response as Record<string, unknown>).original_length = trimmed.length;
+  }
+  return encode(result);
+}
 
 /** Strings longer than this threshold are cleaned up (image/URL stripping). */
 const LONG_STRING_CLEANUP_THRESHOLD = 200;
@@ -167,8 +191,9 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
 
   // A caller who wrote a jq expression or template already chose the exact shape
   // they want, so noisy-field stripping would silently delete fields they asked
-  // for by name (`url`, `node_id`, ...). The length clamp still applies, so a
-  // selected field cannot blow the caller's context with an unbounded blob.
+  // for by name (`url`, `node_id`, ...). Length is still bounded either way: the
+  // JSON path clamps each string value via truncateString, and the non-JSON path
+  // below is bounded by CALLER_SHAPED_RAW_OUTPUT_LIMIT.
   const callerShapedOutput = jq !== undefined || template !== undefined;
 
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
@@ -188,22 +213,18 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     // silently mangles the exact shape the caller asked for and breaks any
     // downstream pipe (`sort`, `uniq -c`, `wc -l`, ...) that expects the same
     // raw text `gh api` would have produced — the same failure mode the
-    // noisy-key stripping skip above already exists to prevent.
-    if (callerShapedOutput) return trimmed;
+    // noisy-key stripping skip above already exists to prevent. Verbatim is
+    // therefore the rule up to the far more generous
+    // CALLER_SHAPED_RAW_OUTPUT_LIMIT, beyond which a single oversized
+    // selection would still flood the agent's context and gets the envelope.
+    if (callerShapedOutput) {
+      if (trimmed.length <= CALLER_SHAPED_RAW_OUTPUT_LIMIT) return trimmed;
+      return rawOutputEnvelope(trimmed, CALLER_SHAPED_RAW_OUTPUT_LIMIT);
+    }
 
     // Not JSON and not caller-shaped — protect the agent from an unbounded
     // blob it didn't ask to see.
-    const truncated = trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
-    const result: Record<string, unknown> = {
-      api_response: {
-        body: truncated ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT) : trimmed,
-        truncated,
-      },
-    };
-    if (truncated) {
-      (result.api_response as Record<string, unknown>).original_length = trimmed.length;
-    }
-    return encode(result);
+    return rawOutputEnvelope(trimmed, RAW_OUTPUT_TRUNCATION_LIMIT);
   }
 }
 

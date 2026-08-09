@@ -144,7 +144,9 @@ Two file-on-disk input forms are available: positional paths (`gist create a.py 
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
 `gh-axi api` accepts `--field`, `--header`, `--paginate`, `--jq <expression>`, and `--template <format>`; any other flag, an extra positional argument, or a repeated `--jq`/`--template` is rejected with a clear error instead of being silently dropped.
-JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
+JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim; individual strings longer than 2,000 characters are still clamped so one field cannot flood an agent's context.
+Non-JSON output from `--jq`/`--template` (plain text, or the concatenated per-page output of `--paginate`) is returned exactly as `gh` produced it up to 200,000 characters, so it stays pipeable; past that it is wrapped in the same `api_response` envelope with `truncated: true` and `original_length`.
+Non-JSON output you did not shape keeps the original 4,000-character envelope.
 
 ### Commands
 

@@ -295,7 +295,7 @@ describe('apiCommand', () => {
     expect(result.length).toBeLessThan(5000);
   });
 
-  it('returns caller-shaped --jq output verbatim when it is not JSON, unwrapped and untruncated', async () => {
+  it('returns caller-shaped --jq output verbatim when it is not JSON and under the raw cap', async () => {
     // Simulates `--paginate --jq '.[].environment'`: gh runs jq once per page
     // and concatenates each page's plain-text lines, so the combined output
     // is not valid JSON even though the caller explicitly chose this shape.
@@ -308,6 +308,28 @@ describe('apiCommand', () => {
     expect(result).not.toContain('truncated:');
     expect(result.split('\n')).toHaveLength(2000);
     expect(result).toBe(lines.join('\n'));
+  });
+
+  it('returns caller-shaped non-JSON output verbatim right up to the raw cap', async () => {
+    const atLimit = 'z'.repeat(200_000);
+    mockedGhExec.mockResolvedValue(atLimit);
+
+    const result = await apiCommand(['/repos/octo/repo/contents/big.txt', '--jq', '.content']);
+
+    expect(result).toBe(atLimit);
+    expect(result).not.toContain('api_response:');
+  });
+
+  it('wraps caller-shaped non-JSON output past the raw cap in a truncation envelope', async () => {
+    const overLimit = 'z'.repeat(200_001);
+    mockedGhExec.mockResolvedValue(overLimit);
+
+    const result = await apiCommand(['/repos/octo/repo/issues/1', '--jq', '.body']);
+
+    expect(result).toContain('api_response:');
+    expect(result).toContain('truncated: true');
+    expect(result).toContain('original_length: 200001');
+    expect(result.replace(/[^z]/g, '')).toHaveLength(200_000);
   });
 
   it('returns caller-shaped --template output verbatim when it is not JSON', async () => {
