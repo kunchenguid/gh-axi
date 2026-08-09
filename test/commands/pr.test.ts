@@ -874,6 +874,30 @@ describe("prCommand", () => {
         ctx,
       );
     });
+
+    it("forwards --admin so ruleset-bypass-eligible merges aren't blocked by mergeable_state", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(["merge", "10", "--admin", "--squash"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--squash", "--admin"],
+        ctx,
+      );
+    });
+
+    it("omits --admin when not passed", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(["merge", "10", "--squash"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--squash"],
+        ctx,
+      );
+    });
   });
 
   describe("--body-file", () => {

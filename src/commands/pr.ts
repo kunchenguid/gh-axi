@@ -258,7 +258,7 @@ flags{create}:
 flags{edit}:
   --title <text>, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
 flags{merge}:
-  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --admin (bypass branch protection with admin privileges), --body <text> or --body-file <path>, --subject
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{comment}:
@@ -592,6 +592,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   }
   const auto = takeBoolFlag(args, "--auto");
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
+  const admin = takeBoolFlag(args, "--admin");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
 
@@ -627,6 +628,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   if (method) ghArgs.push("--" + method);
   if (auto) ghArgs.push("--auto");
   if (deleteBranch) ghArgs.push("--delete-branch");
+  if (admin) ghArgs.push("--admin");
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
 
