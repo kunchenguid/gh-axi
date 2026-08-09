@@ -258,7 +258,7 @@ flags{create}:
 flags{edit}:
   --title <text>, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
 flags{merge}:
-  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --admin (bypass branch protection with admin privileges), --body <text> or --body-file <path>, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --disable-auto (cancel auto-merge instead of merging; not combinable with other merge flags), --delete-branch, --admin (bypass branch protection with admin privileges), --match-head-commit <sha>, --author-email <email>, --body <text> or --body-file <path>, --subject
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{comment}:
@@ -561,6 +561,21 @@ async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
+/**
+ * Take a value flag that gh accepts at most once, rejecting a missing, blank or
+ * repeated value instead of silently dropping it.
+ */
+function takeSingleValueFlag(
+  args: string[],
+  flag: string,
+): string | undefined {
+  const values = takeAllFlags(args, flag);
+  if (values.length > 1) {
+    throw new AxiError(`${flag} may only be given once`, "VALIDATION_ERROR");
+  }
+  return values[0];
+}
+
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
   const explicitMethod = takeFlag(args, "--method");
@@ -591,10 +606,42 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
   const auto = takeBoolFlag(args, "--auto");
+  const disableAuto = takeBoolFlag(args, "--disable-auto");
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const admin = takeBoolFlag(args, "--admin");
+  const matchHeadCommit = takeSingleValueFlag(args, "--match-head-commit");
+  const authorEmail = takeSingleValueFlag(args, "--author-email");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
+
+  if (disableAuto) {
+    const conflicting = [
+      auto ? "--auto" : undefined,
+      method ? (explicitMethod ? "--method" : `--${method}`) : undefined,
+      deleteBranch ? "--delete-branch" : undefined,
+      admin ? "--admin" : undefined,
+      matchHeadCommit !== undefined ? "--match-head-commit" : undefined,
+      authorEmail !== undefined ? "--author-email" : undefined,
+      body !== undefined ? "--body" : undefined,
+      subject ? "--subject" : undefined,
+    ].filter((flag): flag is string => flag !== undefined);
+    if (conflicting.length > 0) {
+      throw new AxiError(
+        `--disable-auto cancels auto-merge instead of merging, so it cannot be combined with: ${conflicting.join(", ")}`,
+        "VALIDATION_ERROR",
+      );
+    }
+    await ghExec(["pr", "merge", String(num), "--disable-auto"], ctx);
+    return renderOutput([
+      renderDetail("auto_merge", { number: num, status: "disabled" }, [
+        field("number"),
+        field("status"),
+      ]),
+      renderHelp(
+        getSuggestions({ domain: "pr", action: "merge", id: num, repo: ctx }),
+      ),
+    ]);
+  }
 
   // Idempotent: check if already merged
   const pr = await ghJson<Pick<PrItem, "state" | "mergedBy" | "mergedAt">>(
@@ -629,6 +676,9 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   if (auto) ghArgs.push("--auto");
   if (deleteBranch) ghArgs.push("--delete-branch");
   if (admin) ghArgs.push("--admin");
+  if (matchHeadCommit !== undefined)
+    ghArgs.push("--match-head-commit", matchHeadCommit);
+  if (authorEmail !== undefined) ghArgs.push("--author-email", authorEmail);
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
 

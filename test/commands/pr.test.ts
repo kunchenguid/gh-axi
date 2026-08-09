@@ -898,6 +898,79 @@ describe("prCommand", () => {
         ctx,
       );
     });
+
+    it("cancels auto-merge on --disable-auto instead of merging", async () => {
+      mockedGhExec.mockResolvedValue("");
+
+      const result = await prCommand(["merge", "10", "--disable-auto"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--disable-auto"],
+        ctx,
+      );
+      expect(result).toContain("auto_merge");
+      expect(result).toContain("status: disabled");
+      expect(result).not.toContain("merged");
+    });
+
+    it("rejects --disable-auto combined with merge options rather than merging", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await expect(
+        prCommand(["merge", "10", "--disable-auto", "--squash"], ctx),
+      ).rejects.toThrow("--disable-auto");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects --disable-auto combined with --auto", async () => {
+      mockedGhExec.mockResolvedValue("");
+
+      await expect(
+        prCommand(["merge", "10", "--auto", "--disable-auto"], ctx),
+      ).rejects.toThrow("--disable-auto");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("forwards --match-head-commit so the head-race guard reaches gh", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        ["merge", "10", "--squash", "--match-head-commit", "deadbeef"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--squash", "--match-head-commit", "deadbeef"],
+        ctx,
+      );
+    });
+
+    it("forwards --author-email", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        ["merge", "10", "--merge", "--author-email=dev@example.com"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--merge", "--author-email", "dev@example.com"],
+        ctx,
+      );
+    });
+
+    it("rejects a --match-head-commit with no value instead of dropping it", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await expect(
+        prCommand(["merge", "10", "--squash", "--match-head-commit"], ctx),
+      ).rejects.toThrow("--match-head-commit requires a value");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe("--body-file", () => {
