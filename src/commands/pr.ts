@@ -565,10 +565,7 @@ async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
  * Take a value flag that gh accepts at most once, rejecting a missing, blank or
  * repeated value instead of silently dropping it.
  */
-function takeSingleValueFlag(
-  args: string[],
-  flag: string,
-): string | undefined {
+function takeSingleValueFlag(args: string[], flag: string): string | undefined {
   const values = takeAllFlags(args, flag);
   if (values.length > 1) {
     throw new AxiError(`${flag} may only be given once`, "VALIDATION_ERROR");
