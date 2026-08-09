@@ -332,6 +332,20 @@ describe('apiCommand', () => {
     expect(result.replace(/[^z]/g, '')).toHaveLength(200_000);
   });
 
+  it('preserves leading whitespace in caller-shaped --template output', async () => {
+    const aligned = '    octo/repo-one   42\n  octocat/repo-two    7\n';
+    mockedGhExec.mockResolvedValue(aligned);
+
+    const result = await apiCommand([
+      '/repos/octo/repo/forks',
+      '--template',
+      '{{range .}}{{printf "%20s %4d" .full_name .forks}}{{"\\n"}}{{end}}',
+    ]);
+
+    expect(result).toBe(aligned.trimEnd());
+    expect(result.startsWith('    octo/repo-one')).toBe(true);
+  });
+
   it('returns caller-shaped --template output verbatim when it is not JSON', async () => {
     mockedGhExec.mockResolvedValue('octo/repo-one\noctocat/repo-two\n');
 

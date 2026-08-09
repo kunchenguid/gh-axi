@@ -202,8 +202,6 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     const data = JSON.parse(raw);
     return encode(shapeOutput(data, !callerShapedOutput));
   } catch {
-    const trimmed = raw.trim();
-
     // A caller who wrote a jq expression or template already chose the exact
     // shape they want — including plain, non-JSON text. `--paginate` runs jq
     // once per page and concatenates each page's raw output, so a multi-page
@@ -217,14 +215,18 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     // therefore the rule up to the far more generous
     // CALLER_SHAPED_RAW_OUTPUT_LIMIT, beyond which a single oversized
     // selection would still flood the agent's context and gets the envelope.
+    // Only the trailing newline gh appends is dropped: a Go `--template` may
+    // legitimately open with column-aligning padding, and stripping that is
+    // the same silent reshaping this branch exists to avoid.
     if (callerShapedOutput) {
-      if (trimmed.length <= CALLER_SHAPED_RAW_OUTPUT_LIMIT) return trimmed;
-      return rawOutputEnvelope(trimmed, CALLER_SHAPED_RAW_OUTPUT_LIMIT);
+      const shaped = raw.trimEnd();
+      if (shaped.length <= CALLER_SHAPED_RAW_OUTPUT_LIMIT) return shaped;
+      return rawOutputEnvelope(shaped, CALLER_SHAPED_RAW_OUTPUT_LIMIT);
     }
 
     // Not JSON and not caller-shaped — protect the agent from an unbounded
     // blob it didn't ask to see.
-    return rawOutputEnvelope(trimmed, RAW_OUTPUT_TRUNCATION_LIMIT);
+    return rawOutputEnvelope(raw.trim(), RAW_OUTPUT_TRUNCATION_LIMIT);
   }
 }
 
