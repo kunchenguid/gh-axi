@@ -177,8 +177,22 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     const data = JSON.parse(raw);
     return encode(shapeOutput(data, !callerShapedOutput));
   } catch {
-    // Not JSON — wrap in TOON envelope with truncation metadata
     const trimmed = raw.trim();
+
+    // A caller who wrote a jq expression or template already chose the exact
+    // shape they want — including plain, non-JSON text. `--paginate` runs jq
+    // once per page and concatenates each page's raw output, so a multi-page
+    // `--jq`/`--template` response is routinely NOT valid JSON even though
+    // every individual page's filtered output is well-formed. Wrapping that
+    // in a TOON envelope and clamping it to RAW_OUTPUT_TRUNCATION_LIMIT
+    // silently mangles the exact shape the caller asked for and breaks any
+    // downstream pipe (`sort`, `uniq -c`, `wc -l`, ...) that expects the same
+    // raw text `gh api` would have produced — the same failure mode the
+    // noisy-key stripping skip above already exists to prevent.
+    if (callerShapedOutput) return trimmed;
+
+    // Not JSON and not caller-shaped — protect the agent from an unbounded
+    // blob it didn't ask to see.
     const truncated = trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
     const result: Record<string, unknown> = {
       api_response: {

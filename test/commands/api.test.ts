@@ -294,4 +294,38 @@ describe('apiCommand', () => {
     // The body itself should be truncated
     expect(result.length).toBeLessThan(5000);
   });
+
+  it('returns caller-shaped --jq output verbatim when it is not JSON, unwrapped and untruncated', async () => {
+    // Simulates `--paginate --jq '.[].environment'`: gh runs jq once per page
+    // and concatenates each page's plain-text lines, so the combined output
+    // is not valid JSON even though the caller explicitly chose this shape.
+    const lines = Array.from({ length: 2000 }, (_, i) => (i % 2 === 0 ? 'production' : 'Preview'));
+    mockedGhExec.mockResolvedValue(lines.join('\n') + '\n');
+
+    const result = await apiCommand(['/repos/octo/repo/deployments', '--paginate', '--jq', '.[].environment']);
+
+    expect(result).not.toContain('api_response:');
+    expect(result).not.toContain('truncated:');
+    expect(result.split('\n')).toHaveLength(2000);
+    expect(result).toBe(lines.join('\n'));
+  });
+
+  it('returns caller-shaped --template output verbatim when it is not JSON', async () => {
+    mockedGhExec.mockResolvedValue('octo/repo-one\noctocat/repo-two\n');
+
+    const result = await apiCommand(['/repos/octo/repo/forks', '--template', '{{.full_name}}{{"\\n"}}']);
+
+    expect(result).toBe('octo/repo-one\noctocat/repo-two');
+  });
+
+  it('still wraps and truncates plain non-JSON output with no --jq/--template', async () => {
+    const longText = 'y'.repeat(10_000);
+    mockedGhExec.mockResolvedValue(longText);
+
+    const result = await apiCommand(['/repos/octo/repo/deployments', '--paginate']);
+
+    expect(result).toContain('api_response:');
+    expect(result).toContain('truncated: true');
+    expect(result.length).toBeLessThan(10_000);
+  });
 });
