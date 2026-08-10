@@ -149,6 +149,68 @@ describe("stackCommand", () => {
     expect(output).toContain("Push failed");
   });
 
+  it("does not read an echoed commit subject as a partial failure", async () => {
+    mockedGhRaw.mockResolvedValue({
+      exitCode: 0,
+      stdout: "[api 1a2b3c4] fix: could not parse dates\n",
+      stderr: '✓ Added commit "fix: could not parse dates" to api\n',
+    });
+
+    const output = await stackCommand([
+      "add",
+      "-A",
+      "-m",
+      "fix: could not parse dates",
+    ]);
+
+    expect(output).toContain("status: ok");
+  });
+
+  it("rejects a zero navigation distance", async () => {
+    await expect(stackCommand(["up", "0"])).rejects.toThrow(/positive integer/);
+    await expect(stackCommand(["down", "0"])).rejects.toThrow(
+      /positive integer/,
+    );
+    expect(mockedGhRaw).not.toHaveBeenCalled();
+  });
+
+  it("reports an unrecognized view payload instead of throwing a TypeError", async () => {
+    mockedGhRaw.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({ trunk: "main" }),
+      stderr: "",
+    });
+
+    await expect(stackCommand(["view"])).rejects.toMatchObject({
+      code: "UNKNOWN",
+      message: expect.stringContaining("Unexpected gh stack output"),
+    });
+  });
+
+  it("tolerates a branch whose pr carries no state", async () => {
+    mockedGhRaw.mockResolvedValue({
+      exitCode: 0,
+      stderr: "",
+      stdout: JSON.stringify({
+        branches: [
+          {
+            name: "api",
+            isCurrent: true,
+            isMerged: false,
+            isQueued: false,
+            needsRebase: false,
+            pr: { number: 7 },
+          },
+        ],
+      }),
+    });
+
+    const output = await stackCommand(["view"]);
+
+    expect(output).toContain("trunk: null");
+    expect(output).toContain("api,true,local,false,7,null");
+  });
+
   it("does not report upstream warnings as clean success", async () => {
     mockedGhRaw.mockResolvedValue({
       exitCode: 0,

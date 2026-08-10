@@ -83,7 +83,8 @@ import { issueCommand } from "../src/commands/issue.js";
 import { prCommand } from "../src/commands/pr.js";
 import { releaseCommand } from "../src/commands/release.js";
 import { resolveRepo } from "../src/context.js";
-import { StackError } from "../src/errors.js";
+import { AxiError, StackError } from "../src/errors.js";
+import { encode } from "@toon-format/toon";
 
 const packageVersion = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
@@ -230,14 +231,21 @@ describe("main CLI", () => {
       }),
     ).toThrow(/current working directory/);
 
-    expect(() =>
-      options.commands.stack(["view"], {
-        owner: "env",
-        name: "repo",
-        nwo: "env/repo",
-        source: "env",
-      }),
-    ).toThrow(/GH_REPO/);
+    const originalGhRepo = process.env["GH_REPO"];
+    process.env["GH_REPO"] = "env/repo";
+    try {
+      expect(() =>
+        options.commands.stack(["view"], {
+          owner: "env",
+          name: "repo",
+          nwo: "env/repo",
+          source: "env",
+        }),
+      ).toThrow(/GH_REPO/);
+    } finally {
+      if (originalGhRepo === undefined) delete process.env["GH_REPO"];
+      else process.env["GH_REPO"] = originalGhRepo;
+    }
   });
 
   it("preserves stack-specific process exit codes", async () => {
@@ -249,6 +257,44 @@ describe("main CLI", () => {
 
     expect(formatted.exitCode).toBe(3);
     expect(formatted.output).toContain("STACK_ERROR");
+  });
+
+  it("formats non-stack errors exactly like the SDK default", async () => {
+    await main();
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+
+    const withHelp = options.formatError(
+      new AxiError('Repository "o/r" not found', "REPO_NOT_FOUND", [
+        "Run `gh-axi repo list` to see your repositories",
+        "Then retry",
+      ]),
+    );
+    expect(withHelp.output).toBe(
+      `${encode({
+        error: 'Repository "o/r" not found',
+        code: "REPO_NOT_FOUND",
+        help: ["Run `gh-axi repo list` to see your repositories", "Then retry"],
+      })}\n`,
+    );
+    expect(withHelp.output).toContain(
+      "help[2]: Run `gh-axi repo list` to see your repositories,Then retry",
+    );
+    expect(withHelp.exitCode).toBe(1);
+
+    const withoutHelp = options.formatError(
+      new AxiError("bad flag", "VALIDATION_ERROR"),
+    );
+    expect(withoutHelp.output).toBe(
+      `${encode({ error: "bad flag", code: "VALIDATION_ERROR" })}\n`,
+    );
+    expect(withoutHelp.output).not.toContain("help");
+    expect(withoutHelp.exitCode).toBe(2);
+
+    const plain = options.formatError(new Error("boom"));
+    expect(plain.output).toBe(
+      `${encode({ error: "boom", code: "UNKNOWN" })}\n`,
+    );
+    expect(plain.exitCode).toBe(1);
   });
 
   it("lists secret and variable in the top-level command index", () => {

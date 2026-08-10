@@ -1,3 +1,4 @@
+import { encode } from "@toon-format/toon";
 import { runAxiCli } from "axi-sdk-js";
 import { resolveRepo, type RepoContext } from "./context.js";
 import { homeCommand } from "./commands/home.js";
@@ -20,7 +21,6 @@ import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
 import { AxiError, exitCodeForError, StackError } from "./errors.js";
-import { renderError } from "./toon.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
@@ -111,8 +111,16 @@ export async function main(options: MainOptions = {}): Promise<void> {
               error instanceof Error ? error.message : String(error),
               "UNKNOWN",
             );
+      // Mirrors the SDK's defaultFormatError output byte-for-byte; the only
+      // difference this hook introduces is StackError's upstream exit code.
       return {
-        output: `${renderError(axiError.message, axiError.code, axiError.suggestions)}\n`,
+        output: `${encode({
+          error: axiError.message,
+          code: axiError.code,
+          ...(axiError.suggestions.length > 0
+            ? { help: axiError.suggestions }
+            : {}),
+        })}\n`,
         exitCode:
           error instanceof StackError
             ? error.exitCode
@@ -155,12 +163,7 @@ function withRepoContext(
 function withLocalRepoContext(handler: CommandFn): WrappedCommandFn {
   return (args, ctx) => {
     const parsed = parseRepoContextArgs("stack", args);
-    const repo = repoContext(ctx);
-    if (
-      parsed.repoFlag !== undefined ||
-      repo?.source === "env" ||
-      process.env["GH_REPO"]
-    ) {
+    if (parsed.repoFlag !== undefined || process.env["GH_REPO"]) {
       throw new AxiError(
         "stack commands operate on the repository in the current working directory and do not support -R, --repo, or GH_REPO",
         "VALIDATION_ERROR",

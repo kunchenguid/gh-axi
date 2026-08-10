@@ -10,12 +10,12 @@ type StackBranch = {
   isMerged: boolean;
   isQueued: boolean;
   needsRebase: boolean;
-  pr?: { number: number; url?: string; state: string };
+  pr?: { number: number; url?: string; state?: string };
 };
 
 type StackView = {
-  trunk: string;
-  currentBranch: string;
+  trunk?: string;
+  currentBranch?: string;
   branches: StackBranch[];
 };
 
@@ -46,6 +46,10 @@ examples:
 const REMOTE_FLAGS: FlagSpec = { "--remote": "value" };
 // eslint-disable-next-line no-control-regex -- upstream status may contain ANSI color sequences
 const ANSI_ESCAPE = new RegExp("\\u001b\\[[0-9;]*m", "g");
+const STATUS_MARKER = /^([✓✗⚠ℹ])\s*/;
+const FAILURE_MARKERS = ["✗", "⚠"];
+const FAILURE_DIAGNOSTIC =
+  /failed|could not|couldn't|cannot create|not .*updated automatically|remain stacked|not fully|skipping rebase/i;
 
 export async function stackCommand(args: string[]): Promise<string> {
   if (args.length === 0 || args.includes("--help")) return STACK_HELP;
@@ -110,7 +114,7 @@ export async function stackCommand(args: string[]): Promise<string> {
     case "up":
     case "down": {
       const positional = parseArgs(rest, {}, 0, 1);
-      if (positional[0] && !/^\d+$/.test(positional[0])) {
+      if (positional[0] && !/^[1-9]\d*$/.test(positional[0])) {
         throw validation(`${subcommand} distance must be a positive integer`);
       }
       return runStack(subcommand, rest);
@@ -127,20 +131,19 @@ export async function stackCommand(args: string[]): Promise<string> {
 
 async function stackView(): Promise<string> {
   const result = await execute(["stack", "view", "--json"]);
-  let view: StackView;
+  let parsed: unknown;
   try {
-    view = JSON.parse(result.stdout) as StackView;
+    parsed = JSON.parse(result.stdout);
   } catch {
-    throw new AxiError(
-      `Unexpected gh stack output: ${result.stdout.slice(0, 200)}`,
-      "UNKNOWN",
-    );
+    throw unexpectedOutput(result.stdout);
   }
+  if (!isStackView(parsed)) throw unexpectedOutput(result.stdout);
+  const view = parsed;
 
   return encode({
     stack: {
-      trunk: view.trunk,
-      current_branch: view.currentBranch,
+      trunk: view.trunk ?? null,
+      current_branch: view.currentBranch ?? null,
       branch_count: view.branches.length,
     },
     branches: view.branches.map((branch) => ({
@@ -150,7 +153,7 @@ async function stackView(): Promise<string> {
         ? "merged"
         : branch.isQueued
           ? "queued"
-          : (branch.pr?.state.toLowerCase() ?? "local"),
+          : (branch.pr?.state?.toLowerCase() ?? "local"),
       needs_rebase: branch.needsRebase,
       pr: branch.pr?.number ?? null,
       url: branch.pr?.url ?? null,
@@ -158,16 +161,35 @@ async function stackView(): Promise<string> {
   });
 }
 
+function isStackView(value: unknown): value is StackView {
+  if (typeof value !== "object" || value === null) return false;
+  const branches = (value as { branches?: unknown }).branches;
+  return (
+    Array.isArray(branches) &&
+    branches.every((branch) => typeof branch === "object" && branch !== null)
+  );
+}
+
+function unexpectedOutput(stdout: string): AxiError {
+  return new AxiError(
+    `Unexpected gh stack output: ${stdout.slice(0, 200)}`,
+    "UNKNOWN",
+  );
+}
+
 async function runStack(action: string, args: string[]): Promise<string> {
   const result = await execute(["stack", action, ...args]);
   const messages = [...lines(result.stdout), ...lines(result.stderr)];
-  const aborted = messages.some((line) => /sync aborted/i.test(line));
-  const partial = messages.some((line) =>
-    /failed|could not|couldn't|cannot create|not .*updated automatically|remain stacked|not fully|skipping rebase/i.test(
-      line,
-    ),
+  // Classify only the extension's own marker-prefixed stderr diagnostics: stdout
+  // and unmarked lines echo user-supplied text (commit subjects, branch names)
+  // that would otherwise be misread as a failure report.
+  const diagnostics = statusDiagnostics(result.stderr);
+  const aborted = diagnostics.some(({ text }) => /sync aborted/i.test(text));
+  const partial = diagnostics.some(
+    ({ marker, text }) =>
+      FAILURE_MARKERS.includes(marker) && FAILURE_DIAGNOSTIC.test(text),
   );
-  const warned = result.stderr.includes("⚠");
+  const warned = diagnostics.some(({ marker }) => marker === "⚠");
   return encode({
     stack: {
       action,
@@ -344,8 +366,21 @@ function lines(output: string): string[] {
   return output
     .replace(ANSI_ESCAPE, "")
     .split("\n")
-    .map((line) => line.trim().replace(/^[✓✗⚠ℹ]\s*/, ""))
+    .map((line) => line.trim().replace(STATUS_MARKER, ""))
     .filter(Boolean);
+}
+
+function statusDiagnostics(stderr: string): { marker: string; text: string }[] {
+  return stderr
+    .replace(ANSI_ESCAPE, "")
+    .split("\n")
+    .flatMap((line) => {
+      const trimmed = line.trim();
+      const match = STATUS_MARKER.exec(trimmed);
+      if (!match) return [];
+      const text = trimmed.slice(match[0].length).trim();
+      return text ? [{ marker: match[1], text }] : [];
+    });
 }
 
 function validation(message: string): AxiError {
