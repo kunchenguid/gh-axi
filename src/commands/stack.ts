@@ -47,9 +47,11 @@ const REMOTE_FLAGS: FlagSpec = { "--remote": "value" };
 // eslint-disable-next-line no-control-regex -- upstream status may contain ANSI color sequences
 const ANSI_ESCAPE = new RegExp("\\u001b\\[[0-9;]*m", "g");
 const STATUS_MARKER = /^([✓✗⚠ℹ])\s*/;
-const FAILURE_MARKERS = ["✗", "⚠"];
+const NON_FAILURE_MARKERS = ["✓", "ℹ"];
 const FAILURE_DIAGNOSTIC =
   /failed|could not|couldn't|cannot create|not .*updated automatically|remain stacked|not fully|skipping rebase/i;
+
+type Diagnostic = { marker: string; text: string };
 
 export async function stackCommand(args: string[]): Promise<string> {
   if (args.length === 0 || args.includes("--help")) return STACK_HELP;
@@ -179,17 +181,20 @@ function unexpectedOutput(stdout: string): AxiError {
 
 async function runStack(action: string, args: string[]): Promise<string> {
   const result = await execute(["stack", action, ...args]);
-  const messages = [...lines(result.stdout), ...lines(result.stderr)];
-  // Classify only the extension's own marker-prefixed stderr diagnostics: stdout
-  // and unmarked lines echo user-supplied text (commit subjects, branch names)
-  // that would otherwise be misread as a failure report.
-  const diagnostics = statusDiagnostics(result.stderr);
-  const aborted = diagnostics.some(({ text }) => /sync aborted/i.test(text));
-  const partial = diagnostics.some(
-    ({ marker, text }) =>
-      FAILURE_MARKERS.includes(marker) && FAILURE_DIAGNOSTIC.test(text),
+  // Classify from stderr only: stdout echoes user-supplied text (commit
+  // subjects, branch names) that reads like a failure report. Lines the
+  // extension itself marks as succeeded are excluded for the same reason;
+  // everything else, including unmarked git subprocess diagnostics, counts.
+  const stderrDiagnostics = diagnostics(result.stderr);
+  const messages = [
+    ...lines(result.stdout),
+    ...stderrDiagnostics.map(({ text }) => text),
+  ];
+  const aborted = stderrDiagnostics.some(({ text }) =>
+    /sync aborted/i.test(text),
   );
-  const warned = diagnostics.some(({ marker }) => marker === "⚠");
+  const partial = stderrDiagnostics.some(isFailureDiagnostic);
+  const warned = result.stderr.includes("⚠");
   return encode({
     stack: {
       action,
@@ -362,25 +367,25 @@ function parseArgs(
   return positional;
 }
 
-function lines(output: string): string[] {
+function diagnostics(output: string): Diagnostic[] {
   return output
-    .replace(ANSI_ESCAPE, "")
-    .split("\n")
-    .map((line) => line.trim().replace(STATUS_MARKER, ""))
-    .filter(Boolean);
-}
-
-function statusDiagnostics(stderr: string): { marker: string; text: string }[] {
-  return stderr
     .replace(ANSI_ESCAPE, "")
     .split("\n")
     .flatMap((line) => {
       const trimmed = line.trim();
       const match = STATUS_MARKER.exec(trimmed);
-      if (!match) return [];
-      const text = trimmed.slice(match[0].length).trim();
-      return text ? [{ marker: match[1], text }] : [];
+      const marker = match ? match[1] : "";
+      const text = match ? trimmed.slice(match[0].length).trim() : trimmed;
+      return text ? [{ marker, text }] : [];
     });
+}
+
+function lines(output: string): string[] {
+  return diagnostics(output).map(({ text }) => text);
+}
+
+function isFailureDiagnostic({ marker, text }: Diagnostic): boolean {
+  return !NON_FAILURE_MARKERS.includes(marker) && FAILURE_DIAGNOSTIC.test(text);
 }
 
 function validation(message: string): AxiError {

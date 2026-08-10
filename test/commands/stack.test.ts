@@ -149,6 +149,20 @@ describe("stackCommand", () => {
     expect(output).toContain("Push failed");
   });
 
+  it("reports unmarked git push diagnostics as partial", async () => {
+    mockedGhRaw.mockResolvedValue({
+      exitCode: 0,
+      stdout: "",
+      stderr:
+        "error: failed to push some refs to 'https://github.com/o/r.git'\nhint: Updates were rejected because the remote contains work you do not have\n",
+    });
+
+    const output = await stackCommand(["push"]);
+
+    expect(output).toContain("status: partial");
+    expect(output).toContain("failed to push some refs");
+  });
+
   it("does not read an echoed commit subject as a partial failure", async () => {
     mockedGhRaw.mockResolvedValue({
       exitCode: 0,
