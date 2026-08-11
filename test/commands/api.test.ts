@@ -294,4 +294,48 @@ describe('apiCommand', () => {
     // The body itself should be truncated
     expect(result.length).toBeLessThan(5000);
   });
+
+  it('preserves complete string values and noisy fields with --full', async () => {
+    const blob = 'a'.repeat(5000);
+    mockedGhExec.mockResolvedValue(JSON.stringify({
+      content: blob,
+      node_id: 'abc123',
+      avatar_url: 'https://avatars.example.com/u/123',
+    }));
+
+    const result = await apiCommand(['/repos/octo/repo/contents/README.md', '--full']);
+
+    expect(result).toContain(blob);
+    expect(result).not.toContain('... (truncated)');
+    // --full preserves every field, including ones the compact default strips.
+    expect(result).toContain('abc123');
+    expect(result).toContain('avatars.example.com');
+  });
+
+  it('does not forward --full to gh', async () => {
+    mockedGhExec.mockResolvedValue('{}');
+
+    await apiCommand(['/repos/octo/repo', '--full']);
+
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs).not.toContain('--full');
+  });
+
+  it('preserves the complete non-JSON body with --full', async () => {
+    const longText = 'x'.repeat(5000);
+    mockedGhExec.mockResolvedValue(longText);
+
+    const result = await apiCommand(['/some/endpoint', '--full']);
+
+    expect(result).toContain('api_response:');
+    expect(result).toContain('truncated: false');
+    expect(result).not.toContain('original_length:');
+    expect(result.length).toBeGreaterThan(5000);
+  });
+
+  it('rejects --full with a value', async () => {
+    await expect(apiCommand(['/repos/octo/repo', '--full=true'])).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
 });

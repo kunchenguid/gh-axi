@@ -522,6 +522,57 @@ describe("issueCommand", () => {
       const result = await issueCommand(["view", "42"], ctx);
       expect(result).not.toMatch(/^help\[/m);
     });
+
+    it("truncates comment bodies over 800 chars by default", async () => {
+      const longBody = "a".repeat(1000);
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "Bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "body",
+        comments: [
+          {
+            author: { login: "bob" },
+            createdAt: "2024-01-02T00:00:00Z",
+            body: longBody,
+          },
+        ],
+      });
+
+      const result = await issueCommand(["view", "42", "--comments"], ctx);
+
+      expect(result).toContain("truncated");
+      expect(result).not.toContain(longBody);
+    });
+
+    it("returns the complete comment body with --full --comments", async () => {
+      const longBody = "a".repeat(1000);
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "Bug",
+        state: "OPEN",
+        author: { login: "alice" },
+        createdAt: "2024-01-01T00:00:00Z",
+        body: "body",
+        comments: [
+          {
+            author: { login: "bob" },
+            createdAt: "2024-01-02T00:00:00Z",
+            body: longBody,
+          },
+        ],
+      });
+
+      const result = await issueCommand(
+        ["view", "42", "--full", "--comments"],
+        ctx,
+      );
+
+      expect(result).toContain(longBody);
+      expect(result).not.toContain("... (truncated");
+    });
   });
 
   describe("create", () => {

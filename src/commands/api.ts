@@ -8,8 +8,8 @@ export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
-flags[5]:
-  --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>
+flags[6]:
+  --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
@@ -24,10 +24,18 @@ const REPEATABLE_VALUE_FLAGS = new Set(['--field', '--header']);
 /** Value flags that gh accepts only one of, so a repeat is a caller mistake. */
 const SINGLE_VALUE_FLAGS = new Set(['--jq', '--template']);
 
-/** Flags that stand alone and must not consume the following argument. */
+/** Flags that stand alone and must not consume the following argument, and are forwarded to gh. */
 const BOOL_FLAGS = new Set(['--paginate']);
 
-const SUPPORTED_FLAGS = [...REPEATABLE_VALUE_FLAGS, ...SINGLE_VALUE_FLAGS, ...BOOL_FLAGS];
+/** Flags that stand alone, are gh-axi-only, and must not be forwarded to gh. */
+const LOCAL_BOOL_FLAGS = new Set(['--full']);
+
+const SUPPORTED_FLAGS = [
+  ...REPEATABLE_VALUE_FLAGS,
+  ...SINGLE_VALUE_FLAGS,
+  ...BOOL_FLAGS,
+  ...LOCAL_BOOL_FLAGS,
+];
 
 /** The flag's name without any `=value` suffix, so errors never echo a value. */
 function flagName(arg: string): string {
@@ -42,6 +50,7 @@ interface ParsedApiArgs {
   jq?: string;
   template?: string;
   paginate: boolean;
+  full: boolean;
 }
 
 /**
@@ -65,6 +74,7 @@ function parseArgs(args: string[]): ParsedApiArgs {
     fields: [],
     headers: [],
     paginate: false,
+    full: false,
   };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -77,6 +87,12 @@ function parseArgs(args: string[]): ParsedApiArgs {
       if (name !== arg)
         throw new AxiError(`${name} does not take a value`, 'VALIDATION_ERROR');
       parsed.paginate = true;
+      continue;
+    }
+    if (LOCAL_BOOL_FLAGS.has(name)) {
+      if (name !== arg)
+        throw new AxiError(`${name} does not take a value`, 'VALIDATION_ERROR');
+      parsed.full = true;
       continue;
     }
     if (!REPEATABLE_VALUE_FLAGS.has(name) && !SINGLE_VALUE_FLAGS.has(name)) {
@@ -127,7 +143,8 @@ const STRING_VALUE_TRUNCATION_LIMIT = 2000;
 export async function apiCommand(args: string[], ctx?: RepoContext): Promise<string> {
   if (args[0] === '--help' || args.length === 0) return API_HELP;
 
-  const { positionals, fields, headers, jq, template, paginate } = parseArgs(args);
+  const { positionals, fields, headers, jq, template, paginate, full } =
+    parseArgs(args);
 
   const pathRequired = new AxiError(
     'API path is required: gh-axi api [<method>] <path>',
@@ -171,15 +188,21 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
   // selected field cannot blow the caller's context with an unbounded blob.
   const callerShapedOutput = jq !== undefined || template !== undefined;
 
+  // --full is an explicit opt-in escape hatch: it keeps every field (like
+  // caller-shaped output) and additionally lifts the string-length clamp, so
+  // compact output stays the default everywhere --full is not given.
+  const stripNoisyKeys = !callerShapedOutput && !full;
+  const truncateValues = !full;
+
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
   const raw = await ghExec(ghArgs, ctx);
   try {
     const data = JSON.parse(raw);
-    return encode(shapeOutput(data, !callerShapedOutput));
+    return encode(shapeOutput(data, stripNoisyKeys, truncateValues));
   } catch {
     // Not JSON — wrap in TOON envelope with truncation metadata
     const trimmed = raw.trim();
-    const truncated = trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
+    const truncated = !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
     const result: Record<string, unknown> = {
       api_response: {
         body: truncated ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT) : trimmed,
@@ -245,19 +268,27 @@ function clampString(value: string): string {
  * With `stripNoisyKeys` the noisy keys are dropped and long strings are cleaned
  * as well. Output the caller shaped with --jq/--template keeps both its keys and
  * its content verbatim and is only length-bounded, since rewriting a field they
- * selected by name is the same silent mutation as deleting it.
+ * selected by name is the same silent mutation as deleting it. With
+ * `truncateValues` false (--full), string values pass through untouched.
  */
-function shapeOutput(obj: unknown, stripNoisyKeys: boolean, depth = 0): unknown {
+function shapeOutput(
+  obj: unknown,
+  stripNoisyKeys: boolean,
+  truncateValues: boolean,
+  depth = 0,
+): unknown {
   if (depth > 8) return obj;
   if (Array.isArray(obj)) {
-    return obj.map((item) => shapeOutput(item, stripNoisyKeys, depth + 1));
+    return obj.map((item) =>
+      shapeOutput(item, stripNoisyKeys, truncateValues, depth + 1),
+    );
   }
   if (obj !== null && typeof obj === 'object') {
     const record = obj as Record<string, unknown>;
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
       if (!stripNoisyKeys) {
-        result[key] = shapeOutput(value, stripNoisyKeys, depth + 1);
+        result[key] = shapeOutput(value, stripNoisyKeys, truncateValues, depth + 1);
         continue;
       }
       if (NOISY_KEYS.has(key)) continue;
@@ -272,10 +303,13 @@ function shapeOutput(obj: unknown, stripNoisyKeys: boolean, depth = 0): unknown 
         result[key] = collapseRepo(value as Record<string, unknown>);
         continue;
       }
-      result[key] = shapeOutput(value, stripNoisyKeys, depth + 1);
+      result[key] = shapeOutput(value, stripNoisyKeys, truncateValues, depth + 1);
     }
     return result;
   }
-  if (typeof obj === 'string') return stripNoisyKeys ? clampString(obj) : truncateString(obj);
+  if (typeof obj === 'string') {
+    if (!truncateValues) return obj;
+    return stripNoisyKeys ? clampString(obj) : truncateString(obj);
+  }
   return obj;
 }

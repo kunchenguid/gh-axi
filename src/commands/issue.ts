@@ -178,6 +178,14 @@ const commentResultSchema: FieldDef[] = [
   ),
 ];
 
+const commentResultSchemaFull: FieldDef[] = commentResultSchema.map((f) =>
+  "as" in f && f.as === "body"
+    ? custom("body", (item: Record<string, unknown>) =>
+        typeof item.body === "string" ? item.body : "",
+      )
+    : f,
+);
+
 const lockResultSchema: FieldDef[] = [
   field("number"),
   lower("state"),
@@ -358,13 +366,12 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const blocks: string[] = [renderDetail("issue", augmented, schema)];
 
   if (withComments && Array.isArray(item.comments)) {
+    const commentSchema = full ? commentResultSchemaFull : commentResultSchema;
     blocks.push(
       renderList(
         "comments",
         item.comments as Record<string, unknown>[],
-        commentResultSchema.filter((d) =>
-          "key" in d ? d.key !== "number" : true,
-        ),
+        commentSchema.filter((d) => ("key" in d ? d.key !== "number" : true)),
       ),
     );
   }
