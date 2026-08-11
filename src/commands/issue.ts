@@ -68,7 +68,7 @@ subcommands[14]:
 flags{list}:
   --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --full (show complete body without truncation)
+  --comments, --full (show the complete issue body and comment bodies without truncation)
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path>, --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
 flags{edit}:
