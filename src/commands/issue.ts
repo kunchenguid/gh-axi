@@ -136,20 +136,19 @@ const viewSchemaWithoutType: FieldDef[] = viewSchema.filter(
   (f) => f !== issueTypeField,
 );
 
-const viewSchemaFull: FieldDef[] = viewSchema.map((f) =>
-  "as" in f && f.as === "body"
-    ? custom("body", (item: Record<string, unknown>) =>
-        typeof item.body === "string" ? item.body : "",
-      )
-    : f,
-);
+const withFullBody = (schema: FieldDef[]): FieldDef[] =>
+  schema.map((f) =>
+    "as" in f && f.as === "body"
+      ? custom("body", (item: Record<string, unknown>) =>
+          typeof item.body === "string" ? item.body : "",
+        )
+      : f,
+  );
 
-const viewSchemaFullWithoutType: FieldDef[] = viewSchemaWithoutType.map((f) =>
-  "as" in f && f.as === "body"
-    ? custom("body", (item: Record<string, unknown>) =>
-        typeof item.body === "string" ? item.body : "",
-      )
-    : f,
+const viewSchemaFull: FieldDef[] = withFullBody(viewSchema);
+
+const viewSchemaFullWithoutType: FieldDef[] = withFullBody(
+  viewSchemaWithoutType,
 );
 
 const createResultSchema: FieldDef[] = [
@@ -178,13 +177,7 @@ const commentResultSchema: FieldDef[] = [
   ),
 ];
 
-const commentResultSchemaFull: FieldDef[] = commentResultSchema.map((f) =>
-  "as" in f && f.as === "body"
-    ? custom("body", (item: Record<string, unknown>) =>
-        typeof item.body === "string" ? item.body : "",
-      )
-    : f,
-);
+const commentResultSchemaFull: FieldDef[] = withFullBody(commentResultSchema);
 
 const lockResultSchema: FieldDef[] = [
   field("number"),
