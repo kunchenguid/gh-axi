@@ -2,7 +2,7 @@ import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec } from "../gh.js";
 import { AxiError } from "../errors.js";
-import { getFlag, hasFlag, takeBoolFlag, takeFlag } from "../args.js";
+import { getFlag, hasFlag, takeBoolFlag, takeFlag, rejectUnknownFlags } from "../args.js";
 import { takeBody, truncateBody } from "../body.js";
 import {
   field,
@@ -18,6 +18,25 @@ import {
   type FieldDef,
 } from "../toon.js";
 import { getSuggestions } from "../suggestions.js";
+
+const RELEASE_FLAGS: Record<string, readonly string[]> = {
+  list: ["--limit", "--exclude-drafts", "--exclude-pre-releases"],
+  view: ["--full"],
+  create: [
+    "--body", "--body-file", "--title", "-t", "--notes", "-n",
+    "--notes-file", "-F", "--target", "--discussion-category",
+    "--notes-start-tag", "--draft", "-d", "--prerelease", "-p",
+    "--generate-notes", "--verify-tag", "--notes-from-tag",
+    "--fail-on-no-commits", "--latest",
+  ],
+  edit: [
+    "--body", "--body-file", "--title", "--notes", "-n", "--notes-file",
+    "-F", "--draft", "--prerelease",
+  ],
+  delete: [],
+  download: ["--pattern", "--dir"],
+  upload: [],
+};
 
 export const RELEASE_HELP = `usage: gh-axi release <subcommand> [flags]
 subcommands[7]:
@@ -407,18 +426,25 @@ export async function releaseCommand(
 
   switch (sub) {
     case "list":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.list, "release", "list");
       return listReleases(args, ctx);
     case "view":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.view, "release", "view");
       return viewRelease(args, ctx);
     case "create":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.create, "release", "create");
       return createRelease(args, ctx);
     case "edit":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.edit, "release", "edit");
       return editRelease(args, ctx);
     case "delete":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.delete, "release", "delete");
       return deleteRelease(args, ctx);
     case "download":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.download, "release", "download");
       return downloadRelease(args, ctx);
     case "upload":
+      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.upload, "release", "upload");
       return uploadRelease(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, "VALIDATION_ERROR", [

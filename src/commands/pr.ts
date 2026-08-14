@@ -12,6 +12,7 @@ import {
   takeNumber,
   takeAllFlags,
   pushRepeated,
+  rejectUnknownFlags,
 } from "../args.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import {
@@ -245,6 +246,78 @@ const VIEW_JSON_FIELDS =
 // ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
+
+// --search is intentionally listed: prList rejects it with a dedicated hint
+// pointing at `gh-axi search`, so rejectUnknownFlags lets it through to that
+// handler instead of shadowing the targeted error.
+const PR_FLAGS: Record<string, readonly string[]> = {
+  list: [
+    "--fields",
+    "--state",
+    "--label",
+    "--assignee",
+    "--author",
+    "--base",
+    "--head",
+    "--draft",
+    "--limit",
+    "--search",
+  ],
+  view: ["--comments", "--reviews", "--full"],
+  create: [
+    "--title",
+    "--body",
+    "--body-file",
+    "--base",
+    "--head",
+    "--draft",
+    "--assignee",
+    "--reviewer",
+    "--label",
+    "--milestone",
+    "--project",
+  ],
+  edit: [
+    "--title",
+    "--body",
+    "--body-file",
+    "--add-label",
+    "--remove-label",
+    "--add-assignee",
+    "--remove-assignee",
+    "--add-reviewer",
+    "--remove-reviewer",
+    "--milestone",
+    "--base",
+  ],
+  close: ["--comment"],
+  merge: [
+    "--method",
+    "--merge",
+    "--squash",
+    "--rebase",
+    "--auto",
+    "--delete-branch",
+    "--body",
+    "--body-file",
+    "--subject",
+  ],
+  review: [
+    "--approve",
+    "--request-changes",
+    "--comment",
+    "--body",
+    "--body-file",
+  ],
+  checks: [],
+  diff: ["--full"],
+  checkout: [],
+  ready: [],
+  reopen: [],
+  comment: ["--body", "--body-file"],
+  "update-branch": [],
+  revert: [],
+};
 
 export const PR_HELP = `usage: gh-axi pr <subcommand> [flags]
 subcommands[15]:
@@ -966,34 +1039,54 @@ export async function prCommand(
 
   switch (sub) {
     case "list":
+      rejectUnknownFlags(rest, PR_FLAGS.list, "pr", "list");
       return prList(rest, ctx);
     case "view":
+      rejectUnknownFlags(rest, PR_FLAGS.view, "pr", "view");
       return prView(rest, ctx);
     case "create":
+      rejectUnknownFlags(rest, PR_FLAGS.create, "pr", "create");
       return prCreate(rest, ctx);
     case "edit":
+      rejectUnknownFlags(rest, PR_FLAGS.edit, "pr", "edit");
       return prEdit(rest, ctx);
     case "close":
+      rejectUnknownFlags(rest, PR_FLAGS.close, "pr", "close");
       return prClose(rest, ctx);
     case "merge":
+      rejectUnknownFlags(rest, PR_FLAGS.merge, "pr", "merge");
       return prMerge(rest, ctx);
     case "review":
+      rejectUnknownFlags(rest, PR_FLAGS.review, "pr", "review");
       return prReview(rest, ctx);
     case "checks":
+      rejectUnknownFlags(rest, PR_FLAGS.checks, "pr", "checks");
       return prChecks(rest, ctx);
     case "diff":
+      rejectUnknownFlags(rest, PR_FLAGS.diff, "pr", "diff");
       return prDiff(rest, ctx);
     case "checkout":
+      rejectUnknownFlags(rest, PR_FLAGS.checkout, "pr", "checkout");
       return prCheckout(rest, ctx);
     case "ready":
+      rejectUnknownFlags(rest, PR_FLAGS.ready, "pr", "ready");
       return prReady(rest, ctx);
     case "reopen":
+      rejectUnknownFlags(rest, PR_FLAGS.reopen, "pr", "reopen");
       return prReopen(rest, ctx);
     case "comment":
+      rejectUnknownFlags(rest, PR_FLAGS.comment, "pr", "comment");
       return prComment(rest, ctx);
     case "update-branch":
+      rejectUnknownFlags(
+        rest,
+        PR_FLAGS["update-branch"],
+        "pr",
+        "update-branch",
+      );
       return prUpdateBranch(rest, ctx);
     case "revert":
+      rejectUnknownFlags(rest, PR_FLAGS.revert, "pr", "revert");
       return prRevert(rest, ctx);
     case "--help":
     case "-h":

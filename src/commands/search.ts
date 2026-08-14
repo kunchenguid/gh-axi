@@ -1,7 +1,7 @@
 import type { RepoContext } from "../context.js";
 import { ghJson } from "../gh.js";
 import { AxiError } from "../errors.js";
-import { getFlag, hasFlag } from "../args.js";
+import { getFlag, hasFlag, rejectUnknownFlags } from "../args.js";
 import {
   field,
   lower,
@@ -33,6 +33,20 @@ const SEARCH_VALUE_FLAGS = new Set([
   "--language",
   "--stars",
 ]);
+
+const SEARCH_FLAGS: Record<string, readonly string[]> = {
+  issues: [
+    "--repo", "--owner", "--state", "--label", "--assignee", "--author",
+    "--sort", "--limit",
+  ],
+  prs: [
+    "--repo", "--owner", "--state", "--label", "--assignee", "--author",
+    "--sort", "--limit", "--draft", "--review",
+  ],
+  repos: ["--repo", "--owner", "--language", "--stars", "--sort", "--limit"],
+  commits: ["--repo", "--owner", "--author", "--sort", "--limit"],
+  code: ["--repo", "--owner", "--language", "--limit"],
+};
 
 export const SEARCH_HELP = `usage: gh-axi search <type> <query> [flags]
 types[5]:
@@ -397,14 +411,19 @@ export async function searchCommand(
 
   switch (sub) {
     case "issues":
+      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.issues, "search", "issues");
       return searchIssues(args, ctx);
     case "prs":
+      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.prs, "search", "prs");
       return searchPrs(args, ctx);
     case "repos":
+      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.repos, "search", "repos");
       return searchRepos(args, ctx);
     case "commits":
+      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.commits, "search", "commits");
       return searchCommits(args, ctx);
     case "code":
+      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.code, "search", "code");
       return searchCode(args, ctx);
     default:
       return renderError(`Unknown search type: ${sub}`, "VALIDATION_ERROR", [

@@ -12,6 +12,7 @@ import {
   requireNumber,
   takeFlag,
   takeBoolFlag,
+  rejectUnknownFlags,
 } from "../args.js";
 import { takeBody, truncateBody } from "../body.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
@@ -98,6 +99,60 @@ examples:
   gh-axi issue subissue add 16 20 101 125
   gh-axi issue subissue remove 16 101
   gh-axi issue subissue list 16`;
+
+// ---------------------------------------------------------------------------
+// Per-subcommand known flags (for rejectUnknownFlags)
+// ---------------------------------------------------------------------------
+
+// --search is intentionally listed: listIssues/prList reject it with a
+// dedicated hint pointing at `gh-axi search`, so rejectUnknownFlags lets it
+// through to that handler instead of shadowing the targeted error.
+const ISSUE_FLAGS: Record<string, readonly string[]> = {
+  list: [
+    "--fields",
+    "--state",
+    "--label",
+    "--assignee",
+    "--author",
+    "--milestone",
+    "--sort",
+    "--limit",
+    "--search",
+  ],
+  view: ["--comments", "--full"],
+  create: [
+    "--title",
+    "--body",
+    "--body-file",
+    "--assignee",
+    "--label",
+    "--milestone",
+    "--project",
+    "--type",
+  ],
+  edit: [
+    "--title",
+    "--body",
+    "--body-file",
+    "--add-label",
+    "--remove-label",
+    "--add-assignee",
+    "--remove-assignee",
+    "--milestone",
+    "--no-type",
+    "--type",
+  ],
+  close: ["--reason", "--comment"],
+  reopen: [],
+  comment: ["--body", "--body-file"],
+  delete: [],
+  lock: [],
+  unlock: [],
+  pin: [],
+  unpin: [],
+  transfer: ["--to-repo"],
+  subissue: [],
+};
 
 // ---------------------------------------------------------------------------
 // Field schemas
@@ -1287,6 +1342,12 @@ export async function issueCommand(
   const sub = args[0];
 
   if (sub === "subissue") {
+    rejectUnknownFlags(
+      args.slice(1),
+      ISSUE_FLAGS.subissue,
+      "issue",
+      "subissue",
+    );
     return subissueCommand(args, ctx);
   }
 
@@ -1299,30 +1360,53 @@ export async function issueCommand(
 
   switch (sub) {
     case "list":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.list, "issue", "list");
       return listIssues(args, ctx);
     case "view":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.view, "issue", "view");
       return viewIssue(args, ctx);
     case "create":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.create, "issue", "create");
       return createIssue(args, ctx);
     case "edit":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.edit, "issue", "edit");
       return editIssue(args, ctx);
     case "close":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.close, "issue", "close");
       return closeIssue(args, ctx);
     case "reopen":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.reopen, "issue", "reopen");
       return reopenIssue(args, ctx);
     case "comment":
+      rejectUnknownFlags(
+        args.slice(1),
+        ISSUE_FLAGS.comment,
+        "issue",
+        "comment",
+      );
       return commentOnIssue(args, ctx);
     case "delete":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.delete, "issue", "delete");
       return deleteIssue(args, ctx);
     case "lock":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.lock, "issue", "lock");
       return lockIssue(args, ctx);
     case "unlock":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.unlock, "issue", "unlock");
       return unlockIssue(args, ctx);
     case "pin":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.pin, "issue", "pin");
       return pinIssue(args, ctx);
     case "unpin":
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.unpin, "issue", "unpin");
       return unpinIssue(args, ctx);
     case "transfer":
+      rejectUnknownFlags(
+        args.slice(1),
+        ISSUE_FLAGS.transfer,
+        "issue",
+        "transfer",
+      );
       return transferIssue(args, ctx);
     default:
       return renderError(

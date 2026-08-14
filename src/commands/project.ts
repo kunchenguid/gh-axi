@@ -5,7 +5,7 @@ import { AxiError } from "../errors.js";
 import { takeBody, truncateBody } from "../body.js";
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
-import { takeFlag, takeBoolFlag } from "../args.js";
+import { takeFlag, takeBoolFlag, rejectUnknownFlags } from "../args.js";
 import {
   field,
   pluck,
@@ -55,6 +55,26 @@ interface ProjectFieldListResult {
 // ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
+
+const PROJECT_FLAGS: Record<string, readonly string[]> = {
+  list: ["--owner", "--closed", "--limit"],
+  view: ["--owner"],
+  "item-list": ["--owner", "--query", "--limit"],
+  "field-list": ["--owner", "--limit"],
+  "item-add": ["--owner", "--url"],
+  "item-create": ["--owner", "--title", "--body", "--body-file"],
+  "item-edit": [
+    "--id", "--project-id", "--field-id", "--text", "--number", "--date",
+    "--single-select-option-id", "--iteration-id", "--title", "--body",
+    "--body-file", "--clear",
+  ],
+  "item-archive": ["--owner", "--id", "--undo"],
+  "item-delete": ["--owner", "--id"],
+  create: ["--owner", "--title"],
+  edit: ["--owner", "--title", "--description", "--readme", "--visibility"],
+  close: ["--owner", "--undo"],
+  copy: ["--source-owner", "--target-owner", "--title", "--drafts"],
+};
 
 export const PROJECT_HELP = `usage: gh-axi project <subcommand> [flags]
 subcommands[13]:
@@ -841,30 +861,43 @@ export async function projectCommand(
 
   switch (sub) {
     case "list":
+      rejectUnknownFlags(rest, PROJECT_FLAGS.list, "project", "list");
       return projectList(rest, ctx);
     case "view":
+      rejectUnknownFlags(rest, PROJECT_FLAGS.view, "project", "view");
       return projectView(rest, ctx);
     case "item-list":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["item-list"], "project", "item-list");
       return projectItemList(rest, ctx);
     case "field-list":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["field-list"], "project", "field-list");
       return projectFieldList(rest, ctx);
     case "item-add":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["item-add"], "project", "item-add");
       return projectItemAdd(rest, ctx);
     case "item-create":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["item-create"], "project", "item-create");
       return projectItemCreate(rest, ctx);
     case "item-edit":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["item-edit"], "project", "item-edit");
       return projectItemEdit(rest);
     case "item-archive":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["item-archive"], "project", "item-archive");
       return projectItemArchive(rest, ctx);
     case "item-delete":
+      rejectUnknownFlags(rest, PROJECT_FLAGS["item-delete"], "project", "item-delete");
       return projectItemDelete(rest, ctx);
     case "create":
+      rejectUnknownFlags(rest, PROJECT_FLAGS.create, "project", "create");
       return projectCreate(rest, ctx);
     case "edit":
+      rejectUnknownFlags(rest, PROJECT_FLAGS.edit, "project", "edit");
       return projectEdit(rest, ctx);
     case "close":
+      rejectUnknownFlags(rest, PROJECT_FLAGS.close, "project", "close");
       return projectClose(rest, ctx);
     case "copy":
+      rejectUnknownFlags(rest, PROJECT_FLAGS.copy, "project", "copy");
       return projectCopy(rest, ctx);
     case "--help":
     case "-h":

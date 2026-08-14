@@ -2,7 +2,7 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag } from '../args.js';
+import { getFlag, rejectUnknownFlags } from '../args.js';
 import {
   field,
   renderList,
@@ -13,6 +13,13 @@ import {
 } from '../toon.js';
 import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
+
+const LABEL_FLAGS: Record<string, readonly string[]> = {
+  list: ['--limit'],
+  create: ['--name', '--color', '--description'],
+  edit: ['--name', '--color', '--description'],
+  delete: [],
+};
 
 export const LABEL_HELP = `usage: gh-axi label <subcommand> [flags]
 subcommands[4]:
@@ -129,12 +136,16 @@ export async function labelCommand(args: string[], ctx?: RepoContext): Promise<s
 
   switch (sub) {
     case 'list':
+      rejectUnknownFlags(args.slice(1), LABEL_FLAGS.list, 'label', 'list');
       return listLabels(args, ctx);
     case 'create':
+      rejectUnknownFlags(args.slice(1), LABEL_FLAGS.create, 'label', 'create');
       return createLabel(args, ctx);
     case 'edit':
+      rejectUnknownFlags(args.slice(1), LABEL_FLAGS.edit, 'label', 'edit');
       return editLabel(args, ctx);
     case 'delete':
+      rejectUnknownFlags(args.slice(1), LABEL_FLAGS.delete, 'label', 'delete');
       return deleteLabel(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, 'VALIDATION_ERROR', [

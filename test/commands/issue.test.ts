@@ -92,6 +92,22 @@ describe("issueCommand", () => {
   });
 
   describe("list", () => {
+    it("rejects unknown flags with a structured error", async () => {
+      await expect(issueCommand(["list", "--bogus"], ctx)).rejects.toThrow(
+        /unknown flag for gh-axi issue list: --bogus/,
+      );
+    });
+
+    it("does not reject known list flags (including = form)", async () => {
+      mockedGhJson.mockResolvedValueOnce([]);
+      const result = await issueCommand(
+        ["list", "--state", "closed", "--label", "bug", "--limit=5"],
+        ctx,
+      );
+      expect(result).toContain("issues[0]");
+      expect(mockedGhJson).toHaveBeenCalled();
+    });
+
     it("returns list with count", async () => {
       mockedGhJson.mockResolvedValue([
         {

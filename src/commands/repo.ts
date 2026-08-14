@@ -2,7 +2,7 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag, hasFlag } from '../args.js';
+import { getFlag, hasFlag, rejectUnknownFlags } from '../args.js';
 import {
   field,
   lower,
@@ -18,6 +18,21 @@ import {
 } from '../toon.js';
 import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
+
+const REPO_FLAGS: Record<string, readonly string[]> = {
+  view: [],
+  create: [
+    '--public', '--private', '--internal', '--description', '--clone',
+    '--template',
+  ],
+  edit: [
+    '--description', '--visibility', '--default-branch', '--enable-issues',
+    '--enable-wiki',
+  ],
+  clone: [],
+  fork: ['--clone', '--remote'],
+  list: ['--limit', '--visibility', '--language', '--archived'],
+};
 
 export const REPO_HELP = `usage: gh-axi repo <subcommand> [flags]
 subcommands[6]:
@@ -202,16 +217,22 @@ export async function repoCommand(args: string[], ctx?: RepoContext): Promise<st
 
   switch (sub) {
     case 'view':
+      rejectUnknownFlags(args.slice(1), REPO_FLAGS.view, 'repo', 'view');
       return viewRepo(args, ctx);
     case 'create':
+      rejectUnknownFlags(args.slice(1), REPO_FLAGS.create, 'repo', 'create');
       return createRepo(args, ctx);
     case 'edit':
+      rejectUnknownFlags(args.slice(1), REPO_FLAGS.edit, 'repo', 'edit');
       return editRepo(args, ctx);
     case 'clone':
+      rejectUnknownFlags(args.slice(1), REPO_FLAGS.clone, 'repo', 'clone');
       return cloneRepo(args);
     case 'fork':
+      rejectUnknownFlags(args.slice(1), REPO_FLAGS.fork, 'repo', 'fork');
       return forkRepo(args, ctx);
     case 'list':
+      rejectUnknownFlags(args.slice(1), REPO_FLAGS.list, 'repo', 'list');
       return listRepos(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, 'VALIDATION_ERROR', [

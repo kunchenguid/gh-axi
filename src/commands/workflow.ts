@@ -2,7 +2,7 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag, hasFlag, getAllFlags } from '../args.js';
+import { getFlag, hasFlag, getAllFlags, rejectUnknownFlags } from '../args.js';
 import {
   field,
   lower,
@@ -15,6 +15,14 @@ import {
 } from '../toon.js';
 import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
+
+const WORKFLOW_FLAGS: Record<string, readonly string[]> = {
+  list: ['--limit', '--all'],
+  view: [],
+  run: ['--ref', '--field'],
+  enable: [],
+  disable: [],
+};
 
 export const WORKFLOW_HELP = `usage: gh-axi workflow <subcommand> [flags]
 subcommands[5]:
@@ -162,14 +170,19 @@ export async function workflowCommand(args: string[], ctx?: RepoContext): Promis
 
   switch (sub) {
     case 'list':
+      rejectUnknownFlags(args.slice(1), WORKFLOW_FLAGS.list, 'workflow', 'list');
       return listWorkflows(args, ctx);
     case 'view':
+      rejectUnknownFlags(args.slice(1), WORKFLOW_FLAGS.view, 'workflow', 'view');
       return viewWorkflow(args, ctx);
     case 'run':
+      rejectUnknownFlags(args.slice(1), WORKFLOW_FLAGS.run, 'workflow', 'run');
       return runWorkflow(args, ctx);
     case 'enable':
+      rejectUnknownFlags(args.slice(1), WORKFLOW_FLAGS.enable, 'workflow', 'enable');
       return enableWorkflow(args, ctx);
     case 'disable':
+      rejectUnknownFlags(args.slice(1), WORKFLOW_FLAGS.disable, 'workflow', 'disable');
       return disableWorkflow(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, 'VALIDATION_ERROR', [

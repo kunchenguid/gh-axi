@@ -2,7 +2,7 @@ import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec, ghExecWithStdin } from "../gh.js";
 import { AxiError } from "../errors.js";
-import { takeFlag } from "../args.js";
+import { takeFlag, rejectUnknownFlags } from "../args.js";
 import {
   field,
   relativeTime,
@@ -14,6 +14,12 @@ import {
 } from "../toon.js";
 import { getSuggestions } from "../suggestions.js";
 import { resolveValue } from "../secretValue.js";
+
+const VARIABLE_FLAGS: Record<string, readonly string[]> = {
+  list: [],
+  set: ["--body", "-b"],
+  delete: [],
+};
 
 export const VARIABLE_HELP = `usage: gh-axi variable <subcommand> [flags]
 subcommands[3]:
@@ -118,10 +124,13 @@ export async function variableCommand(
 
   switch (sub) {
     case "list":
+      rejectUnknownFlags(args.slice(1), VARIABLE_FLAGS.list, "variable", "list");
       return listVariables(args, ctx);
     case "set":
+      rejectUnknownFlags(args.slice(1), VARIABLE_FLAGS.set, "variable", "set");
       return setVariable(args, ctx);
     case "delete":
+      rejectUnknownFlags(args.slice(1), VARIABLE_FLAGS.delete, "variable", "delete");
       return deleteVariable(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, "VALIDATION_ERROR", [

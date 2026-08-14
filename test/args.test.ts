@@ -9,6 +9,7 @@ import {
   pushRepeated,
   getPositional,
   requireNumber,
+  rejectUnknownFlags,
 } from "../src/args.js";
 import { AxiError } from "../src/errors.js";
 
@@ -286,5 +287,87 @@ describe("requireNumber", () => {
       expect(e).toBeInstanceOf(AxiError);
       expect((e as AxiError).code).toBe("VALIDATION_ERROR");
     }
+  });
+
+  describe("rejectUnknownFlags", () => {
+    it("passes when no flags are unknown", () => {
+      expect(() =>
+        rejectUnknownFlags(
+          ["--state", "open", "--label", "bug"],
+          ["--state", "--label"],
+          "issue",
+          "list",
+        ),
+      ).not.toThrow();
+    });
+
+    it("passes on positional args", () => {
+      expect(() =>
+        rejectUnknownFlags(
+          ["42", "--comment", "thanks"],
+          ["--comment"],
+          "issue",
+          "comment",
+        ),
+      ).not.toThrow();
+    });
+
+    it("always allows --help and -h", () => {
+      expect(() =>
+        rejectUnknownFlags(["--help"], [], "issue", "list"),
+      ).not.toThrow();
+      expect(() => rejectUnknownFlags(["-h"], [], "pr", "list")).not.toThrow();
+    });
+
+    it("accepts equals-form known flags", () => {
+      expect(() =>
+        rejectUnknownFlags(
+          ["--state=open", "--limit=5"],
+          ["--state", "--limit"],
+          "issue",
+          "list",
+        ),
+      ).not.toThrow();
+    });
+
+    it("throws listing a single unknown flag with a self-correction hint", () => {
+      try {
+        rejectUnknownFlags(["--bogus"], ["--state"], "issue", "list");
+        expect.unreachable();
+      } catch (e) {
+        expect(e).toBeInstanceOf(AxiError);
+        const err = e as AxiError;
+        expect(err.code).toBe("VALIDATION_ERROR");
+        expect(err.message).toContain("--bogus");
+        expect(err.message).toContain("gh-axi issue list");
+        expect(err.suggestions.join("\n")).toContain(
+          "gh-axi issue list --help",
+        );
+      }
+    });
+
+    it("lists every unknown flag and dedupes", () => {
+      try {
+        rejectUnknownFlags(["--one", "--two=2", "--one"], [], "pr", "merge");
+        expect.unreachable();
+      } catch (e) {
+        const err = e as AxiError;
+        expect(err.message).toContain("--one");
+        expect(err.message).toContain("--two");
+        expect(err.message.match(/--one/g)).toHaveLength(1);
+      }
+    });
+
+    it("does not flag unknown short flags", () => {
+      expect(() => rejectUnknownFlags(["-z"], [], "issue", "list")).toThrow(
+        AxiError,
+      );
+    });
+
+    it("stops scanning after a -- separator", () => {
+      expect(() =>
+        rejectUnknownFlags(["--", "--not-a-flag"], [], "repo", "view"),
+      ).not.toThrow();
+    });
   });
 });

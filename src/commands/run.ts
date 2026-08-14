@@ -5,7 +5,7 @@ import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec } from "../gh.js";
 import { AxiError } from "../errors.js";
-import { getFlag, hasFlag, takeFlag } from "../args.js";
+import { getFlag, hasFlag, takeFlag, rejectUnknownFlags } from "../args.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import {
   field,
@@ -20,6 +20,19 @@ import {
 } from "../toon.js";
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
+
+const RUN_FLAGS: Record<string, readonly string[]> = {
+  list: [
+    "--fields", "--limit", "--workflow", "--branch", "--status",
+    "--event", "--user", "--commit",
+  ],
+  view: ["--job", "--conclusion", "--log", "--verbose", "--log-failed"],
+  watch: [],
+  rerun: ["--failed", "--debug", "--job"],
+  cancel: [],
+  delete: [],
+  download: ["--name", "--dir"],
+};
 
 export const RUN_HELP = `usage: gh-axi run <subcommand> [flags]
 subcommands[7]:
@@ -487,18 +500,25 @@ export async function runCommand(
 
   switch (sub) {
     case "list":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.list, "run", "list");
       return listRuns(args, ctx);
     case "view":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.view, "run", "view");
       return viewRun(args, ctx);
     case "watch":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.watch, "run", "watch");
       return watchRun(args, ctx);
     case "rerun":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.rerun, "run", "rerun");
       return rerunRun(args, ctx);
     case "cancel":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.cancel, "run", "cancel");
       return cancelRun(args, ctx);
     case "delete":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.delete, "run", "delete");
       return deleteRun(args, ctx);
     case "download":
+      rejectUnknownFlags(args.slice(1), RUN_FLAGS.download, "run", "download");
       return downloadRun(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, "VALIDATION_ERROR", [

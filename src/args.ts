@@ -133,3 +133,37 @@ export function takeNumber(args: string[], label: string): number {
   args.splice(args.indexOf(raw), 1);
   return Number(raw);
 }
+
+/**
+ * Reject flags in `args` that are not listed in `known`, after the subcommand
+ * has parsed the flags it recognizes. Positionals and `--help`/`-h` always
+ * pass; `--` ends flag scanning. Value forms (`--flag=v`) are matched by flag
+ * name only. Throws VALIDATION_ERROR listing every offending flag plus a
+ * one-turn self-correction hint (usage + `--help`), per AXI principle 6:
+ * never silently drop an unknown flag.
+ */
+export function rejectUnknownFlags(
+  args: string[],
+  known: readonly string[],
+  command: string,
+  sub: string,
+): void {
+  const knownSet = new Set(known);
+  const unknown: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === "--") break;
+    if (!tok.startsWith("-")) continue;
+    const name = tok.split("=", 1)[0];
+    if (name === "--help" || name === "-h") continue;
+    if (knownSet.has(name)) continue;
+    if (!unknown.includes(name)) unknown.push(name);
+  }
+  if (unknown.length === 0) return;
+  const list = unknown.join(", ");
+  throw new AxiError(
+    `unknown flag${unknown.length > 1 ? "s" : ""} for gh-axi ${command} ${sub}: ${list}`,
+    "VALIDATION_ERROR",
+    [`gh-axi ${command} ${sub} [flags]`, `gh-axi ${command} ${sub} --help`],
+  );
+}
