@@ -2,15 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({ ghRaw: vi.fn() }));
 vi.mock("../../src/stack-remote.js", () => ({
+  resolveStackLinkRemote: vi.fn(),
   resolveStackRemote: vi.fn(),
 }));
 
 import { ghRaw } from "../../src/gh.js";
-import { resolveStackRemote } from "../../src/stack-remote.js";
+import {
+  resolveStackLinkRemote,
+  resolveStackRemote,
+} from "../../src/stack-remote.js";
 import { stackCommand, STACK_HELP } from "../../src/commands/stack.js";
 import { AxiError } from "../../src/errors.js";
 
 const mockedGhRaw = vi.mocked(ghRaw);
+const mockedResolveStackLinkRemote = vi.mocked(resolveStackLinkRemote);
 const mockedResolveStackRemote = vi.mocked(resolveStackRemote);
 
 function success(stdout = "", stderr = "") {
@@ -21,6 +26,7 @@ describe("stackCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockedGhRaw.mockResolvedValue(success());
+    mockedResolveStackLinkRemote.mockImplementation(async (args) => args);
     mockedResolveStackRemote.mockImplementation(async (args) => args);
   });
 
@@ -201,6 +207,40 @@ describe("stackCommand", () => {
 
     expect(result).toContain("status: aborted");
     expect(result).not.toContain("status: ok");
+  });
+
+  it("uses link branch refs to resolve its remote", async () => {
+    mockedResolveStackLinkRemote.mockResolvedValue([
+      "--base",
+      "main",
+      "feature-a",
+      "feature-b",
+      "--remote",
+      "fork",
+    ]);
+
+    await stackCommand([
+      "link",
+      "--base",
+      "main",
+      "feature-a",
+      "feature-b",
+    ]);
+
+    expect(mockedResolveStackLinkRemote).toHaveBeenCalledWith(
+      ["--base", "main", "feature-a", "feature-b"],
+      ["feature-a", "feature-b"],
+    );
+    expect(mockedGhRaw).toHaveBeenCalledWith([
+      "stack",
+      "link",
+      "--base",
+      "main",
+      "feature-a",
+      "feature-b",
+      "--remote",
+      "fork",
+    ]);
   });
 
   it("reports malformed view output as a structured error", async () => {

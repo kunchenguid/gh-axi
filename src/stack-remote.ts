@@ -13,8 +13,25 @@ export async function resolveStackRemote(
   runGit: GitRunner = runGitCommand,
 ): Promise<string[]> {
   if (hasRemote(args)) return args;
+  return resolveRemote(args, await currentBranch(runGit), runGit);
+}
 
-  const branch = await currentBranch(runGit);
+export async function resolveStackLinkRemote(
+  args: string[],
+  refs: string[],
+  runGit: GitRunner = runGitCommand,
+): Promise<string[]> {
+  if (hasRemote(args)) return args;
+
+  const branch = await firstLocalBranch(refs, runGit);
+  return branch ? resolveRemote(args, branch, runGit) : args;
+}
+
+async function resolveRemote(
+  args: string[],
+  branch: string | undefined,
+  runGit: GitRunner,
+): Promise<string[]> {
   const configKeys = [
     ...(branch ? [`branch.${branch}.pushRemote`] : []),
     "remote.pushDefault",
@@ -49,6 +66,23 @@ function hasRemote(args: string[]): boolean {
 async function currentBranch(runGit: GitRunner): Promise<string | undefined> {
   const result = await runGit(["symbolic-ref", "--quiet", "--short", "HEAD"]);
   return result.exitCode === 0 ? result.stdout.trim() || undefined : undefined;
+}
+
+async function firstLocalBranch(
+  refs: string[],
+  runGit: GitRunner,
+): Promise<string | undefined> {
+  const result = await runGit([
+    "for-each-ref",
+    "--format=%(refname:short)",
+    "refs/heads",
+  ]);
+  if (result.exitCode !== 0) throw unknownRemote();
+
+  const localBranches = new Set(
+    result.stdout.split("\n").map((branch) => branch.trim()).filter(Boolean),
+  );
+  return refs.find((ref) => localBranches.has(ref));
 }
 
 async function configValue(

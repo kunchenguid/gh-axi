@@ -2,7 +2,7 @@ import { encode } from "@toon-format/toon";
 import { ghRaw, type ExecResult } from "../gh.js";
 import { AxiError, StackError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
-import { resolveStackRemote } from "../stack-remote.js";
+import { resolveStackLinkRemote, resolveStackRemote } from "../stack-remote.js";
 import { renderHelp, renderOutput } from "../toon.js";
 
 interface StackBranch {
@@ -132,13 +132,14 @@ export async function stackCommand(args: string[]): Promise<string> {
       return requiresRemoteForRebase(rest)
         ? runRemoteStack(subcommand, rest)
         : runStack(subcommand, rest);
-    case "link":
-      parseArgs(
+    case "link": {
+      const parsed = parseArgs(
         rest,
         { ...REMOTE_FLAGS, "--base": "value", "--open": "boolean" },
         2,
       );
-      return runRemoteStack(subcommand, rest);
+      return runLinkStack(rest, parsed.positionals);
+    }
     case "unstack":
       parseArgs(rest, { "--local": "boolean" }, 0, 1);
       return runStack(subcommand, rest);
@@ -282,6 +283,10 @@ async function runRemoteStack(
   args: string[],
 ): Promise<string> {
   return runStack(action, await resolveStackRemote(args));
+}
+
+async function runLinkStack(args: string[], refs: string[]): Promise<string> {
+  return runStack("link", await resolveStackLinkRemote(args, refs));
 }
 
 function requiresRemoteForRebase(args: string[]): boolean {

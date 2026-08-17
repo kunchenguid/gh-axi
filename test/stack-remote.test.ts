@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveStackRemote } from "../src/stack-remote.js";
+import {
+  resolveStackLinkRemote,
+  resolveStackRemote,
+} from "../src/stack-remote.js";
 
 type Result = { stdout: string; exitCode: number };
 
@@ -52,5 +55,56 @@ describe("resolveStackRemote", () => {
 
     expect(args).toEqual(["--remote", "upstream"]);
     expect(runGit).not.toHaveBeenCalled();
+  });
+
+  it("uses the first linked local branch's push remote", async () => {
+    const runGit = vi.fn(
+      runner({
+        "for-each-ref --format=%(refname:short) refs/heads": {
+          stdout: "current\nfeature-a\nfeature-b\n",
+          exitCode: 0,
+        },
+        "config --get branch.feature-a.pushRemote": {
+          stdout: "fork\n",
+          exitCode: 0,
+        },
+      }),
+    );
+
+    const args = await resolveStackLinkRemote(
+      ["feature-a", "feature-b"],
+      ["feature-a", "feature-b"],
+      runGit,
+    );
+
+    expect(args).toEqual(["feature-a", "feature-b", "--remote", "fork"]);
+    expect(runGit).toHaveBeenCalledWith([
+      "config",
+      "--get",
+      "branch.feature-a.pushRemote",
+    ]);
+    expect(runGit).not.toHaveBeenCalledWith([
+      "symbolic-ref",
+      "--quiet",
+      "--short",
+      "HEAD",
+    ]);
+  });
+
+  it("does not inject a remote when links contain only pull requests", async () => {
+    const runGit = vi.fn(
+      runner({
+        "for-each-ref --format=%(refname:short) refs/heads": {
+          stdout: "feature-a\n",
+          exitCode: 0,
+        },
+      }),
+    );
+    const refs = ["42", "https://github.com/owner/repo/pull/43"];
+
+    const args = await resolveStackLinkRemote(refs, refs, runGit);
+
+    expect(args).toEqual(refs);
+    expect(runGit).toHaveBeenCalledTimes(1);
   });
 });
