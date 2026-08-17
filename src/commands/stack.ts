@@ -2,6 +2,7 @@ import { encode } from "@toon-format/toon";
 import { ghRaw, type ExecResult } from "../gh.js";
 import { AxiError, StackError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
+import { resolveStackRemote } from "../stack-remote.js";
 import { renderHelp, renderOutput } from "../toon.js";
 
 interface StackBranch {
@@ -97,7 +98,7 @@ export async function stackCommand(args: string[]): Promise<string> {
       return runStack(subcommand, rest);
     case "push":
       parseArgs(rest, REMOTE_FLAGS, 0, 0);
-      return runStack(subcommand, rest);
+      return runRemoteStack(subcommand, rest);
     case "submit":
       parseArgs(
         rest,
@@ -105,13 +106,13 @@ export async function stackCommand(args: string[]): Promise<string> {
         0,
         0,
       );
-      return runStack(
+      return runRemoteStack(
         subcommand,
         hasFlag(rest, "--auto") ? rest : [...rest, "--auto"],
       );
     case "sync":
       parseArgs(rest, { ...REMOTE_FLAGS, "--prune": "boolean" }, 0, 0);
-      return runStack(subcommand, rest);
+      return runRemoteStack(subcommand, rest);
     case "rebase":
       parseArgs(
         rest,
@@ -128,14 +129,16 @@ export async function stackCommand(args: string[]): Promise<string> {
         0,
         1,
       );
-      return runStack(subcommand, rest);
+      return requiresRemoteForRebase(rest)
+        ? runRemoteStack(subcommand, rest)
+        : runStack(subcommand, rest);
     case "link":
       parseArgs(
         rest,
         { ...REMOTE_FLAGS, "--base": "value", "--open": "boolean" },
         2,
       );
-      return runStack(subcommand, rest);
+      return runRemoteStack(subcommand, rest);
     case "unstack":
       parseArgs(rest, { "--local": "boolean" }, 0, 1);
       return runStack(subcommand, rest);
@@ -274,13 +277,33 @@ async function navigateStack(
   return runStack(subcommand, args);
 }
 
+async function runRemoteStack(
+  action: string,
+  args: string[],
+): Promise<string> {
+  return runStack(action, await resolveStackRemote(args));
+}
+
+function requiresRemoteForRebase(args: string[]): boolean {
+  return !(
+    hasFlag(args, "--continue") ||
+    hasFlag(args, "--abort") ||
+    hasFlag(args, "--no-trunk")
+  );
+}
+
 async function runStack(action: string, args: string[]): Promise<string> {
   const result = await execute(["stack", action, ...args]);
+  const status =
+    action === "sync" &&
+    /\bsync aborted\b/i.test(result.stdout + result.stderr)
+      ? "aborted"
+      : "ok";
   return renderOutput([
     encode({
       stack: {
         action,
-        status: "ok",
+        status,
         stdout: result.stdout,
         stderr: result.stderr,
       },

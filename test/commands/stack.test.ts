@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({ ghRaw: vi.fn() }));
+vi.mock("../../src/stack-remote.js", () => ({
+  resolveStackRemote: vi.fn(),
+}));
 
 import { ghRaw } from "../../src/gh.js";
+import { resolveStackRemote } from "../../src/stack-remote.js";
 import { stackCommand, STACK_HELP } from "../../src/commands/stack.js";
 import { AxiError } from "../../src/errors.js";
 
 const mockedGhRaw = vi.mocked(ghRaw);
+const mockedResolveStackRemote = vi.mocked(resolveStackRemote);
 
 function success(stdout = "", stderr = "") {
   return { stdout, stderr, exitCode: 0 };
@@ -16,6 +21,7 @@ describe("stackCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockedGhRaw.mockResolvedValue(success());
+    mockedResolveStackRemote.mockImplementation(async (args) => args);
   });
 
   it("returns help without invoking gh", async () => {
@@ -167,6 +173,34 @@ describe("stackCommand", () => {
 
     expect(result).toContain("https://github.com/o/r/pull/42");
     expect(result).toContain("Created PR #42");
+  });
+
+  it("stops remote operations without a deterministic remote", async () => {
+    mockedResolveStackRemote.mockRejectedValueOnce(
+      new AxiError(
+        "Multiple git remotes are configured; pass --remote <name>",
+        "VALIDATION_ERROR",
+      ),
+    );
+
+    await expect(stackCommand(["sync"])).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
+    expect(mockedResolveStackRemote).toHaveBeenCalledWith([]);
+    expect(mockedGhRaw).not.toHaveBeenCalled();
+  });
+
+  it("reports a zero-exit sync abort as aborted", async () => {
+    mockedGhRaw.mockResolvedValue(
+      success(
+        "Your local stack diverged\nSync aborted \u2014 no changes were made\n",
+      ),
+    );
+
+    const result = await stackCommand(["sync"]);
+
+    expect(result).toContain("status: aborted");
+    expect(result).not.toContain("status: ok");
   });
 
   it("reports malformed view output as a structured error", async () => {
