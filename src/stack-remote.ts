@@ -80,7 +80,10 @@ async function firstLocalBranch(
   if (result.exitCode !== 0) throw unknownRemote();
 
   const localBranches = new Set(
-    result.stdout.split("\n").map((branch) => branch.trim()).filter(Boolean),
+    result.stdout
+      .split("\n")
+      .map((branch) => branch.trim())
+      .filter(Boolean),
   );
   return refs.find((ref) => localBranches.has(ref));
 }

@@ -79,9 +79,7 @@ describe("stack help", () => {
       .filter((line) => line.trim().startsWith("gh-axi"));
     expect(examples.length).toBeGreaterThanOrEqual(2);
     expect(examples).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/^ {2}gh-axi/),
-      ]),
+      expect.arrayContaining([expect.stringMatching(/^ {2}gh-axi/)]),
     );
     expect(rendered).toContain("gh extension install github/gh-stack");
     expect(rendered).toContain("--auto");

@@ -278,10 +278,7 @@ async function navigateStack(
   return runStack(subcommand, args);
 }
 
-async function runRemoteStack(
-  action: string,
-  args: string[],
-): Promise<string> {
+async function runRemoteStack(action: string, args: string[]): Promise<string> {
   return runStack(action, await resolveStackRemote(args));
 }
 
@@ -300,8 +297,7 @@ function requiresRemoteForRebase(args: string[]): boolean {
 async function runStack(action: string, args: string[]): Promise<string> {
   const result = await execute(["stack", action, ...args]);
   const status =
-    action === "sync" &&
-    /\bsync aborted\b/i.test(result.stdout + result.stderr)
+    action === "sync" && /\bsync aborted\b/i.test(result.stdout + result.stderr)
       ? "aborted"
       : "ok";
   return renderOutput([

@@ -132,6 +132,9 @@ describe("stackCommand", () => {
     await expect(stackCommand(["add", "-A"])).rejects.toThrow(
       /require --message/,
     );
+    await expect(stackCommand(["add", "-Au", "-m", "Add API"])).rejects.toThrow(
+      "Choose only one of --all or --update",
+    );
     await stackCommand(["add", "-Am", "Add API", "api"]);
 
     expect(mockedGhRaw).toHaveBeenCalledWith([
@@ -219,13 +222,7 @@ describe("stackCommand", () => {
       "fork",
     ]);
 
-    await stackCommand([
-      "link",
-      "--base",
-      "main",
-      "feature-a",
-      "feature-b",
-    ]);
+    await stackCommand(["link", "--base", "main", "feature-a", "feature-b"]);
 
     expect(mockedResolveStackLinkRemote).toHaveBeenCalledWith(
       ["--base", "main", "feature-a", "feature-b"],
