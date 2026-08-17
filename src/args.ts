@@ -4,6 +4,16 @@ function flagEqualsPrefix(flag: string): string {
   return `${flag}=`;
 }
 
+/**
+ * A dangling flag (no value given before the next `--flag` token) must never
+ * silently swallow that next flag as its own value - doing so both loses the
+ * next flag and can leak the wrong token into a positional slot downstream.
+ */
+function rejectFlagLikeValue(value: string, flag: string): void {
+  if (value.startsWith("--"))
+    throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
+}
+
 /** Get a flag's value from --flag value or --flag=value without modifying args. */
 export function getFlag(args: string[], name: string): string | undefined {
   const equalsPrefix = flagEqualsPrefix(name);
@@ -11,7 +21,9 @@ export function getFlag(args: string[], name: string): string | undefined {
     const arg = args[i];
     if (arg === name) {
       if (i + 1 >= args.length) return undefined;
-      return args[i + 1];
+      const val = args[i + 1];
+      rejectFlagLikeValue(val, name);
+      return val;
     }
     if (arg.startsWith(equalsPrefix)) {
       return arg.slice(equalsPrefix.length);
@@ -27,6 +39,7 @@ export function takeFlag(args: string[], flag: string): string | undefined {
     const arg = args[i];
     if (arg === flag) {
       const val = args[i + 1];
+      if (val !== undefined) rejectFlagLikeValue(val, flag);
       args.splice(i, 2);
       return val;
     }
@@ -53,7 +66,7 @@ export function takeBoolFlag(args: string[], flag: string): boolean {
 }
 
 function requireFlagValue(value: string, flag: string): string {
-  if (value.trim() === "")
+  if (value.trim() === "" || value.startsWith("--"))
     throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
   return value;
 }

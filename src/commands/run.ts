@@ -94,7 +94,7 @@ function takeViewFlagValue(args: string[], flag: string): string | undefined {
   const present = args.includes(flag);
   const value = takeFlag(args, flag);
   if (!present) return undefined;
-  if (!value || value.startsWith("--")) {
+  if (!value) {
     throw new AxiError(`Missing value for ${flag}`, "VALIDATION_ERROR");
   }
   return value;

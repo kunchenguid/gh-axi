@@ -2,7 +2,7 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag, hasFlag } from '../args.js';
+import { getFlag, hasFlag, takeFlag, takeBoolFlag } from '../args.js';
 import {
   field,
   lower,
@@ -167,21 +167,26 @@ async function forkRepo(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function listRepos(args: string[], ctx?: RepoContext): Promise<string> {
+  // Consume value-taking flags before scanning for positionals, so a bare
+  // flag value (e.g. the "200" in --limit 200) can never be mistaken for
+  // the optional owner positional when no owner is given.
+  const limit = takeFlag(args, '--limit') ?? '30';
+  const visibility = takeFlag(args, '--visibility');
+  const language = takeFlag(args, '--language');
+  const archived = takeBoolFlag(args, '--archived');
+
   const positionals = args.filter((a) => !a.startsWith('--'));
   const owner = positionals[1]; // optional
 
-  const limit = getFlag(args, '--limit') ?? '30';
   const ghArgs = [
     'repo', 'list',
     '--json', 'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
     '--limit', limit,
   ];
   if (owner) ghArgs.splice(2, 0, owner); // insert owner after 'list'
-  const visibility = getFlag(args, '--visibility');
   if (visibility) ghArgs.push('--visibility', visibility);
-  const language = getFlag(args, '--language');
   if (language) ghArgs.push('--language', language);
-  if (hasFlag(args, '--archived')) ghArgs.push('--archived');
+  if (archived) ghArgs.push('--archived');
 
   const repos = await ghJson<Record<string, unknown>[]>(ghArgs);
   const isEmpty = repos.length === 0;

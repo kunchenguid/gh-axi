@@ -200,6 +200,51 @@ describe('repoCommand', () => {
 
       expect(result).toContain('showing first 10');
     });
+
+    it('does not mistake the --limit value for the owner positional when no owner is given', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await repoCommand(['list', '--limit', '10'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo', 'list',
+        '--json', 'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
+        '--limit', '10',
+      ]);
+    });
+
+    it('passes an explicit owner positional through to gh repo list', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await repoCommand(['list', 'octo', '--limit', '10'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo', 'list', 'octo',
+        '--json', 'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
+        '--limit', '10',
+      ]);
+    });
+
+    it('throws instead of misreading an adjacent flag as the --limit value', async () => {
+      await expect(
+        repoCommand(['list', '--limit', '--visibility', 'public'], ctx),
+      ).rejects.toThrow('--limit requires a value');
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it('does not mistake --visibility or --language values for the owner positional', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await repoCommand(['list', '--visibility', 'public', '--language', 'TypeScript'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo', 'list',
+        '--json', 'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
+        '--limit', '30',
+        '--visibility', 'public',
+        '--language', 'TypeScript',
+      ]);
+    });
   });
 
   describe('clone', () => {

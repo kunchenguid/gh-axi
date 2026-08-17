@@ -33,6 +33,12 @@ describe("getFlag", () => {
     expect(getFlag(["--state", "open", "--repo"], "--repo")).toBeUndefined();
   });
 
+  it("throws instead of swallowing an adjacent flag as the value", () => {
+    expect(() =>
+      getFlag(["--repo", "--state", "open"], "--repo"),
+    ).toThrow("--repo requires a value");
+  });
+
   it("does not modify the args array", () => {
     const args = ["--repo", "cli/cli"];
     getFlag(args, "--repo");
@@ -67,6 +73,14 @@ describe("takeFlag", () => {
     const val = takeFlag(args, "--flag");
     expect(val).toBe("val");
     expect(args).toEqual(["--other"]);
+  });
+
+  it("throws instead of swallowing an adjacent flag as the value", () => {
+    const args = ["--limit", "--visibility", "public"];
+    expect(() => takeFlag(args, "--limit")).toThrow(
+      "--limit requires a value",
+    );
+    expect(args).toEqual(["--limit", "--visibility", "public"]);
   });
 });
 
