@@ -43,6 +43,7 @@ npx skills add kunchenguid/gh-axi --skill gh-axi -g
 That is the entire setup - no npm install needed.
 The skill teaches your agent to run gh-axi through `npx -y gh-axi`, so the CLI comes along on demand.
 You still need [`gh`](https://cli.github.com/) installed and authenticated via `gh auth login` (Node 20+ required).
+Stack commands additionally require GitHub's official extension: `gh extension install github/gh-stack`.
 For GitHub Enterprise or another custom host, authenticate `gh` for that host and either pass `--hostname <host>` after the command or set `GH_HOST`.
 
 The skill is not a user-facing slash command (`user-invocable: false`).
@@ -85,6 +86,9 @@ gh-axi                          # dashboard - live state, no args needed
 gh-axi issue list               # list issues in current repo
 gh-axi issue subissue list 16   # list sub-issues for issue #16
 gh-axi pr view 42               # view pull request #42
+gh-axi stack init model api      # create or adopt stacked branches
+gh-axi stack submit --open       # create ready-for-review stacked PRs
+gh-axi stack view                 # inspect the current stack as TOON
 gh-axi issue edit 42 --add-label bug --add-label chore  # repeat a flag per value
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi issue list --hostname git.example.com  # target a GitHub Enterprise host
@@ -143,28 +147,32 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
+`gh-axi stack` is a strict, non-interactive adapter over GitHub's official `github/gh-stack` extension. It supports stack creation, inspection, branch navigation, submission, synchronization, rebasing, linking, unstacking, and merging without duplicating the extension's local metadata or Git logic.
+Stack commands operate on the current working directory's checkout and reject `-R`, `--repo`, and `GH_REPO` rather than risking an operation against a different local stack. `stack view` requests JSON and returns TOON, `stack submit` always adds `--auto`, and `stack merge <stack-or-pr>` requires a target and adds `--yes`. Interactive `modify`, `switch`, `alias`, and `feedback` commands are deliberately not wrapped.
+
 `gh-axi api` accepts `--field`, `--header`, `--paginate`, `--jq <expression>`, and `--template <format>`; any other flag, an extra positional argument, or a repeated `--jq`/`--template` is rejected with a clear error instead of being silently dropped.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
 
 ### Commands
 
-| Command    | Description                                                                 |
-| ---------- | --------------------------------------------------------------------------- |
-| `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue         |
-| `pr`       | Pull requests — list, view, create, merge, review, checks                   |
-| `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
-| `workflow` | Workflows - list, view, run (trigger), enable, disable                      |
-| `release`  | Releases — list, view, create, edit, delete                                 |
-| `repo`     | Repositories — list, view, create, edit, clone, fork                        |
-| `label`    | Labels — list, create, edit, delete                                         |
-| `gist`     | Gists — list, view, edit, rename, create, delete, clone                     |
-| `project`  | Projects (v2) - list, view, create, edit, close, copy, items, fields        |
-| `secret`   | Actions secrets — list, set, delete                                         |
-| `variable` | Actions variables — list, set, delete                                       |
-| `search`   | Search issues, PRs, repos, commits, code                                    |
-| `api`      | Raw GitHub API access                                                       |
-| `setup`    | Install optional agent session hooks                                        |
-| `update`   | Built-in self-update command inherited from `axi-sdk-js`                    |
+| Command    | Description                                                                  |
+| ---------- | ---------------------------------------------------------------------------- |
+| `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue          |
+| `pr`       | Pull requests — list, view, create, merge, review, checks                    |
+| `stack`    | Stacked branches and PRs - init, view, submit, sync, rebase, merge, navigate |
+| `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download  |
+| `workflow` | Workflows - list, view, run (trigger), enable, disable                       |
+| `release`  | Releases — list, view, create, edit, delete                                  |
+| `repo`     | Repositories — list, view, create, edit, clone, fork                         |
+| `label`    | Labels — list, create, edit, delete                                          |
+| `gist`     | Gists — list, view, edit, rename, create, delete, clone                      |
+| `project`  | Projects (v2) - list, view, create, edit, close, copy, items, fields         |
+| `secret`   | Actions secrets — list, set, delete                                          |
+| `variable` | Actions variables — list, set, delete                                        |
+| `search`   | Search issues, PRs, repos, commits, code                                     |
+| `api`      | Raw GitHub API access                                                        |
+| `setup`    | Install optional agent session hooks                                         |
+| `update`   | Built-in self-update command inherited from `axi-sdk-js`                     |
 
 ### Global flags
 

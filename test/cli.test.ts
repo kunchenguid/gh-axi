@@ -63,6 +63,10 @@ vi.mock("../src/commands/api.js", () => ({
   apiCommand: vi.fn().mockResolvedValue("api output"),
   API_HELP: "api help",
 }));
+vi.mock("../src/commands/stack.js", () => ({
+  stackCommand: vi.fn().mockResolvedValue("stack output"),
+  STACK_HELP: "stack help",
+}));
 
 vi.mock("../src/context.js", () => ({
   resolveRepo: vi.fn().mockReturnValue({
@@ -78,6 +82,8 @@ import { homeCommand } from "../src/commands/home.js";
 import { issueCommand } from "../src/commands/issue.js";
 import { prCommand } from "../src/commands/pr.js";
 import { releaseCommand } from "../src/commands/release.js";
+import { stackCommand } from "../src/commands/stack.js";
+import { AxiError, StackError } from "../src/errors.js";
 import { resolveRepo } from "../src/context.js";
 
 const packageVersion = JSON.parse(
@@ -199,7 +205,43 @@ describe("main CLI", () => {
     expect(options.getCommandHelp("issue")).toBe("issue help");
     expect(options.getCommandHelp("secret")).toBe("secret help");
     expect(options.getCommandHelp("variable")).toBe("variable help");
+    expect(options.getCommandHelp("stack")).toBe("stack help");
     expect(options.getCommandHelp("missing")).toBeUndefined();
+  });
+
+  it("keeps stack commands bound to the current checkout", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    await options.commands.stack(["view"], {
+      owner: "octo",
+      name: "repo",
+      nwo: "octo/repo",
+      source: "git",
+    });
+    expect(vi.mocked(stackCommand)).toHaveBeenCalledWith(["view"]);
+
+    expect(() =>
+      options.commands.stack(["view", "--repo", "other/repo"], undefined),
+    ).toThrow(/current working directory/);
+    expect(vi.mocked(stackCommand)).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves stack exit codes without changing normal error formatting", async () => {
+    await main();
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    const stackError = options.formatError(
+      new StackError("rebase conflict", 3, ["resolve it"]),
+    );
+    expect(stackError.exitCode).toBe(3);
+    expect(stackError.output).toContain("STACK_ERROR");
+
+    const normalError = options.formatError(
+      new AxiError("bad flag", "VALIDATION_ERROR"),
+    );
+    expect(normalError.exitCode).toBe(2);
+    expect(normalError.output).toContain("VALIDATION_ERROR");
   });
 
   it("lists secret and variable in the top-level command index", () => {

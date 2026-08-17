@@ -80,6 +80,13 @@ gh sometimes embeds remediation hints in errors with a different root cause, so 
 This only works because `src/version.ts` is a LEAF module importing node builtins only - `cli.ts` imports `VERSION` from it, never the reverse. Adding any non-builtin import to `src/version.ts` silently undoes the speedup.
 `test/version-fast-path.test.ts` guards it deterministically with a `module.register()` load-hook trace (`test/fixtures/module-trace-*.mjs`) plus a negative control on `--help`. Do not add a wall-clock timing assertion; it was proven flaky under CI contention.
 
+## Stacked PR support (`src/commands/stack.ts`)
+
+`gh-axi stack` is a strict adapter over GitHub's official `github/gh-stack` extension, not a second stack engine. Keep stack metadata, Git mutation, rebasing, and Stacks API behavior in the extension.
+Stack commands are bound to the current working directory. `cli.ts#withLocalRepoContext` rejects `-R`, `--repo`, and `GH_REPO`, strips the host flag, and does not pass `RepoContext` to the extension because `gh stack` operates on the local checkout.
+The adapter rejects interactive-only forms, forces `view --json`, `submit --auto`, and `merge --yes`, and requires explicit targets for commands that otherwise prompt. Preserve gh-stack's exit codes 2-10 through `StackError` and the CLI `formatError` hook.
+The extension may be absent. Detect its `unknown command "stack" for "gh"` error and suggest `gh extension install github/gh-stack`; do not silently fall back to core `gh` behavior.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

@@ -12,6 +12,19 @@ export type ErrorCode =
 
 export { AxiError, exitCodeForError };
 
+/** Error from gh-stack whose exit code carries actionable recovery state. */
+export class StackError extends AxiError {
+  constructor(
+    message: string,
+    readonly exitCode: number,
+    suggestions: string[] = [],
+    code = "STACK_ERROR",
+  ) {
+    super(message, code, suggestions);
+    this.name = "StackError";
+  }
+}
+
 interface ErrorPattern {
   pattern: RegExp;
   code: ErrorCode;

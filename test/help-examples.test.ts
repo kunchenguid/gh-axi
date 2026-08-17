@@ -12,6 +12,7 @@ import { VARIABLE_HELP } from "../src/commands/variable.js";
 import { SEARCH_HELP } from "../src/commands/search.js";
 import { API_HELP } from "../src/commands/api.js";
 import { GIST_HELP } from "../src/commands/gist.js";
+import { STACK_HELP } from "../src/commands/stack.js";
 import { TOP_HELP } from "../src/cli.js";
 
 /**
@@ -59,6 +60,15 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);
   assertHelpHasExamples("API_HELP", API_HELP);
   assertHelpHasExamples("GIST_HELP", GIST_HELP);
+  assertHelpHasExamples("STACK_HELP", STACK_HELP);
+});
+
+describe("STACK_HELP contract", () => {
+  it("documents the extension prerequisite and non-interactive gates", () => {
+    expect(STACK_HELP).toContain("gh extension install github/gh-stack");
+    expect(STACK_HELP).toContain("--auto");
+    expect(STACK_HELP).toContain("--yes is automatic");
+  });
 });
 
 describe("--body-file discoverability", () => {

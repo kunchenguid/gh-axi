@@ -714,6 +714,33 @@ const table: SuggestionEntry[] = [
     lines: () => ["Run `gh-axi gist list` to see your gists"],
   },
 
+  // Stacked PRs
+  {
+    match: (c) => c.domain === "stack" && c.action === "view",
+    lines: () => [
+      "Run `gh-axi stack submit` to push and open/update the stack's PRs",
+      "Run `gh-axi stack sync` to reconcile local and remote stack state",
+    ],
+  },
+  {
+    match: (c) => c.domain === "stack" && c.action === "init",
+    lines: () => [
+      'Run `gh-axi stack add -Am "<message>" <branch>` to add the next layer',
+      "Run `gh-axi stack submit` to create the stack's pull requests",
+    ],
+  },
+  {
+    match: (c) => c.domain === "stack" && c.action === "submit",
+    lines: () => [
+      "Run `gh-axi stack view` to inspect branch and PR status",
+      "Run `gh-axi stack sync` to refresh the stack after review changes",
+    ],
+  },
+  {
+    match: (c) => c.domain === "stack",
+    lines: () => ["Run `gh-axi stack view` to inspect the current stack"],
+  },
+
   // Search
   {
     match: (c) => c.domain === "search",

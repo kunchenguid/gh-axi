@@ -1,6 +1,6 @@
 ---
 name: gh-axi
-description: "Operate GitHub through the gh-axi CLI - issues, pull requests, workflow runs, workflows, releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, or working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`."
+description: "Operate GitHub through the gh-axi CLI - issues, pull requests, stacked PRs, workflow runs, workflows, releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, and raw API access. Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, managing stacked branches and PRs, checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, or working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`."
 user-invocable: false
 author: Kun Chen (kunchenguid)
 metadata:
@@ -33,12 +33,13 @@ Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; v
 6. Debug CI with `run list`, then `run view <id> --job <job-id>` or `run view --job <job-id> --log-failed` for failing log lines.
    Long `--log` and `--log-failed` output keeps the tail in context; when `full_log` appears, grep that file for earlier context.
 7. Every response ends with contextual next-step hints under `help:` - follow them.
+8. Manage stacked PRs from the target repository's working directory. Use `stack init <branch>`, `stack add <branch>`, `stack submit --open`, and `stack view`; the wrapper keeps these operations non-interactive.
 
 ## Commands
 
 ```
-commands[15]:
-  (none)=dashboard, issue, pr, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[16]:
+  (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 ```
 
 Installed copies also inherit the SDK built-in `update` command.
@@ -52,6 +53,8 @@ Run `npx -y gh-axi --help` for global flags, or `npx -y gh-axi <command> --help`
 - Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
 - Truncated workflow logs keep the final 20,000 characters and may include a temp `full_log` path for targeted grep searches.
 - Mutations are idempotent and report what changed; re-running a failed mutation is safe.
+- `stack` wraps GitHub's official `gh-stack` extension. Install it with `gh extension install github/gh-stack`; stack commands are bound to the current checkout and reject `-R`, `--repo`, and `GH_REPO`.
+- Stack output is TOON-encoded. `stack view` uses `--json`, `stack submit` uses `--auto`, and `stack merge <stack-or-pr>` uses `--yes` automatically. Interactive `modify`, `switch`, `alias`, and `feedback` are intentionally not wrapped.
 - For multi-line markdown bodies, comments, or release notes, write the text to a UTF-8 file and pass `--body-file <path>` or the release `--notes-file <path>` alias on commands that support file-backed text.
 - Label, assignee, reviewer, and project flags repeat: pass the flag once per value, e.g. `issue edit 42 --add-label bug --add-label chore`, and every value is applied. A repeated flag with a missing or blank value is rejected, never silently dropped.
 - Secret values are stdin-only: `echo -n "<value>" | npx -y gh-axi secret set <name>`.

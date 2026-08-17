@@ -72,6 +72,13 @@ describe("createSkillMarkdown", () => {
     const markdown = createSkillMarkdown();
     expect(markdown).toContain("gh auth login");
   });
+
+  it("documents the stacked PR extension and safe workflow", () => {
+    const markdown = createSkillMarkdown();
+    expect(markdown).toContain("gh extension install github/gh-stack");
+    expect(markdown).toContain("stack submit --open");
+    expect(markdown).toContain("stack view` uses `--json`");
+  });
 });
 
 describe("extractCommandsBlock", () => {
