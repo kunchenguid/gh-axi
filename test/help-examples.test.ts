@@ -12,8 +12,7 @@ import { VARIABLE_HELP } from "../src/commands/variable.js";
 import { SEARCH_HELP } from "../src/commands/search.js";
 import { API_HELP } from "../src/commands/api.js";
 import { GIST_HELP } from "../src/commands/gist.js";
-import { STACK_HELP } from "../src/commands/stack.js";
-import { TOP_HELP } from "../src/cli.js";
+import { main, TOP_HELP } from "../src/cli.js";
 
 /**
  * Every HELP constant must contain an "examples:" section with at least 2
@@ -60,14 +59,33 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);
   assertHelpHasExamples("API_HELP", API_HELP);
   assertHelpHasExamples("GIST_HELP", GIST_HELP);
-  assertHelpHasExamples("STACK_HELP", STACK_HELP);
 });
 
-describe("STACK_HELP contract", () => {
-  it("documents the extension prerequisite and non-interactive gates", () => {
-    expect(STACK_HELP).toContain("gh extension install github/gh-stack");
-    expect(STACK_HELP).toContain("--auto");
-    expect(STACK_HELP).toContain("--yes is automatic");
+describe("stack help", () => {
+  it("prints the extension prerequisite and non-interactive gates", async () => {
+    let rendered = "";
+    await main({
+      argv: ["stack", "--help"],
+      stdout: {
+        write(chunk: string) {
+          rendered += chunk;
+        },
+      },
+    });
+
+    const examples = rendered
+      .slice(rendered.indexOf("examples:"))
+      .split("\n")
+      .filter((line) => line.trim().startsWith("gh-axi"));
+    expect(examples.length).toBeGreaterThanOrEqual(2);
+    expect(examples).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^ {2}gh-axi/),
+      ]),
+    );
+    expect(rendered).toContain("gh extension install github/gh-stack");
+    expect(rendered).toContain("--auto");
+    expect(rendered).toContain("--yes is automatic");
   });
 });
 
