@@ -71,7 +71,7 @@ For GitHub Enterprise or another custom host, the underlying \`gh\` CLI must be 
 
 ## When to use
 
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; or calling the GitHub API directly.
+Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, or merging pull requests; managing stacked branches and PRs; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; or calling the GitHub API directly.
 
 ## Workflow
 

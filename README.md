@@ -48,7 +48,7 @@ For GitHub Enterprise or another custom host, authenticate `gh` for that host an
 
 The skill is not a user-facing slash command (`user-invocable: false`).
 Its frontmatter also includes Hermes Agent metadata (`metadata.hermes`) so Hermes can categorize it as a `devops` skill for GitHub, git, CI, pull requests, releases, and projects.
-Just ask for anything that touches GitHub - filing issues, reviewing PRs, checking CI runs, cutting releases, managing Projects boards, or managing GitHub Actions secrets and variables - and the agent loads the skill on its own when it recognizes the task.
+Just ask for anything that touches GitHub - filing issues, reviewing PRs, managing stacked branches and PRs, checking CI runs, cutting releases, managing Projects boards, or managing GitHub Actions secrets and variables - and the agent loads the skill on its own when it recognizes the task.
 
 `-g` installs the skill for all projects (`~/.claude/skills/`, for example); drop it to install for the current project only (`.claude/skills/`).
 
