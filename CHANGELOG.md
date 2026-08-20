@@ -18,6 +18,19 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.31](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.30...gh-axi-v0.1.31) (2026-08-20)
+
+
+### Features
+
+* **stack:** add agent-safe stacked PR support ([#93](https://github.com/kunchenguid/gh-axi/issues/93)) ([221bbb6](https://github.com/kunchenguid/gh-axi/commit/221bbb66337568efffffaa20108cccfd2aa8a496))
+
+
+### Bug Fixes
+
+* **commands:** honor --full for issue comments and add an api --full escape hatch ([#101](https://github.com/kunchenguid/gh-axi/issues/101)) ([11e0b82](https://github.com/kunchenguid/gh-axi/commit/11e0b825441c7253d66f1c3b842c670f1ea8c023))
+* **commands:** reject unknown flags across all commands ([#104](https://github.com/kunchenguid/gh-axi/issues/104)) ([b12d4d0](https://github.com/kunchenguid/gh-axi/commit/b12d4d0f88a9486e6c33884fa7f8800fa6b7b842))
+
 ## [0.1.30](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.29...gh-axi-v0.1.30) (2026-08-07)
 
 
