@@ -48,6 +48,60 @@ describe('apiCommand', () => {
     );
   });
 
+  it('maps -X <method> to --method instead of silently sending GET', async () => {
+    mockedGhExec.mockResolvedValue('{}');
+
+    await apiCommand(['-X', 'POST', '/repos/octo/repo/pulls/1/requested_reviewers']);
+
+    expect(mockedGhExec).toHaveBeenCalledWith(
+      expect.arrayContaining(['api', '/repos/octo/repo/pulls/1/requested_reviewers', '--method', 'POST']),
+      undefined,
+    );
+    // The old bug forwarded no --method at all, defaulting gh itself to GET.
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs.filter((a) => a === '--method')).toHaveLength(1);
+    expect(ghArgs).not.toContain('-X');
+  });
+
+  it('supports -X=<method> form', async () => {
+    mockedGhExec.mockResolvedValue('{}');
+
+    await apiCommand(['-X=PUT', '/repos/octo/repo/topics']);
+
+    expect(mockedGhExec).toHaveBeenCalledWith(
+      expect.arrayContaining(['--method', 'PUT']),
+      undefined,
+    );
+  });
+
+  it('rejects an unsupported -X method instead of silently defaulting to GET', async () => {
+    await expect(apiCommand(['-X', 'BOGUS', '/repos/octo/repo'])).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
+
+  it('rejects -X given together with a positional method', async () => {
+    await expect(
+      apiCommand(['-X', 'POST', 'PUT', '/repos/octo/repo']),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
+
+  it('rejects a repeated -X instead of silently keeping the first', async () => {
+    await expect(
+      apiCommand(['-X', 'POST', '-X', 'PUT', '/repos/octo/repo']),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
+
+  it('rejects -X with no value', async () => {
+    await expect(apiCommand(['/repos/octo/repo', '-X'])).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
+
   it('passes --field flags', async () => {
     mockedGhExec.mockResolvedValue('{}');
 

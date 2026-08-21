@@ -8,15 +8,19 @@ export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
-flags[6]:
-  --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
+flags[7]:
+  -X <method> (alias for the positional method, e.g. -X POST), --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
+  gh-axi api -X POST /repos/{owner}/{repo}/issues --field title="Bug report"
   gh-axi api /repos/{owner}/{repo}/pulls --paginate
   gh-axi api /repos/{owner}/{repo}/issues/1 --jq '[.labels[].name]'`;
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
+
+/** The `gh api` short flag for HTTP method, equivalent to the positional method. */
+const METHOD_FLAG = '-X';
 
 /** Value flags that may be given more than once, each occurrence forwarded to gh. */
 const REPEATABLE_VALUE_FLAGS = new Set(['--field', '--header']);
@@ -31,6 +35,7 @@ const BOOL_FLAGS = new Set(['--paginate']);
 const LOCAL_BOOL_FLAGS = new Set(['--full']);
 
 const SUPPORTED_FLAGS = [
+  METHOD_FLAG,
   ...REPEATABLE_VALUE_FLAGS,
   ...SINGLE_VALUE_FLAGS,
   ...BOOL_FLAGS,
@@ -49,6 +54,7 @@ interface ParsedApiArgs {
   headers: string[];
   jq?: string;
   template?: string;
+  method?: string;
   paginate: boolean;
   full: boolean;
 }
@@ -95,7 +101,11 @@ function parseArgs(args: string[]): ParsedApiArgs {
       parsed.full = true;
       continue;
     }
-    if (!REPEATABLE_VALUE_FLAGS.has(name) && !SINGLE_VALUE_FLAGS.has(name)) {
+    if (
+      name !== METHOD_FLAG &&
+      !REPEATABLE_VALUE_FLAGS.has(name) &&
+      !SINGLE_VALUE_FLAGS.has(name)
+    ) {
       throw new AxiError(
         `unknown flag ${name} for gh-axi api. Supported flags: ${SUPPORTED_FLAGS.join(', ')}`,
         'VALIDATION_ERROR',
@@ -110,7 +120,18 @@ function parseArgs(args: string[]): ParsedApiArgs {
     } else {
       value = arg.slice(name.length + 1);
     }
-    if (name === '--field') {
+    if (name === METHOD_FLAG) {
+      if (parsed.method !== undefined)
+        throw new AxiError(`${name} may only be given once`, 'VALIDATION_ERROR');
+      const upper = value.toUpperCase();
+      if (!HTTP_METHODS.has(upper)) {
+        throw new AxiError(
+          `${name} ${value} is not a supported HTTP method. Supported: ${[...HTTP_METHODS].join(', ')}`,
+          'VALIDATION_ERROR',
+        );
+      }
+      parsed.method = upper;
+    } else if (name === '--field') {
       parsed.fields.push(value);
     } else if (name === '--header') {
       parsed.headers.push(value);
@@ -143,7 +164,7 @@ const STRING_VALUE_TRUNCATION_LIMIT = 2000;
 export async function apiCommand(args: string[], ctx?: RepoContext): Promise<string> {
   if (args[0] === '--help' || args.length === 0) return API_HELP;
 
-  const { positionals, fields, headers, jq, template, paginate, full } =
+  const { positionals, fields, headers, jq, template, method: methodFlag, paginate, full } =
     parseArgs(args);
 
   const pathRequired = new AxiError(
@@ -155,6 +176,12 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
   // A positional the command cannot place is a caller typo, and dropping it
   // silently requests a different endpoint than the one that was asked for.
   const methodGiven = HTTP_METHODS.has(positionals[0].toUpperCase());
+  if (methodFlag !== undefined && methodGiven) {
+    throw new AxiError(
+      'method given twice: use either -X <method> or the positional method, not both',
+      'VALIDATION_ERROR',
+    );
+  }
   if (positionals.length > (methodGiven ? 2 : 1)) {
     throw new AxiError(
       'too many arguments for gh-axi api: expected [<method>] <path>',
@@ -163,7 +190,7 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
   }
   if (methodGiven && positionals.length < 2) throw pathRequired;
 
-  const method = methodGiven ? positionals[0].toUpperCase() : 'GET';
+  const method = methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : 'GET');
   const path = methodGiven ? positionals[1] : positionals[0];
 
   const ghArgs = ['api', path, '--method', method];
