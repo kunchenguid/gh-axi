@@ -1,8 +1,8 @@
-import { encode } from '@toon-format/toon';
-import type { RepoContext } from '../context.js';
-import { ghExec } from '../gh.js';
-import { AxiError } from '../errors.js';
-import { cleanBody } from '../body.js';
+import { encode } from "@toon-format/toon";
+import type { RepoContext } from "../context.js";
+import { ghExec } from "../gh.js";
+import { AxiError } from "../errors.js";
+import { cleanBody } from "../body.js";
 
 export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
@@ -17,22 +17,22 @@ examples:
   gh-axi api /repos/{owner}/{repo}/pulls --paginate
   gh-axi api /repos/{owner}/{repo}/issues/1 --jq '[.labels[].name]'`;
 
-const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
+const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
 
 /** The `gh api` short flag for HTTP method, equivalent to the positional method. */
-const METHOD_FLAG = '-X';
+const METHOD_FLAG = "-X";
 
 /** Value flags that may be given more than once, each occurrence forwarded to gh. */
-const REPEATABLE_VALUE_FLAGS = new Set(['--field', '--header']);
+const REPEATABLE_VALUE_FLAGS = new Set(["--field", "--header"]);
 
 /** Value flags that gh accepts only one of, so a repeat is a caller mistake. */
-const SINGLE_VALUE_FLAGS = new Set(['--jq', '--template']);
+const SINGLE_VALUE_FLAGS = new Set(["--jq", "--template"]);
 
 /** Flags that stand alone and must not consume the following argument, and are forwarded to gh. */
-const BOOL_FLAGS = new Set(['--paginate']);
+const BOOL_FLAGS = new Set(["--paginate"]);
 
 /** Flags that stand alone, are gh-axi-only, and must not be forwarded to gh. */
-const LOCAL_BOOL_FLAGS = new Set(['--full']);
+const LOCAL_BOOL_FLAGS = new Set(["--full"]);
 
 const SUPPORTED_FLAGS = [
   METHOD_FLAG,
@@ -44,7 +44,7 @@ const SUPPORTED_FLAGS = [
 
 /** The flag's name without any `=value` suffix, so errors never echo a value. */
 function flagName(arg: string): string {
-  const equals = arg.indexOf('=');
+  const equals = arg.indexOf("=");
   return equals === -1 ? arg : arg.slice(0, equals);
 }
 
@@ -84,20 +84,20 @@ function parseArgs(args: string[]): ParsedApiArgs {
   };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (!arg.startsWith('-')) {
+    if (!arg.startsWith("-")) {
       parsed.positionals.push(arg);
       continue;
     }
     const name = flagName(arg);
     if (BOOL_FLAGS.has(name)) {
       if (name !== arg)
-        throw new AxiError(`${name} does not take a value`, 'VALIDATION_ERROR');
+        throw new AxiError(`${name} does not take a value`, "VALIDATION_ERROR");
       parsed.paginate = true;
       continue;
     }
     if (LOCAL_BOOL_FLAGS.has(name)) {
       if (name !== arg)
-        throw new AxiError(`${name} does not take a value`, 'VALIDATION_ERROR');
+        throw new AxiError(`${name} does not take a value`, "VALIDATION_ERROR");
       parsed.full = true;
       continue;
     }
@@ -107,44 +107,50 @@ function parseArgs(args: string[]): ParsedApiArgs {
       !SINGLE_VALUE_FLAGS.has(name)
     ) {
       throw new AxiError(
-        `unknown flag ${name} for gh-axi api. Supported flags: ${SUPPORTED_FLAGS.join(', ')}`,
-        'VALIDATION_ERROR',
+        `unknown flag ${name} for gh-axi api. Supported flags: ${SUPPORTED_FLAGS.join(", ")}`,
+        "VALIDATION_ERROR",
       );
     }
     // `--flag=value` carries its own value; `--flag value` consumes the next arg.
     let value: string;
     if (name === arg) {
       if (i + 1 >= args.length)
-        throw new AxiError(`${name} requires a value`, 'VALIDATION_ERROR');
+        throw new AxiError(`${name} requires a value`, "VALIDATION_ERROR");
       value = args[++i];
     } else {
       value = arg.slice(name.length + 1);
     }
     if (name === METHOD_FLAG) {
       if (parsed.method !== undefined)
-        throw new AxiError(`${name} may only be given once`, 'VALIDATION_ERROR');
+        throw new AxiError(
+          `${name} may only be given once`,
+          "VALIDATION_ERROR",
+        );
       const upper = value.toUpperCase();
       if (!HTTP_METHODS.has(upper)) {
         throw new AxiError(
-          `${name} ${value} is not a supported HTTP method. Supported: ${[...HTTP_METHODS].join(', ')}`,
-          'VALIDATION_ERROR',
+          `${name} ${value} is not a supported HTTP method. Supported: ${[...HTTP_METHODS].join(", ")}`,
+          "VALIDATION_ERROR",
         );
       }
       parsed.method = upper;
-    } else if (name === '--field') {
+    } else if (name === "--field") {
       parsed.fields.push(value);
-    } else if (name === '--header') {
+    } else if (name === "--header") {
       parsed.headers.push(value);
     } else {
       // gh takes the last occurrence; discarding the earlier expression silently
       // is the same failure this parser exists to prevent, so reject instead.
-      const key = name === '--jq' ? 'jq' : 'template';
+      const key = name === "--jq" ? "jq" : "template";
       if (parsed[key] !== undefined)
-        throw new AxiError(`${name} may only be given once`, 'VALIDATION_ERROR');
+        throw new AxiError(
+          `${name} may only be given once`,
+          "VALIDATION_ERROR",
+        );
       // An empty value (an unset shell variable) is a no-op filter for gh that
       // would still suppress the default field stripping here.
-      if (value.trim() === '')
-        throw new AxiError(`${name} requires a value`, 'VALIDATION_ERROR');
+      if (value.trim() === "")
+        throw new AxiError(`${name} requires a value`, "VALIDATION_ERROR");
       parsed[key] = value;
     }
   }
@@ -160,16 +166,26 @@ const LONG_STRING_CLEANUP_THRESHOLD = 200;
 /** Maximum length for cleaned string values before truncation. */
 const STRING_VALUE_TRUNCATION_LIMIT = 2000;
 
+export async function apiCommand(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  if (args[0] === "--help" || args.length === 0) return API_HELP;
 
-export async function apiCommand(args: string[], ctx?: RepoContext): Promise<string> {
-  if (args[0] === '--help' || args.length === 0) return API_HELP;
-
-  const { positionals, fields, headers, jq, template, method: methodFlag, paginate, full } =
-    parseArgs(args);
+  const {
+    positionals,
+    fields,
+    headers,
+    jq,
+    template,
+    method: methodFlag,
+    paginate,
+    full,
+  } = parseArgs(args);
 
   const pathRequired = new AxiError(
-    'API path is required: gh-axi api [<method>] <path>',
-    'VALIDATION_ERROR',
+    "API path is required: gh-axi api [<method>] <path>",
+    "VALIDATION_ERROR",
   );
   if (positionals.length === 0) throw pathRequired;
 
@@ -178,36 +194,37 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
   const methodGiven = HTTP_METHODS.has(positionals[0].toUpperCase());
   if (methodFlag !== undefined && methodGiven) {
     throw new AxiError(
-      'method given twice: use either -X <method> or the positional method, not both',
-      'VALIDATION_ERROR',
+      "method given twice: use either -X <method> or the positional method, not both",
+      "VALIDATION_ERROR",
     );
   }
   if (positionals.length > (methodGiven ? 2 : 1)) {
     throw new AxiError(
-      'too many arguments for gh-axi api: expected [<method>] <path>',
-      'VALIDATION_ERROR',
+      "too many arguments for gh-axi api: expected [<method>] <path>",
+      "VALIDATION_ERROR",
     );
   }
   if (methodGiven && positionals.length < 2) throw pathRequired;
 
-  const method = methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : 'GET');
+  const method =
+    methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : "GET");
   const path = methodGiven ? positionals[1] : positionals[0];
 
-  const ghArgs = ['api', path, '--method', method];
+  const ghArgs = ["api", path, "--method", method];
 
   for (const f of fields) {
-    ghArgs.push('--field', f);
+    ghArgs.push("--field", f);
   }
 
   for (const h of headers) {
-    ghArgs.push('--header', h);
+    ghArgs.push("--header", h);
   }
 
-  if (paginate) ghArgs.push('--paginate');
+  if (paginate) ghArgs.push("--paginate");
 
-  if (jq !== undefined) ghArgs.push('--jq', jq);
+  if (jq !== undefined) ghArgs.push("--jq", jq);
 
-  if (template !== undefined) ghArgs.push('--template', template);
+  if (template !== undefined) ghArgs.push("--template", template);
 
   // A caller who wrote a jq expression or template already chose the exact shape
   // they want, so noisy-field stripping would silently delete fields they asked
@@ -232,12 +249,15 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     const truncated = !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
     const result: Record<string, unknown> = {
       api_response: {
-        body: truncated ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT) : trimmed,
+        body: truncated
+          ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT)
+          : trimmed,
         truncated,
       },
     };
     if (truncated) {
-      (result.api_response as Record<string, unknown>).original_length = trimmed.length;
+      (result.api_response as Record<string, unknown>).original_length =
+        trimmed.length;
     }
     return encode(result);
   }
@@ -245,30 +265,57 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
 
 /** Fields from raw GitHub API responses that are noisy/useless for agents */
 const NOISY_KEYS = new Set([
-  'avatar_url', 'gravatar_id', 'followers_url', 'following_url',
-  'gists_url', 'starred_url', 'subscriptions_url', 'organizations_url',
-  'repos_url', 'events_url', 'received_events_url', 'labels_url',
-  'comments_url', 'events_url', 'timeline_url', 'performed_via_github_app',
-  'node_id', 'url', 'repository_url', 'html_url',
-  'reactions', 'user_view_type', 'site_admin',
-  'issue_dependencies_summary', 'sub_issues_summary', 'pinned_comment',
-  'score', 'permissions', 'verification', '_links',
+  "avatar_url",
+  "gravatar_id",
+  "followers_url",
+  "following_url",
+  "gists_url",
+  "starred_url",
+  "subscriptions_url",
+  "organizations_url",
+  "repos_url",
+  "events_url",
+  "received_events_url",
+  "labels_url",
+  "comments_url",
+  "events_url",
+  "timeline_url",
+  "performed_via_github_app",
+  "node_id",
+  "url",
+  "repository_url",
+  "html_url",
+  "reactions",
+  "user_view_type",
+  "site_admin",
+  "issue_dependencies_summary",
+  "sub_issues_summary",
+  "pinned_comment",
+  "score",
+  "permissions",
+  "verification",
+  "_links",
 ]);
 
 /** Keys ending in _url that are template URLs agents never use */
 function isTemplateUrlKey(key: string): boolean {
-  if (!key.endsWith('_url')) return false;
+  if (!key.endsWith("_url")) return false;
   // Keep a few meaningful URL keys
   const KEEP_URL_KEYS = new Set([
-    'diff_url', 'patch_url', 'clone_url', 'ssh_url', 'git_url', 'svn_url',
-    'commit_url', // useful for linking to specific commits
+    "diff_url",
+    "patch_url",
+    "clone_url",
+    "ssh_url",
+    "git_url",
+    "svn_url",
+    "commit_url", // useful for linking to specific commits
   ]);
   return !KEEP_URL_KEYS.has(key);
 }
 
 /** Collapse repo/repository objects to essential fields only */
 function collapseRepo(obj: Record<string, unknown>): Record<string, unknown> {
-  if ('full_name' in obj) {
+  if ("full_name" in obj) {
     const collapsed: Record<string, unknown> = { full_name: obj.full_name };
     if (obj.default_branch) collapsed.default_branch = obj.default_branch;
     if (obj.private) collapsed.private = obj.private;
@@ -280,7 +327,7 @@ function collapseRepo(obj: Record<string, unknown>): Record<string, unknown> {
 /** Bound a string value's length, leaving its content untouched. */
 function truncateString(value: string): string {
   if (value.length <= STRING_VALUE_TRUNCATION_LIMIT) return value;
-  return value.slice(0, STRING_VALUE_TRUNCATION_LIMIT) + '... (truncated)';
+  return value.slice(0, STRING_VALUE_TRUNCATION_LIMIT) + "... (truncated)";
 }
 
 /** Clean and truncate a long string value (e.g. bodies, comments, blobs). */
@@ -310,31 +357,50 @@ function shapeOutput(
       shapeOutput(item, stripNoisyKeys, truncateValues, depth + 1),
     );
   }
-  if (obj !== null && typeof obj === 'object') {
+  if (obj !== null && typeof obj === "object") {
     const record = obj as Record<string, unknown>;
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
       if (!stripNoisyKeys) {
-        result[key] = shapeOutput(value, stripNoisyKeys, truncateValues, depth + 1);
+        result[key] = shapeOutput(
+          value,
+          stripNoisyKeys,
+          truncateValues,
+          depth + 1,
+        );
         continue;
       }
       if (NOISY_KEYS.has(key)) continue;
       if (isTemplateUrlKey(key)) continue;
       // Strip nested user objects down to just login
-      if (key === 'user' && value && typeof value === 'object' && 'login' in (value as Record<string, unknown>)) {
+      if (
+        key === "user" &&
+        value &&
+        typeof value === "object" &&
+        "login" in (value as Record<string, unknown>)
+      ) {
         result[key] = (value as Record<string, unknown>).login;
         continue;
       }
       // Collapse repo/repository objects to essential fields
-      if ((key === 'repo' || key === 'repository') && value && typeof value === 'object') {
+      if (
+        (key === "repo" || key === "repository") &&
+        value &&
+        typeof value === "object"
+      ) {
         result[key] = collapseRepo(value as Record<string, unknown>);
         continue;
       }
-      result[key] = shapeOutput(value, stripNoisyKeys, truncateValues, depth + 1);
+      result[key] = shapeOutput(
+        value,
+        stripNoisyKeys,
+        truncateValues,
+        depth + 1,
+      );
     }
     return result;
   }
-  if (typeof obj === 'string') {
+  if (typeof obj === "string") {
     if (!truncateValues) return obj;
     return stripNoisyKeys ? clampString(obj) : truncateString(obj);
   }
