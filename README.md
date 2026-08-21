@@ -151,8 +151,10 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
-`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
-Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--jq`/`--template`.
+`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
+Use `--input <file>` to send a raw JSON request body, or `--input -` to relay piped stdin byte for byte.
+`--input -` rejects an interactive terminal instead of waiting for input.
+Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
 `--full` is an explicit opt-in escape hatch: it keeps every field and every complete value, and it also returns non-JSON response bodies without the length cap. `--full` is a gh-axi flag only, and gh-axi does not send it to `gh`. Compact output stays the default without `--full`.
 
