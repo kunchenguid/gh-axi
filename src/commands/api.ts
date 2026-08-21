@@ -9,7 +9,7 @@ description: Make an authenticated GitHub API request. Defaults to GET if no met
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
 flags[7]:
-  -X <method> (alias for the positional method, e.g. -X POST), --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
+  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
