@@ -121,6 +121,17 @@ describe.runIf(runnable)("no-mistakes PR gate", () => {
     expect(output).toContain("review, test, and document all completed");
   });
 
+  it("accepts the final pipeline attestation when intent quotes a placeholder", () => {
+    const body = [
+      "## Intent\n\n",
+      `Re-establish ${ATTESTATION_PREFIX}...${ATTESTATION_SUFFIX} for this head.\n\n`,
+      prBody(attestation(HEALTHY_STEPS)),
+    ].join("");
+    const { code, output } = runGate(body);
+    expect(code).toBe(0);
+    expect(output).toContain("review, test, and document all completed");
+  });
+
   it("still rejects a body with no no-mistakes signature", () => {
     const { code, output } = runGate("## Intent\n\nhand-written body\n");
     expect(code).toBe(1);
