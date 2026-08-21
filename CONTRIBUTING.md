@@ -9,7 +9,8 @@ We require this to reduce the maintainer's burden of reviewing and merging contr
 `no-mistakes` puts a local git proxy in front of your real remote.
 Pushing through it runs an AI-driven review/test/lint pipeline in an isolated worktree, forwards the push upstream only after every check passes, and opens a clean PR automatically.
 
-A GitHub Actions check (`Require no-mistakes`) runs on PRs targeting `main` and fails if the body is missing the deterministic signature that no-mistakes writes.
+A GitHub Actions check (`Require no-mistakes`) runs on PRs targeting `main` and fails if the body is missing the deterministic signature and pipeline attestation that no-mistakes writes.
+The attestation must describe the PR's current head and record the review, test, and document steps as completed.
 The release and dependency bots are exempt so their automation keeps working, but regular contributor PRs without the signature will not be reviewed or merged.
 
 ## Workflow
@@ -28,6 +29,7 @@ The release and dependency bots are exempt so their automation keeps working, bu
 7. Once the pipeline passes, it pushes the branch to your fork and opens the PR against this repo for you.
 
 The required pipeline attestation and fork routing require no-mistakes **v1.46.0** or newer.
+Run `no-mistakes update` before `git push no-mistakes` if your installed version is older.
 
 See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/start-here/quick-start/) for the full first-run walkthrough.
 
