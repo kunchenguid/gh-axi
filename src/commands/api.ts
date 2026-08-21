@@ -125,9 +125,14 @@ function parseArgs(args: string[]): ParsedApiArgs {
     // `--flag=value` carries its own value; `--flag value` consumes the next arg.
     let value: string;
     if (name === arg) {
-      if (i + 1 >= args.length)
+      const next = args[i + 1];
+      if (
+        next === undefined ||
+        (name === "--input" && SUPPORTED_FLAGS.includes(flagName(next)))
+      )
         throw new AxiError(`${name} requires a value`, "VALIDATION_ERROR");
-      value = args[++i];
+      value = next;
+      i++;
     } else {
       value = arg.slice(name.length + 1);
     }

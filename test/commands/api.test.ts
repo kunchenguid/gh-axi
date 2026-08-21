@@ -578,5 +578,12 @@ describe("apiCommand", () => {
         apiCommand(["/repos/octo/repo", "--input"]),
       ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     });
+
+    it("rejects --input when the next argument is another supported flag", async () => {
+      await expect(
+        apiCommand(["/repos/octo/repo", "--input", "--paginate"]),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 });
