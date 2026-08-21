@@ -4,16 +4,29 @@ vi.mock('../../src/gh.js', () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
   ghRaw: vi.fn(),
+  ghExecWithStdin: vi.fn(),
 }));
 
-import { ghExec } from '../../src/gh.js';
+vi.mock('../../src/stdin.js', () => ({
+  readStdin: vi.fn(),
+  isStdinTTY: vi.fn(),
+}));
+
+import { ghExec, ghExecWithStdin } from '../../src/gh.js';
+import { readStdin, isStdinTTY } from '../../src/stdin.js';
 import { apiCommand, API_HELP } from '../../src/commands/api.js';
 
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhExecWithStdin = vi.mocked(ghExecWithStdin);
+const mockedReadStdin = vi.mocked(readStdin);
+const mockedIsStdinTTY = vi.mocked(isStdinTTY);
 
 describe('apiCommand', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Default: stdin is a TTY (no piped content) so non-stdin tests work
+    // without extra setup. Override per-test when piped content is needed.
+    mockedIsStdinTTY.mockReturnValue(true);
   });
 
   it('returns help when --help is passed', async () => {
@@ -390,6 +403,79 @@ describe('apiCommand', () => {
   it('rejects --full with a value', async () => {
     await expect(apiCommand(['/repos/octo/repo', '--full=true'])).rejects.toMatchObject({
       code: 'VALIDATION_ERROR',
+    });
+  });
+
+  describe('--input', () => {
+    it('passes --input <file> straight through to gh via ghExec', async () => {
+      mockedGhExec.mockResolvedValue('{}');
+
+      await apiCommand([
+        'PUT',
+        '/repos/octo/repo/branches/main/protection',
+        '--input',
+        'body.json',
+      ]);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        expect.arrayContaining(['--input', 'body.json']),
+        undefined,
+      );
+      expect(mockedGhExecWithStdin).not.toHaveBeenCalled();
+    });
+
+    it('round-trips a nested JSON body byte-exact through --input -', async () => {
+      const nestedBody = JSON.stringify({
+        required_status_checks: { strict: true, contexts: ['ci/build', 'ci/test'] },
+        enforce_admins: true,
+        required_pull_request_reviews: null,
+        restrictions: null,
+      });
+      mockedIsStdinTTY.mockReturnValue(false);
+      mockedReadStdin.mockResolvedValue(nestedBody);
+      mockedGhExecWithStdin.mockResolvedValue('{}');
+
+      await apiCommand([
+        'PUT',
+        '/repos/octo/repo/branches/main/protection',
+        '--input',
+        '-',
+      ]);
+
+      const [capturedArgs, capturedStdin] = mockedGhExecWithStdin.mock.calls[0];
+      expect(capturedArgs).toEqual([
+        'api',
+        '/repos/octo/repo/branches/main/protection',
+        '--method',
+        'PUT',
+        '--input',
+        '-',
+      ]);
+      // Byte-exact: what was read from our stdin is exactly what is relayed
+      // to gh's stdin, with no re-encoding or mutation in between.
+      expect(capturedStdin).toBe(nestedBody);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects --input - when stdin is an interactive TTY', async () => {
+      mockedIsStdinTTY.mockReturnValue(true);
+
+      await expect(
+        apiCommand(['PUT', '/repos/octo/repo/branches/main/protection', '--input', '-']),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(mockedReadStdin).not.toHaveBeenCalled();
+    });
+
+    it('rejects --input given more than once', async () => {
+      await expect(
+        apiCommand(['/repos/octo/repo', '--input', 'a.json', '--input', 'b.json']),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    });
+
+    it('rejects --input without a value', async () => {
+      await expect(
+        apiCommand(['/repos/octo/repo', '--input']),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     });
   });
 });

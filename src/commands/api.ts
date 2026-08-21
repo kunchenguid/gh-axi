@@ -1,21 +1,24 @@
 import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
-import { ghExec } from '../gh.js';
+import { ghExec, ghExecWithStdin } from '../gh.js';
 import { AxiError } from '../errors.js';
 import { cleanBody } from '../body.js';
+import { readStdin, isStdinTTY } from '../stdin.js';
 
 export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
-flags[7]:
-  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable), --header <key:value> (repeatable), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
+flags[8]:
+  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
   gh-axi api -X POST /repos/{owner}/{repo}/issues --field title="Bug report"
   gh-axi api /repos/{owner}/{repo}/pulls --paginate
-  gh-axi api /repos/{owner}/{repo}/issues/1 --jq '[.labels[].name]'`;
+  gh-axi api /repos/{owner}/{repo}/issues/1 --jq '[.labels[].name]'
+  gh-axi api PUT /repos/{owner}/{repo}/branches/main/protection --input body.json
+  cat body.json | gh-axi api PUT /repos/{owner}/{repo}/branches/main/protection --input -`;
 
 const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
 
@@ -26,7 +29,14 @@ const METHOD_FLAG = '-X';
 const REPEATABLE_VALUE_FLAGS = new Set(['--field', '--header']);
 
 /** Value flags that gh accepts only one of, so a repeat is a caller mistake. */
-const SINGLE_VALUE_FLAGS = new Set(['--jq', '--template']);
+const SINGLE_VALUE_FLAGS = new Set(['--jq', '--template', '--input']);
+
+/** Maps a single-value flag's name to its key on `ParsedApiArgs`. */
+const SINGLE_VALUE_FLAG_KEYS: Record<string, 'jq' | 'template' | 'input'> = {
+  '--jq': 'jq',
+  '--template': 'template',
+  '--input': 'input',
+};
 
 /** Flags that stand alone and must not consume the following argument, and are forwarded to gh. */
 const BOOL_FLAGS = new Set(['--paginate']);
@@ -55,6 +65,7 @@ interface ParsedApiArgs {
   jq?: string;
   template?: string;
   method?: string;
+  input?: string;
   paginate: boolean;
   full: boolean;
 }
@@ -138,7 +149,7 @@ function parseArgs(args: string[]): ParsedApiArgs {
     } else {
       // gh takes the last occurrence; discarding the earlier expression silently
       // is the same failure this parser exists to prevent, so reject instead.
-      const key = name === '--jq' ? 'jq' : 'template';
+      const key = SINGLE_VALUE_FLAG_KEYS[name];
       if (parsed[key] !== undefined)
         throw new AxiError(`${name} may only be given once`, 'VALIDATION_ERROR');
       // An empty value (an unset shell variable) is a no-op filter for gh that
@@ -164,8 +175,17 @@ const STRING_VALUE_TRUNCATION_LIMIT = 2000;
 export async function apiCommand(args: string[], ctx?: RepoContext): Promise<string> {
   if (args[0] === '--help' || args.length === 0) return API_HELP;
 
-  const { positionals, fields, headers, jq, template, method: methodFlag, paginate, full } =
-    parseArgs(args);
+  const {
+    positionals,
+    fields,
+    headers,
+    jq,
+    template,
+    method: methodFlag,
+    input,
+    paginate,
+    full,
+  } = parseArgs(args);
 
   const pathRequired = new AxiError(
     'API path is required: gh-axi api [<method>] <path>',
@@ -203,6 +223,23 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
     ghArgs.push('--header', h);
   }
 
+  // `--input -` cannot be forwarded to the child `gh` process as-is: execFile
+  // gives the child its own unconnected stdin pipe, so `gh` would block
+  // forever waiting for bytes nothing writes. Read our own stdin instead and
+  // relay it to gh's stdin (still via `--input -`) through ghExecWithStdin.
+  let stdinBody: string | undefined;
+  if (input === '-') {
+    if (isStdinTTY())
+      throw new AxiError(
+        '--input - requires piped stdin (no request body to read)',
+        'VALIDATION_ERROR',
+      );
+    stdinBody = await readStdin();
+    ghArgs.push('--input', '-');
+  } else if (input !== undefined) {
+    ghArgs.push('--input', input);
+  }
+
   if (paginate) ghArgs.push('--paginate');
 
   if (jq !== undefined) ghArgs.push('--jq', jq);
@@ -222,7 +259,10 @@ export async function apiCommand(args: string[], ctx?: RepoContext): Promise<str
   const truncateValues = !full;
 
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
-  const raw = await ghExec(ghArgs, ctx);
+  const raw =
+    stdinBody !== undefined
+      ? await ghExecWithStdin(ghArgs, stdinBody, ctx)
+      : await ghExec(ghArgs, ctx);
   try {
     const data = JSON.parse(raw);
     return encode(shapeOutput(data, stripNoisyKeys, truncateValues));
