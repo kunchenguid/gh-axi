@@ -93,6 +93,7 @@ Human-authored PRs targeting `main` must be raised through [`no-mistakes`](https
 
 `.github/workflows/no-mistakes-required.yml` enforces that in two layers: the human-readable `Updates from [git push no-mistakes]` signature, and the machine-readable `<!-- no-mistakes-pipeline-attestation:v1 {...} -->` comment no-mistakes >= 1.46.0 writes beside it, whose `steps[]` must record `review`, `test`, and `document` as `completed`.
 The attestation's only per-step fields are `step` and `status` (contract: `docs/reference/pipeline-steps.md#pipeline-step-attestation` in kunchenguid/no-mistakes), so every skip route - `--skip`, a gate skip, an automatic skip, an exhausted agent - lands on `skipped` and an unusable agent lands on `failed`; the gate additionally fails closed on a skip-shaped sibling key so a future schema cannot smuggle a skip past a `completed` status.
+The gate is also head-bound: the attestation's `head_sha` must equal the PR's current `head.sha` (`PR_HEAD_SHA`), so a commit pushed after a no-mistakes run fails until `git push no-mistakes` rewrites the body - a red `synchronize` is the contract, not a bug.
 The gate is one self-contained inline `run:` block because the whole file is mirrored into sibling repositories; `test/no-mistakes-gate.test.ts` extracts and executes that exact block, so edit the workflow and re-run the test rather than reimplementing the parser.
 
 ## Maintaining this file
