@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.33](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.32...gh-axi-v0.1.33) (2026-08-21)
+
+
+### Features
+
+* **api:** support raw JSON request bodies ([#114](https://github.com/kunchenguid/gh-axi/issues/114)) ([15016cc](https://github.com/kunchenguid/gh-axi/commit/15016cce60c4ea4c6c83c06207854bd1c6097736))
+
 ## [0.1.32](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.31...gh-axi-v0.1.32) (2026-08-21)
 
 
