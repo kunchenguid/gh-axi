@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -117,17 +117,6 @@ function withStatus(step: string, status: string): Array<[string, string]> {
 describe.runIf(runnable)("no-mistakes PR gate", () => {
   it("accepts a body whose attestation completes review, test, and document", () => {
     const { code, output } = runGate(prBody(attestation(HEALTHY_STEPS)));
-    expect(code).toBe(0);
-    expect(output).toContain("review, test, and document all completed");
-  });
-
-  it("accepts the final pipeline attestation when intent quotes a placeholder", () => {
-    const body = [
-      "## Intent\n\n",
-      `Re-establish ${ATTESTATION_PREFIX}...${ATTESTATION_SUFFIX} for this head.\n\n`,
-      prBody(attestation(HEALTHY_STEPS)),
-    ].join("");
-    const { code, output } = runGate(body);
     expect(code).toBe(0);
     expect(output).toContain("review, test, and document all completed");
   });

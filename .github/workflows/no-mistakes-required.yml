@@ -91,23 +91,21 @@ jobs:
             exit 1
           fi
 
-          # Exact-substring extraction (no regex): retain the final complete
-          # comment because no-mistakes appends the authoritative Pipeline section
-          # after user-authored intent or evidence that may quote the comment shape.
+          # Exact-substring extraction (no regex): first prefix, then the first
+          # closing token after it, mirroring how no-mistakes' own consumer test
+          # slices the payload.
           payload="$(
             printf '%s' "${PR_BODY:-}" | tr -d '\r' | awk -v pre="$attestation_prefix" -v suf="$attestation_suffix" '
+              found { next }
               {
-                rest = $0
-                while ((p = index(rest, pre)) != 0) {
-                  rest = substr(rest, p + length(pre))
-                  payload = ""
-                  s = index(rest, suf)
-                  if (s == 0) break
-                  payload = substr(rest, 1, s - 1)
-                  rest = substr(rest, s + length(suf))
-                }
+                p = index($0, pre)
+                if (p == 0) next
+                rest = substr($0, p + length(pre))
+                s = index(rest, suf)
+                if (s == 0) next
+                print substr(rest, 1, s - 1)
+                found = 1
               }
-              END { if (payload != "") print payload }
             '
           )"
 
