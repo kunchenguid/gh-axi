@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.34](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.33...gh-axi-v0.1.34) (2026-08-23)
+
+
+### Bug Fixes
+
+* keep the installable skill as a CLI-deferring stub ([#118](https://github.com/kunchenguid/gh-axi/issues/118)) ([70fea53](https://github.com/kunchenguid/gh-axi/commit/70fea53e397a59831beaeed3b2645ae87aa0ee11))
+
 ## [0.1.33](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.32...gh-axi-v0.1.33) (2026-08-21)
 
 
