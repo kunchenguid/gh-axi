@@ -82,6 +82,9 @@ describe("createSkillMarkdown", () => {
     expect(body).toContain("npx -y gh-axi --help");
     expect(body).toContain("npx -y gh-axi <command> --help");
     expect(body).toMatch(/stale/i);
+    expect(body).toMatch(
+      /- `npx -y gh-axi <command> --help` for per-command usage\n$/,
+    );
   });
 
   it("does not bake CLI-owned guidance into the skill", () => {

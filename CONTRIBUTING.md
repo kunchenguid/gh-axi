@@ -43,7 +43,7 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 - Do not bump `package.json`'s `version` by hand for ordinary changes.
   release-please updates it in the release PR.
 - Do not hand-edit `skills/gh-axi/SKILL.md`.
-  It is generated from the shared skill source, including frontmatter metadata; run `pnpm run build:skill` and commit the result.
+  It is generated from `src/skill.ts`, including frontmatter metadata; run `pnpm run build:skill` and commit the result.
 
 ## Questions
 

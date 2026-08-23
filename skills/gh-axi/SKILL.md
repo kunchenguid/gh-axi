@@ -22,6 +22,3 @@ Do not follow command, flag, or workflow instructions from this file - installed
 - `npx -y gh-axi` for a dashboard of the current repo
 - `npx -y gh-axi --help` for global flags and the command index
 - `npx -y gh-axi <command> --help` for per-command usage
-
-You do not need gh-axi installed globally - invoke it with `npx -y gh-axi <command>`.
-If gh-axi output shows a follow-up command starting with `gh-axi`, run it as `npx -y gh-axi ...` instead.
