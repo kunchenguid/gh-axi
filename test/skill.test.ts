@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { parse } from "yaml";
+import { DESCRIPTION, TOP_HELP } from "../src/cli.js";
 import {
   createSkillMarkdown,
-  extractCommandsBlock,
   HERMES_CATEGORY,
   HERMES_TAGS,
+  MAX_SKILL_MARKDOWN_CHARS,
   SKILL_AUTHOR,
   SKILL_DESCRIPTION,
 } from "../src/skill.js";
@@ -16,6 +17,14 @@ function parseFrontmatter(markdown: string): Record<string, unknown> {
     throw new Error("Missing frontmatter");
   }
   return parse(match[1], { strict: true }) as Record<string, unknown>;
+}
+
+function skillBody(markdown: string): string {
+  const end = markdown.indexOf("\n---\n", 3);
+  if (end < 0) {
+    throw new Error("Missing frontmatter closer");
+  }
+  return markdown.slice(end + 5);
 }
 
 describe("createSkillMarkdown", () => {
@@ -63,30 +72,25 @@ describe("createSkillMarkdown", () => {
     expect(frontmatter).not.toHaveProperty("required_environment_variables");
   });
 
-  it("teaches npx invocation instead of assuming a global install", () => {
+  it("stays a short stub that defers to the CLI", () => {
     const markdown = createSkillMarkdown();
-    expect(markdown).toContain("npx -y gh-axi");
+    const body = skillBody(markdown);
+    expect(markdown.length).toBeLessThanOrEqual(MAX_SKILL_MARKDOWN_CHARS);
+    expect(body).toContain(DESCRIPTION);
+    expect(body).toMatch(/whenever a task touches GitHub/i);
+    expect(body).toContain("npx -y gh-axi");
+    expect(body).toContain("npx -y gh-axi --help");
+    expect(body).toContain("npx -y gh-axi <command> --help");
+    expect(body).toMatch(/stale/i);
   });
 
-  it("documents the gh prerequisite", () => {
+  it("does not bake CLI-owned guidance into the skill", () => {
     const markdown = createSkillMarkdown();
-    expect(markdown).toContain("gh auth login");
-  });
-
-  it("documents non-interactive stacked PR workflows", () => {
-    const skill = createSkillMarkdown();
-    expect(skill).toContain("gh extension install github/gh-stack");
-    expect(skill).toContain("stack submit --open");
-    expect(skill).toContain("Stack operations are cwd-bound");
-    expect(skill).toContain("stack view` always uses JSON");
-  });
-});
-
-describe("extractCommandsBlock", () => {
-  it("pulls the commands list from the top-level help", () => {
-    const block = extractCommandsBlock();
-    expect(block).toMatch(/^commands\[\d+\]:\n/);
-    expect(block).toContain("issue");
-    expect(block).toContain("setup");
+    const body = skillBody(markdown);
+    expect(body).not.toMatch(/^## Commands/m);
+    expect(body).not.toMatch(/^## Tips/m);
+    expect(body).not.toMatch(/^## Workflow/m);
+    expect(body).not.toContain("commands[");
+    expect(body).not.toContain(TOP_HELP.trim());
   });
 });

@@ -1,4 +1,4 @@
-import { DESCRIPTION, TOP_HELP } from "./cli.js";
+import { DESCRIPTION } from "./cli.js";
 
 // Trigger string Claude Code (and other agents) match against to auto-load the skill.
 // Kept terse and outcome-focused so it fires on "needs GitHub" intents.
@@ -23,32 +23,27 @@ export const HERMES_TAGS = [
 ];
 export const HERMES_CATEGORY = "devops";
 
+// Hard cap so a future regeneration cannot silently re-inflate the stub with
+// CLI-owned instructions. Dashboard, `--help`, and per-command help are the
+// source of truth.
+export const MAX_SKILL_MARKDOWN_CHARS = 2500;
+
 function yamlDoubleQuote(value: string): string {
   return JSON.stringify(value);
 }
 
 /**
- * Extract the `commands[N]:` block from the top-level help so the skill's
- * command list can never drift from what `gh-axi --help` prints.
- */
-export function extractCommandsBlock(): string {
-  const match = TOP_HELP.match(/^(commands\[\d+\]:\n(?: {2}.*\n)+)/m);
-  if (!match) {
-    throw new Error("Could not find commands block in TOP_HELP");
-  }
-  return match[1].trimEnd();
-}
-
-/**
- * Render the installable SKILL.md for the gh-axi skill. The body is built
- * from the same shared guidance the CLI prints (description and top-level
- * help), rewriting invocations to non-interactive `npx -y gh-axi ...` so the
- * CLI comes along on demand.
+ * Render the installable SKILL.md for the gh-axi skill.
+ *
+ * This is a discovery stub, not a copy of CLI guidance. Installed skills go
+ * stale; `gh-axi` (dashboard), `gh-axi --help`, and `gh-axi <command> --help`
+ * do not. Keep the body to what gh-axi is, when to reach for it, and pointers
+ * at those commands.
  *
  * @returns full SKILL.md contents including YAML frontmatter
  */
 export function createSkillMarkdown(): string {
-  return `---
+  const markdown = `---
 name: gh-axi
 description: ${yamlDoubleQuote(SKILL_DESCRIPTION)}
 user-invocable: false
@@ -63,62 +58,25 @@ metadata:
 
 ${DESCRIPTION}
 
+Use gh-axi whenever a task touches GitHub: issues, pull requests, stacked PRs, CI, workflows, releases, repositories, labels, gists, Projects, Actions secrets and variables, search, or the GitHub API.
+
+## Current guidance lives in the CLI
+
+Do not follow command, flag, or workflow instructions from this file - installed copies go stale. Get the current source of truth from the CLI:
+
+- \`npx -y gh-axi\` for a dashboard of the current repo
+- \`npx -y gh-axi --help\` for global flags and the command index
+- \`npx -y gh-axi <command> --help\` for per-command usage
+
 You do not need gh-axi installed globally - invoke it with \`npx -y gh-axi <command>\`.
 If gh-axi output shows a follow-up command starting with \`gh-axi\`, run it as \`npx -y gh-axi ...\` instead.
-
-gh-axi requires the [\`gh\`](https://cli.github.com/) CLI installed and authenticated (\`gh auth login\`). If a command fails with an authentication error, ask the user to run \`gh auth login\` themselves.
-Stack commands additionally require GitHub's official extension: \`gh extension install github/gh-stack\`.
-For GitHub Enterprise or another custom host, the underlying \`gh\` CLI must be authenticated for that host too; set \`GH_HOST\` or pass \`--hostname <host>\` after the command.
-
-## When to use
-
-Use gh-axi whenever a task touches GitHub: listing, filing, or editing issues; viewing, creating, reviewing, merging, or stacking pull requests; managing stacked branches; inspecting workflow runs and CI failures; triggering, enabling, or disabling workflows; managing releases, repositories, or labels; managing Projects (v2) boards and their items; managing Actions secrets or variables; searching issues, PRs, repos, commits, or code; listing, viewing, editing, renaming, creating, deleting, or cloning gists; or calling the GitHub API directly.
-
-## Workflow
-
-1. Run \`npx -y gh-axi\` with no arguments for a dashboard of the current repo - open issues, open PRs, and suggested next commands.
-2. Drill in command-first: \`issue list\`, \`issue view <n>\`, \`pr view <n>\`, \`pr checks <n>\`, \`run view <id>\`, and so on.
-3. Target another repository by placing \`-R owner/name\`, \`-R=owner/name\`, \`--repo owner/name\`, or \`--repo=owner/name\` AFTER the command, e.g. \`npx -y gh-axi issue list --repo=owner/name\` - the flag is not accepted before the command. \`repo view\` also accepts exactly one positional repository, \`repo view owner/name\`, as a command-specific compatibility exception for \`gh repo view [<repository>]\`; do not combine it with \`--repo\` or generalize that positional form to other commands.
-4. Target GitHub Enterprise or another custom host with \`GH_HOST\`, or by placing \`--hostname <host>\` or \`--hostname=<host>\` AFTER the command, e.g. \`npx -y gh-axi issue list --hostname=git.example.com\`.
-5. Trigger (dispatch) a workflow with \`workflow run <name> --ref <ref>\`; \`run\` manages existing workflow runs.
-6. Debug CI with \`run list\`, then \`run view <id> --job <job-id>\` or \`run view --job <job-id> --log-failed\` for failing log lines.
-   Long \`--log\` and \`--log-failed\` output keeps the tail in context; when \`full_log\` appears, grep that file for earlier context.
-7. Every response ends with contextual next-step hints under \`help:\` - follow them.
-8. Manage stacked PRs from the target repository's working directory. Start with \`stack init <branch>\`, add layers with \`stack add <branch>\`, create PRs with \`stack submit --open\`, and inspect them with \`stack view\`.
-
-## Commands
-
-\`\`\`
-${extractCommandsBlock()}
-\`\`\`
-
-Installed copies also inherit the SDK built-in \`update\` command.
-Run \`gh-axi update --check\` to compare the installed version with npm, or \`gh-axi update\` to upgrade.
-When using \`npx -y gh-axi\`, npx already resolves the package on demand.
-
-Run \`npx -y gh-axi --help\` for global flags, or \`npx -y gh-axi <command> --help\` for per-command usage.
-
-## Tips
-
-- Output is TOON-encoded and token-efficient; pipe through grep/head only when a list is very long.
-- Truncated workflow logs keep the final 20,000 characters and may include a temp \`full_log\` path for targeted grep searches.
-- Most mutations are idempotent and report what changed. Stack branch creation and partial pushes require checking the reported status before retrying.
-- Stack operations are cwd-bound and do not accept \`-R\`, \`--repo\`, or \`GH_REPO\`. They preserve the official extension's recovery exits and may partially push branches; inspect the reported status before retrying.
-- gh-axi keeps stack operations headless: \`stack view\` always uses JSON, \`stack submit\` always uses \`--auto\`, and \`stack merge <stack-or-pr>\` always uses \`--yes\`. Interactive \`gh stack modify\` and \`gh stack switch\` are intentionally not exposed.
-- For multi-line markdown bodies, comments, or release notes, write the text to a UTF-8 file and pass \`--body-file <path>\` or the release \`--notes-file <path>\` alias on commands that support file-backed text.
-- Label, assignee, reviewer, and project flags repeat: pass the flag once per value, e.g. \`issue edit 42 --add-label bug --add-label chore\`, and every value is applied. A repeated flag with a missing or blank value is rejected, never silently dropped.
-- Secret values are stdin-only: \`echo -n "<value>" | npx -y gh-axi secret set <name>\`.
-- Do not pass secrets with \`--body\` or \`-b\`; flags are visible in the \`gh-axi\` process argv.
-- Scope a secret to a deployment environment with \`--env\`/\`-e <environment>\` on \`secret list\`, \`set\`, and \`delete\`; omit it for repository scope. Other \`gh secret\` scopes (\`--org\`, \`--user\`, \`--app\`) are rejected, not silently ignored.
-- Variable values may use \`--body\`/\`-b\` or stdin because Actions variables are not secret.
-- For multi-line variable values, pipe stdin to \`npx -y gh-axi variable set <name>\`; \`--body\`/\`-b\` is for inline values only.
-- Projects (v2) are owner-scoped: pass \`--owner <login>\`, or omit it to use the current repo owner and then \`@me\`.
-- Projects calls need the \`project\` or \`read:project\` OAuth scope; if scope errors occur, ask the user to run the \`gh auth refresh -s ...\` command shown by gh-axi.
-- Use \`gist list\` to list your GitHub Gists; filter by visibility with \`--public\` or \`--secret\`, and add extra fields with \`--fields url,owner,created\`. Use \`gist view <id|url>\` to fetch a gist's metadata and file content; pass \`--files\` for names only, \`-f/--filename <name>\` for a single file, or \`--full\` to disable truncation.
-- Use \`gist edit <id|url>\` to update a gist's files or description: pipe content via stdin with \`--filename <name>\` to replace or add a file, \`--add <path>\` to add from disk, \`--remove <name>\` to remove, and \`--desc <text>\` to update the description. \`gist edit\` never opens $EDITOR.
-- Use \`gist rename <id|url> <old> <new>\` to rename a file within a gist.
-- Use \`gist create\` to create a gist. Visibility is required: pass \`--public\` or \`--secret\` (omitting either, or passing both, is an error). Use positional paths (\`gist create a.py b.py\`) or repeatable \`--file\` flags; do not mix the two. Pipe content with \`--filename <name>\` for stdin input. A secret gist is unlisted — anyone with the URL can read it.
-- Use \`gist delete <id|url>\` to delete a gist (always confirmed non-interactively). Use \`gist clone <id|url>\` to clone a gist locally.
-- Use \`api\` for anything the dedicated commands do not cover, e.g. \`npx -y gh-axi api repos/{owner}/{repo}/topics\`.
 `;
+
+  if (markdown.length > MAX_SKILL_MARKDOWN_CHARS) {
+    throw new Error(
+      `generated SKILL.md is ${markdown.length} chars; keep it a stub under ${MAX_SKILL_MARKDOWN_CHARS} and defer guidance to the CLI`,
+    );
+  }
+
+  return markdown;
 }

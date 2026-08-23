@@ -1,5 +1,6 @@
-// Generates skills/gh-axi/SKILL.md from the shared CLI guidance so the
-// installable skill never drifts from what `gh-axi` prints.
+// Generates the minimal skills/gh-axi/SKILL.md stub from src/skill.ts.
+// The skill defers to CLI output for all actual guidance, so a regeneration
+// cannot re-inflate it with dashboard / --help / per-command help text.
 //
 //   pnpm run build:skill            # write the file
 //   pnpm run build:skill -- --check # fail (exit 1) if the committed file is stale
