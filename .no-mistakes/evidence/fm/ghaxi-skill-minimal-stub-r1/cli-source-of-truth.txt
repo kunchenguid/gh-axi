@@ -1,0 +1,65 @@
+$ pnpm exec tsx bin/gh-axi.ts --help
+usage: gh-axi [command] [args] [flags]
+commands[16]:
+  (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+flags[4]:
+  -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
+examples:
+  gh-axi
+  gh-axi issue list --state open
+  gh-axi issue list -R owner/name
+  gh-axi issue list --repo=owner/name
+  gh-axi issue list --hostname git.example.com
+  gh-axi pr view 42
+  gh-axi stack view
+  gh-axi secret list
+  gh-axi setup hooks
+"built-in":
+  update: Upgrade `gh-axi.ts` to the latest published version
+  "update --check": Report current vs latest without installing
+
+$ pnpm exec tsx bin/gh-axi.ts issue --help
+usage: gh-axi issue <subcommand> [flags]
+subcommands[14]:
+  list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>, subissue <add|remove|list>
+flags{list}:
+  --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
+flags{view}:
+  --comments, --full (show the complete issue body and comment bodies without truncation)
+flags{create}:
+  --title <text> (required), --body <text> or --body-file <path>, --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
+flags{edit}:
+  --title, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
+flags{close}:
+  --reason <completed|not_planned>, --comment <text>
+flags{comment}:
+  --body <text> or --body-file <path> (required)
+flags{transfer}:
+  --to-repo <owner/name> (required)
+subissue:
+  add <parent> <child> [<child> ...], remove <parent> <child>, list <parent>
+examples:
+  gh-axi issue list --state closed --label bug
+  gh-axi issue view 42 --comments
+  gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
+  gh-axi issue comment 42 --body-file comment.md
+  gh-axi issue close 42 --reason completed
+  gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
+  gh-axi issue subissue add 16 20 101 125
+  gh-axi issue subissue list 16
+$ pnpm exec tsx bin/gh-axi.ts
+bin: ~/.no-mistakes/worktrees/21c6d0f851bd/01M0RG9KJD6XQ939012VKDPAZ9/bin/gh-axi.ts
+description: Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.
+repo: kunchenguid/gh-axi
+issues[3]{number,title,state,author}:
+  106,run watch can exit UNKNOWN with no workflow output for an existing run,open,bauti-defi
+  105,pr checks disagrees with pr view and watch exits successfully while checks are pending,open,bauti-defi
+  86,"repo edit: --enable-issues/--enable-wiki are boolean in gh but read as value flags (silently dropped, or swallow the next flag)",open,bauti-defi
+prs[3]{number,title,author,review}:
+  100,"fix(commands): forward --admin (and other unmodeled flags) on pr merge so they aren't silently dropped",nbost130,none
+  99,"fix(api): honor callerShapedOutput for non-JSON --jq/--template output",nbost130,none
+  96,"fix(pr): make worktree merges repository-safe",deacon-botdoctor,none
+help[3]:
+  Run `gh-axi issue list` for full issue list
+  Run `gh-axi pr list` for full PR list
+  Run `gh-axi <command> <subcommand>` — commands: issue, pr, run, release, repo, label, secret, variable
