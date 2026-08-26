@@ -4,9 +4,11 @@ import { DESCRIPTION } from "./cli.js";
 // Kept terse and outcome-focused so it fires on "needs GitHub" intents.
 export const SKILL_DESCRIPTION =
   "Operate GitHub through the gh-axi CLI - issues, pull requests, stacked PRs, workflow runs, workflows, " +
-  "releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, and raw API access. " +
-  "Use whenever a task touches GitHub: listing or filing issues, reviewing or merging PRs, managing stacked branches and PRs, " +
-  "checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, or working with gists via `gist list`, `gist view`, `gist edit`, `gist rename`, `gist create`, `gist delete`, or `gist clone`.";
+  "releases, repositories, labels, gists, Projects (v2), Actions secrets and variables, search, raw API access, " +
+  "and repository Gitignore tracking hygiene. " +
+  "Use whenever a task touches GitHub or needs a safe preflight before publishing: listing or filing issues, reviewing or merging PRs, managing stacked branches and PRs, " +
+  "checking CI runs, triggering workflows, cutting releases, managing Projects boards, managing Actions secrets/variables, working with gists, " +
+  "or reviewing tracked files matched by repository `.gitignore` rules.";
 
 export const SKILL_AUTHOR = "Kun Chen (kunchenguid)";
 
@@ -58,7 +60,7 @@ metadata:
 
 ${DESCRIPTION}
 
-Use gh-axi whenever a task touches GitHub: issues, pull requests, stacked PRs, CI, workflows, releases, repositories, labels, gists, Projects, Actions secrets and variables, search, or the GitHub API.
+Use gh-axi whenever a task touches GitHub or needs repository Gitignore tracking hygiene before publication: issues, pull requests, stacked PRs, CI, workflows, releases, repositories, labels, gists, Projects, Actions secrets and variables, search, the GitHub API, or the shared push-preflight seam.
 
 ## Current guidance lives in the CLI
 

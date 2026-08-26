@@ -4,16 +4,29 @@ vi.mock("../../src/gh.js", () => ({
   ghExec: vi.fn(),
   ghRaw: vi.fn(),
 }));
+vi.mock("../../src/stdin.js", () => ({ isStdinTTY: vi.fn(() => true) }));
+vi.mock("../../src/gitignore-hygiene.js", () => ({
+  runGitignorePreflight: vi.fn(async () => ({
+    findings: [],
+    gitAvailable: true,
+    action: "none",
+  })),
+}));
 
 import { ghJson } from "../../src/gh.js";
 import { homeCommand } from "../../src/commands/home.js";
 import type { RepoContext } from "../../src/context.js";
+import { runGitignorePreflight } from "../../src/gitignore-hygiene.js";
+import { isStdinTTY } from "../../src/stdin.js";
 
 const mockedGhJson = vi.mocked(ghJson);
+const mockedHygiene = vi.mocked(runGitignorePreflight);
+const mockedTTY = vi.mocked(isStdinTTY);
 
 describe("homeCommand", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockedTTY.mockReturnValue(true);
   });
 
   afterEach(() => {
@@ -97,6 +110,40 @@ describe("homeCommand", () => {
     // Should return output with empty sections, not throw
     expect(result).toContain("issues");
     expect(result).toContain("prs");
+  });
+  it("runs interactive hygiene preflight for the local dashboard", async () => {
+    mockedGhJson.mockResolvedValue([]);
+    await homeCommand([]);
+    expect(mockedHygiene).toHaveBeenCalledWith({ policy: "interactive" });
+  });
+
+  it("uses explicit hygiene policy when requested", async () => {
+    mockedGhJson.mockResolvedValue([]);
+    await homeCommand(["--fix-ignore-conflicts"]);
+    expect(mockedHygiene).toHaveBeenCalledWith({ policy: "explicit-fix" });
+  });
+
+  it("skips hygiene preflight for remote repository context", async () => {
+    mockedGhJson.mockResolvedValue([]);
+    await homeCommand([], {
+      owner: "o",
+      name: "r",
+      nwo: "o/r",
+      source: "flag",
+    });
+    expect(mockedHygiene).not.toHaveBeenCalled();
+  });
+
+  it("renders hygiene action and local file preservation", async () => {
+    mockedGhJson.mockResolvedValue([]);
+    mockedHygiene.mockResolvedValue({
+      findings: [{ path: "ignored", eligible: true }],
+      gitAvailable: true,
+      action: "reported",
+    } as never);
+    const result = await homeCommand([]);
+    expect(result).toContain("reported");
+    expect(result).toContain("preserved");
   });
 
   it("works without repo context", async () => {

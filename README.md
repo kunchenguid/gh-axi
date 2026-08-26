@@ -89,6 +89,8 @@ gh-axi pr view 42               # view pull request #42
 gh-axi stack init model api ui  # create or adopt a stack of branches
 gh-axi stack submit --open      # create ready-for-review stacked PRs without prompts
 gh-axi stack view               # inspect the current stack as token-efficient TOON
+gh-axi hygiene                  # report tracked files matched by repository .gitignore
+gh-axi hygiene --fix-ignore-conflicts  # explicitly repair eligible index entries, preserving local files
 gh-axi issue edit 42 --add-label bug --add-label chore  # repeat a flag per value
 gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi issue list --hostname git.example.com  # target a GitHub Enterprise host
@@ -138,6 +140,8 @@ Cancelled, stale, timed-out, action-required, and startup-failure check runs cou
 Stack commands operate on local branches and `.git/gh-stack`, so run them from the target repository's working directory. They reject `-R`, `--repo`, and `GH_REPO` rather than pretending a remote repository is enough. `--hostname` remains available for authenticated GitHub Enterprise hosts.
 Agent-safe behavior is automatic: `stack view` requests JSON, `stack submit` adds `--auto`, and `stack merge` requires an explicit stack or PR target and adds `--yes`. Rebase conflicts and other extension exits retain their original exit codes and include recovery guidance.
 
+`gh-axi hygiene` reports tracked files that match repository `.gitignore` rules. In a TTY it offers one default-negative prompt for all eligible paths; `[a] Always fix` stores `gh-axi.ignoreConflicts=true` in repository-local Git config and repairs immediately. Future TTY runs then repair automatically, while non-TTY runs remain report-only unless `--fix-ignore-conflicts` is explicit. Staged-different index content, submodule gitlinks, and sparse-checkout paths are manual-only. Global excludes and `.git/info/exclude` are never reported or repaired. Dashboard and `pr create` surface this preflight; PR creation continues if the user declines. The exported preflight is the future push-preflight seam; gh-axi currently has no push command.
+
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
 `gh-axi secret list` never prints values, matching `gh secret list`.
 `gh-axi secret list`, `set`, and `delete` accept `--env`/`-e <environment>` to scope a secret to a deployment environment; without it the repository scope is used.
@@ -164,7 +168,7 @@ JSON responses are normally stripped of noisy fields before TOON encoding, but a
 | ---------- | --------------------------------------------------------------------------- |
 | `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue         |
 | `pr`       | Pull requests — list, view, create, merge, review, checks                   |
-| `stack`    | Stacked branches and PRs - create, submit, sync, rebase, merge, navigate    |
+| `hygiene`  | Local repository `.gitignore` tracking hygiene and reusable preflight       |
 | `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
 | `workflow` | Workflows - list, view, run (trigger), enable, disable                      |
 | `release`  | Releases — list, view, create, edit, delete                                 |

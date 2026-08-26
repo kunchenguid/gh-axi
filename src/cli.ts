@@ -17,6 +17,7 @@ import { apiCommand, API_HELP } from "./commands/api.js";
 import { gistCommand, GIST_HELP } from "./commands/gist.js";
 import { setupCommand, SETUP_HELP } from "./commands/setup.js";
 import { stackCommand, STACK_HELP } from "./commands/stack.js";
+import { hygieneCommand, HYGIENE_HELP } from "./commands/hygiene.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
@@ -33,8 +34,8 @@ type MainOptions = {
 };
 
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
-commands[16]:
-  (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[17]:
+  (none)=dashboard, issue, pr, stack, hygiene, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 flags[4]:
   -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
 examples:
@@ -46,6 +47,7 @@ examples:
   gh-axi pr view 42
   gh-axi stack view
   gh-axi secret list
+  gh-axi --fix-ignore-conflicts  # dashboard preflight: explicitly repair eligible local conflicts
   gh-axi setup hooks
 `;
 
@@ -65,6 +67,7 @@ const COMMAND_HELP: Record<string, string> = {
   api: API_HELP,
   setup: SETUP_HELP,
   stack: STACK_HELP,
+  hygiene: HYGIENE_HELP,
 };
 
 type HostOnlyContext = { host: HostContext };
@@ -90,7 +93,8 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
   search: withRepoContext("search", searchCommand),
   api: withRepoContext("api", apiCommand),
   setup: setupCommand,
-  stack: withLocalRepoContext(stackCommand),
+  stack: withLocalRepoContext("stack", stackCommand),
+  hygiene: withLocalRepoContext("hygiene", hygieneCommand),
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {
@@ -160,12 +164,15 @@ function withRepoContext(
     );
 }
 
-function withLocalRepoContext(handler: CommandFn): WrappedCommandFn {
+function withLocalRepoContext(
+  name: string,
+  handler: CommandFn,
+): WrappedCommandFn {
   return (args, ctx) => {
-    const parsed = parseRepoContextArgs("stack", args);
+    const parsed = parseRepoContextArgs(name, args);
     if (parsed.repoFlag !== undefined || process.env["GH_REPO"]) {
       throw new AxiError(
-        "stack commands operate on the repository in the current working directory and do not support -R, --repo, or GH_REPO",
+        `${name} commands operate on the repository in the current working directory and do not support -R, --repo, or GH_REPO`,
         "VALIDATION_ERROR",
       );
     }
