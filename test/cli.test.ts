@@ -414,6 +414,19 @@ describe("main CLI", () => {
     expect(vi.mocked(homeCommand)).toHaveBeenCalledWith([], ctx);
   });
 
+  it("routes the bare dashboard hygiene flag through the home handler", async () => {
+    await main({ argv: ["--fix-ignore-conflicts"] });
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    await options.home([], undefined);
+
+    expect(vi.mocked(runAxiCli).mock.calls[0]?.[0]).toMatchObject({ argv: [] });
+    expect(vi.mocked(homeCommand)).toHaveBeenCalledWith(
+      ["--fix-ignore-conflicts"],
+      undefined,
+    );
+  });
+
   it("strips -R before invoking command handlers", async () => {
     await main();
 

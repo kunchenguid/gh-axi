@@ -98,13 +98,20 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {
+  const argv = options.argv ?? process.argv.slice(2);
+  const dashboardExplicitFix = argv.length === 1 && argv[0] === "--fix-ignore-conflicts";
   await runAxiCli<CliContext | undefined>({
-    ...(options.argv ? { argv: options.argv } : {}),
+    ...(dashboardExplicitFix ? { argv: [] } : options.argv ? { argv: options.argv } : {}),
     description: DESCRIPTION,
     version: VERSION,
     topLevelHelp: TOP_HELP,
     ...(options.stdout ? { stdout: options.stdout } : {}),
-    home: withRepoContext(undefined, homeCommand),
+    home: withRepoContext(undefined, (args, ctx) =>
+      homeCommand(
+        dashboardExplicitFix ? ["--fix-ignore-conflicts", ...args] : args,
+        ctx,
+      ),
+    ),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
     formatError: (error) => {
