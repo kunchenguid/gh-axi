@@ -113,6 +113,8 @@ gh-axi gist clone <id|url>      # clone a gist locally
 gh-axi setup hooks              # install optional agent session hooks
 gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
+gh-axi --fix-ignore-conflicts  # dashboard: explicitly repair tracked ignored entries
+gh-axi pr create --title "..." --fix-ignore-conflicts
 ```
 
 For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` on the relevant command.
@@ -137,6 +139,8 @@ Cancelled, stale, timed-out, action-required, and startup-failure check runs cou
 `gh-axi stack` is a strict, non-interactive adapter over the official `github/gh-stack` extension. It supports `view`, `init`, `add`, `checkout`, `push`, `submit`, `sync`, `rebase`, `link`, `unstack`, `merge`, and branch navigation. It intentionally excludes the interactive `modify` and `switch` TUIs and the human-only `alias` and `feedback` utilities.
 Stack commands operate on local branches and `.git/gh-stack`, so run them from the target repository's working directory. They reject `-R`, `--repo`, and `GH_REPO` rather than pretending a remote repository is enough. `--hostname` remains available for authenticated GitHub Enterprise hosts.
 Agent-safe behavior is automatic: `stack view` requests JSON, `stack submit` adds `--auto`, and `stack merge` requires an explicit stack or PR target and adds `--yes`. Rebase conflicts and other extension exits retain their original exit codes and include recovery guidance.
+Gitignore tracking hygiene runs automatically on the local dashboard and before local-repository `pr create`. It reports tracked files matched by repository `.gitignore`; TTY sessions ask once with yes/no/always, while non-TTY sessions remain report-only unless `--fix-ignore-conflicts` is explicit. Repair only stages `git rm --cached`: local files are preserved, and hygiene never commits, pushes, or deletes worktree files.
+If the canonical Git index lock is already held, hygiene returns `manual` and makes no mutation. Use normal Git `index.lock` recovery after confirming no Git process is active; gh-axi never auto-deletes an unknown lock.
 
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
 `gh-axi secret list` never prints values, matching `gh secret list`.

@@ -17,7 +17,6 @@ import type { RepoContext } from "../../src/context.js";
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
 const mockedGhRaw = vi.mocked(ghRaw);
-
 const ctx: RepoContext = {
   owner: "octo",
   name: "repo",
@@ -1151,5 +1150,42 @@ describe("prCommand", () => {
       expect(result).not.toContain("truncated:");
       expect(result).not.toContain("original_length");
     });
+  });
+  it("injects hygiene preflight for explicit create fixes", async () => {
+    mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/9\n");
+    const hygiene = vi.fn(async () => ({
+      findings: [{ path: "ignored", eligible: true }],
+      gitAvailable: true,
+      action: "fixed" as const,
+      local_files: "preserved",
+    }));
+    const result = await prCommand(
+      ["create", "--title", "T", "--fix-ignore-conflicts"],
+      { ...ctx, source: "git" },
+      hygiene,
+    );
+    expect(hygiene).toHaveBeenCalledWith({ policy: "explicit-fix" });
+    expect(mockedGhExec.mock.calls[0][0]).not.toContain(
+      "--fix-ignore-conflicts",
+    );
+    expect(result).toContain("pull/9");
+  });
+
+  it("creates a PR after declined hygiene preflight", async () => {
+    mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/10\n");
+    const hygiene = vi.fn(async () => ({
+      findings: [{ path: "ignored", eligible: true }],
+      gitAvailable: true,
+      action: "declined" as const,
+      local_files: "preserved",
+    }));
+    const result = await prCommand(
+      ["create", "--title", "T"],
+      { ...ctx, source: "git" },
+      hygiene,
+    );
+    expect(mockedGhExec).toHaveBeenCalled();
+    expect(result).toContain("pull/10");
+    expect(result).toContain("preserved");
   });
 });
