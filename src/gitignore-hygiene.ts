@@ -153,7 +153,15 @@ export async function repairGitignoreConflicts(
   findings: HygieneFinding[],
   runner: GitRunner = defaultRunner,
 ): Promise<void> {
-  const paths = findings.filter((f) => f.eligible).map((f) => f.path);
+  // Findings are only a report-time snapshot. Revalidate immediately before
+  // mutating the index so a file staged since detection is left untouched.
+  const eligibleAtRepair = await detectGitignoreConflicts(runner);
+  const eligiblePaths = new Set(
+    eligibleAtRepair.findings.filter((f) => f.eligible).map((f) => f.path),
+  );
+  const paths = findings
+    .filter((f) => f.eligible && eligiblePaths.has(f.path))
+    .map((f) => f.path);
   if (!paths.length) return;
   await successful(
     runner,

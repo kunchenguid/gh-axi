@@ -147,6 +147,20 @@ describe("gitignore hygiene", () => {
     ).toBe(0);
   });
 
+  it("revalidates findings before repair when a file becomes staged", async () => {
+    const r = await repo();
+    await commit(r, { ".gitignore": "ignored\n", ignored: "one" });
+    const findings = (await detected(r)).findings;
+    await writeFile(join(r, "ignored"), "two");
+    await git(r, ["add", "ignored"]);
+
+    await repairGitignoreConflicts(findings, (a, i) => git(r, a, i));
+
+    expect(
+      (await git(r, ["ls-files", "--error-unmatch", "ignored"])).exitCode,
+    ).toBe(0);
+  });
+
   it("prompts once and declines with evidence", async () => {
     const r = await repo();
     await commit(r, { ".gitignore": "ignored\n", ignored: "x" });
