@@ -107,7 +107,9 @@ export async function homeCommand(
     hints.push("Run `gh-axi issue list` for full issue list");
   if (prs.length >= 3) hints.push("Run `gh-axi pr list` for full PR list");
   if (hygiene.findings.length > 0)
-    hints.push("Run `gh-axi --fix-ignore-conflicts` to repair tracked .gitignore conflicts");
+    hints.push(
+      "Run `gh-axi --fix-ignore-conflicts` to repair tracked .gitignore conflicts",
+    );
   blocks.push(
     renderHelp([
       ...hints,
