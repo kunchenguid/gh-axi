@@ -38,6 +38,13 @@ const prSchema: FieldDef[] = [
   ),
 ];
 
+const hygieneSchema: FieldDef[] = [
+  field("path"),
+  field("source"),
+  field("line"),
+  field("rule"),
+];
+
 export async function homeCommand(
   args: string[],
   ctx?: RepoContext,
@@ -102,12 +109,17 @@ export async function homeCommand(
       },
     }),
   );
+  if (hygiene.findings.length)
+    blocks.push(renderList("ignore_conflicts", hygiene.findings, hygieneSchema));
+
   const hints: string[] = [];
   if (issues.length >= 3)
     hints.push("Run `gh-axi issue list` for full issue list");
   if (prs.length >= 3) hints.push("Run `gh-axi pr list` for full PR list");
-  if (hygiene.findings.length > 0)
-    hints.push("Run `gh-axi hygiene` to review tracked .gitignore conflicts");
+  if (hygiene.findings.length)
+    hints.push(
+      "Run `gh-axi --fix-ignore-conflicts` to untrack eligible ignored files",
+    );
   blocks.push(
     renderHelp([
       ...hints,
