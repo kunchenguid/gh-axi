@@ -175,6 +175,17 @@ export async function repairGitignoreConflicts(
     ...paths,
   ]);
   if (indexChanged.exitCode !== 0) return 0;
+  // Re-check the exact path set after resolving the guard result. This keeps
+  // the mutation conservative for runners that perform queued Git work while
+  // commands are in flight: any new staged content makes the repair a no-op.
+  const stillClean = await runner([
+    "diff",
+    "--cached",
+    "--quiet",
+    "--",
+    ...paths,
+  ]);
+  if (stillClean.exitCode !== 0) return 0;
   try {
     await successful(
       runner,
