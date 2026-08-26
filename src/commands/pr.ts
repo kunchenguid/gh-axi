@@ -6,6 +6,8 @@ import { takeBody, truncateBody } from "../body.js";
 import { formatCountLine } from "../format.js";
 import { fetchListTotal, type ListFilter } from "../totals.js";
 import { getSuggestions } from "../suggestions.js";
+import { isStdinTTY } from "../stdin.js";
+import { runGitignorePreflight } from "../gitignore-hygiene.js";
 import {
   takeFlag,
   takeBoolFlag,
@@ -276,6 +278,7 @@ const PR_FLAGS: Record<string, readonly string[]> = {
     "--label",
     "--milestone",
     "--project",
+    "--fix-ignore-conflicts",
   ],
   edit: [
     "--title",
@@ -327,7 +330,7 @@ flags{list}:
 flags{view}:
   --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path>, --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
+  --title <text> (required), --body <text> or --body-file <path>, --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable), --fix-ignore-conflicts
 flags{edit}:
   --title <text>, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
 flags{merge}:
@@ -518,7 +521,12 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput([renderDetail("pull_request", pr, schema)]);
 }
 
-async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
+async function prCreate(
+  args: string[],
+  ctx?: RepoContext,
+  preflight: typeof runGitignorePreflight = runGitignorePreflight,
+): Promise<string> {
+  const explicitFix = takeBoolFlag(args, "--fix-ignore-conflicts");
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
   const body = takeBody(args);
@@ -542,6 +550,17 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   if (milestone) ghArgs.push("--milestone", milestone);
   pushRepeated(ghArgs, "--project", projects);
 
+  const hygiene =
+    ctx?.source === "git"
+      ? await preflight({
+          policy: explicitFix
+            ? "explicit-fix"
+            : isStdinTTY()
+              ? "interactive"
+              : "report",
+        })
+      : { findings: [], gitAvailable: false, action: "none" as const };
+
   const stdout = await ghExec(ghArgs, ctx);
   // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
   const urlMatch = stdout.match(/\/pull\/(\d+)/);
@@ -549,6 +568,13 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const url = stdout.trim().split("\n").pop()?.trim() ?? "";
 
   return renderOutput([
+    encode({
+      hygiene: {
+        action: hygiene.findings.length > 0 ? hygiene.action : "none",
+        local_files: "preserved",
+        findings: hygiene.findings.length,
+      },
+    }),
     renderDetail("created", { number: num ?? url, url }, [
       field("number"),
       field("url"),
@@ -1026,13 +1052,10 @@ async function prRevert(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
-// ---------------------------------------------------------------------------
-// Router
-// ---------------------------------------------------------------------------
-
 export async function prCommand(
   args: string[],
   ctx?: RepoContext,
+  preflight: typeof runGitignorePreflight = runGitignorePreflight,
 ): Promise<string> {
   const sub = args[0];
   const rest = args.slice(1);
@@ -1046,7 +1069,7 @@ export async function prCommand(
       return prView(rest, ctx);
     case "create":
       rejectUnknownFlags(rest, PR_FLAGS.create, "pr", "create");
-      return prCreate(rest, ctx);
+      return prCreate(rest, ctx, preflight);
     case "edit":
       rejectUnknownFlags(rest, PR_FLAGS.edit, "pr", "edit");
       return prEdit(rest, ctx);
