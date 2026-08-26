@@ -99,9 +99,14 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
 
 export async function main(options: MainOptions = {}): Promise<void> {
   const argv = options.argv ?? process.argv.slice(2);
-  const dashboardExplicitFix = argv.length === 1 && argv[0] === "--fix-ignore-conflicts";
+  const dashboardExplicitFix =
+    argv.length === 1 && argv[0] === "--fix-ignore-conflicts";
   await runAxiCli<CliContext | undefined>({
-    ...(dashboardExplicitFix ? { argv: [] } : options.argv ? { argv: options.argv } : {}),
+    ...(dashboardExplicitFix
+      ? { argv: [] }
+      : options.argv
+        ? { argv: options.argv }
+        : {}),
     description: DESCRIPTION,
     version: VERSION,
     topLevelHelp: TOP_HELP,
