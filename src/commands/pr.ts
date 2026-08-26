@@ -185,6 +185,13 @@ const listSchema: FieldDef[] = [
   mapEnum("reviewDecision", REVIEW_MAP, "none", "review"),
 ];
 
+const hygieneSchema: FieldDef[] = [
+  field("path"),
+  field("source"),
+  field("line"),
+  field("rule"),
+];
+
 const LIST_JSON_FIELDS = "number,title,state,author,isDraft,reviewDecision";
 
 const PR_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
@@ -567,7 +574,7 @@ async function prCreate(
   const num = urlMatch ? Number(urlMatch[1]) : undefined;
   const url = stdout.trim().split("\n").pop()?.trim() ?? "";
 
-  return renderOutput([
+  const blocks = [
     encode({
       hygiene: {
         action: hygiene.findings.length > 0 ? hygiene.action : "none",
@@ -575,6 +582,10 @@ async function prCreate(
         findings: hygiene.findings.length,
       },
     }),
+  ];
+  if (hygiene.findings.length)
+    blocks.push(renderList("ignore_conflicts", hygiene.findings, hygieneSchema));
+  blocks.push(
     renderDetail("created", { number: num ?? url, url }, [
       field("number"),
       field("url"),
@@ -582,7 +593,8 @@ async function prCreate(
     renderHelp(
       getSuggestions({ domain: "pr", action: "create", id: num, repo: ctx }),
     ),
-  ]);
+  );
+  return renderOutput(blocks);
 }
 
 async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
