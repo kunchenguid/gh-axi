@@ -141,11 +141,19 @@ subcommand implementation.
   absent from that surface does not exist; do not invent one. Check whether
   the primary argument is positional, and distinguish flags a skill ACCEPTS
   from flags it PASSES DOWNSTREAM to another skill.
-- Skill dispatch results surface only in the session that invoked them.
-  Spawned worker/secondary sessions do not receive skill output; run any
-  skill whose contract returns a handoff (worktree path, branch, SHA) from
-  the operator's own session, and treat a worker's empty result as this
-  transport property — not a retry candidate.
+### Active-session and delegated-worker boundary
+
+- The active parent session executes `/skill:<canonical-name> <exact args>` and must
+  validate the matching `skill-dispatch-result/v1` before completing dependent work.
+- A delegated worker is not the active host session. It MUST NOT use `command -v`,
+  `which`, bare `--help`, `$PATH`, or another shell probe to test skill availability, and
+  MUST NOT send slash commands to the parent. It returns a machine-readable
+  `dependency_required` object with `skill`, exact `args`, `execution_owner:
+  parent_active_session`, `status: not_run`, `reason: delegated_worker_boundary`, and
+  `dependent_gate` plus `dependent_artifact`. The parent invokes the exact skill and
+  validates its dispatch result; until then the dependent gate remains blocked.
+- Never describe a delegated boundary as “host-native unavailable” or claim the dependent
+  skill ran from a worker's request alone.
 - When a skill surfaces an operator confirmation (e.g. "Start autonomous
   execution now?"), present it to the human verbatim and stop. Autonomous
   flags mean "run without per-step prompts", never "self-approve human
