@@ -12,7 +12,7 @@ import { VARIABLE_HELP } from "../src/commands/variable.js";
 import { SEARCH_HELP } from "../src/commands/search.js";
 import { API_HELP } from "../src/commands/api.js";
 import { GIST_HELP } from "../src/commands/gist.js";
-import { TOP_HELP } from "../src/cli.js";
+import { main, TOP_HELP } from "../src/cli.js";
 
 /**
  * Every HELP constant must contain an "examples:" section with at least 2
@@ -66,6 +66,19 @@ describe("--body-file discoverability", () => {
     expect(ISSUE_HELP).toContain("--body-file <path>");
     expect(PR_HELP).toContain("--body-file <path>");
     expect(RELEASE_HELP).toContain("--body-file");
+  });
+});
+
+describe("dashboard hygiene discoverability", () => {
+  it("documents the supported explicit dashboard hygiene flag", async () => {
+    const chunks: string[] = [];
+    await main({
+      argv: ["--help"],
+      stdout: { write: (chunk: string) => chunks.push(chunk) },
+    });
+    const output = chunks.join("");
+    expect(output).toContain("gh-axi --fix-ignore-conflicts");
+    expect(output).not.toContain("gh-axi hygiene");
   });
 });
 

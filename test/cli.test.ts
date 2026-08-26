@@ -113,7 +113,7 @@ describe("main CLI", () => {
   });
 
   it("documents the top-level version flags in help output", () => {
-    expect(TOP_HELP).toContain("flags[4]:");
+    expect(TOP_HELP).toContain("flags[5]:");
     expect(TOP_HELP).toContain("-R/--repo <OWNER/NAME> (after command)");
     expect(TOP_HELP).toContain(
       "--hostname <host> (after command) or GH_HOST env",
@@ -412,6 +412,19 @@ describe("main CLI", () => {
     await options.home([], ctx);
 
     expect(vi.mocked(homeCommand)).toHaveBeenCalledWith([], ctx);
+  });
+
+  it("routes the bare dashboard hygiene flag through the home handler", async () => {
+    await main({ argv: ["--fix-ignore-conflicts"] });
+
+    const options = vi.mocked(runAxiCli).mock.calls[0]?.[0];
+    await options.home([], undefined);
+
+    expect(vi.mocked(runAxiCli).mock.calls[0]?.[0]).toMatchObject({ argv: [] });
+    expect(vi.mocked(homeCommand)).toHaveBeenCalledWith(
+      ["--fix-ignore-conflicts"],
+      undefined,
+    );
   });
 
   it("strips -R before invoking command handlers", async () => {
