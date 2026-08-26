@@ -165,21 +165,33 @@ export async function repairGitignoreConflicts(
   if (!paths.length) return 0;
 
   // Keep the final safety check immediately adjacent to the index mutation.
-  // A staged change anywhere means the index is no longer the snapshot that
-  // was evaluated above, so leave every finding tracked for manual review.
-  const indexChanged = await runner(["diff", "--cached", "--quiet"]);
+  // Only the paths being removed matter here. A staged change to one of those
+  // paths means the index is no longer the snapshot that was evaluated above.
+  const indexChanged = await runner([
+    "diff",
+    "--cached",
+    "--quiet",
+    "--",
+    ...paths,
+  ]);
   if (indexChanged.exitCode !== 0) return 0;
-  await successful(
-    runner,
-    [
-      "rm",
-      "--cached",
-      "--pathspec-from-file=-",
-      "--pathspec-file-nul",
-      "--ignore-unmatch",
-    ],
-    `${paths.join("\0")}\0`,
-  );
+  try {
+    await successful(
+      runner,
+      [
+        "rm",
+        "--cached",
+        "--pathspec-from-file=-",
+        "--pathspec-file-nul",
+        "--ignore-unmatch",
+      ],
+      `${paths.join("\0")}\0`,
+    );
+  } catch {
+    // A concurrent Git operation may acquire the index lock after the final
+    // check. Treat that as manual review rather than claiming a repair.
+    return 0;
+  }
   return paths.length;
 }
 export type Prompt = (message: string) => Promise<"yes" | "no" | "always">;
