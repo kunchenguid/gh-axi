@@ -219,6 +219,21 @@ describe("gitignore hygiene", () => {
     expect(prompt).toHaveBeenCalledTimes(1);
   });
 
+  it("honors Git's other true values for the local Always preference", async () => {
+    const r = await repo();
+    await commit(r, { ".gitignore": "ignored\n", ignored: "x" });
+    await git(r, ["config", "--local", "gh-axi.ignoreConflicts", "yes"]);
+    const prompt = vi.fn(async () => "no" as const);
+    const result = await runGitignorePreflight({
+      policy: "interactive",
+      interactive: true,
+      prompt,
+      runner: (a, i) => git(r, a, i),
+    });
+    expect(result.action).toBe("fixed");
+    expect(prompt).not.toHaveBeenCalled();
+  });
+
   it("keeps saved Always disabled for report/noninteractive policy", async () => {
     const r = await repo();
     await commit(r, { ".gitignore": "ignored\n", ignored: "x" });
@@ -258,9 +273,9 @@ describe("gitignore hygiene", () => {
     await writeFile(join(r, "a"), "changed");
     expect((await git(r, ["add", "-f", "--", "a"])).exitCode).toBe(0);
     await writeFile(join(r, ".git", "index.lock"), "locked");
-    expect(await repairGitignoreConflicts(findings, (a, i) => git(r, a, i))).toBe(
-      0,
-    );
+    expect(
+      await repairGitignoreConflicts(findings, (a, i) => git(r, a, i)),
+    ).toBe(0);
     expect((await git(r, ["ls-files", "--error-unmatch", "a"])).exitCode).toBe(
       0,
     );

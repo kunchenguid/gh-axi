@@ -209,7 +209,13 @@ export const terminalPrompt: Prompt = async (message) => {
   }
 };
 async function configuredAlways(runner: GitRunner): Promise<boolean> {
-  const result = await runner(["config", "--local", "--get", ALWAYS_FIX_KEY]);
+  const result = await runner([
+    "config",
+    "--local",
+    "--type=bool",
+    "--get",
+    ALWAYS_FIX_KEY,
+  ]);
   return result.exitCode === 0 && result.stdout.trim() === "true";
 }
 export async function runGitignorePreflight(
