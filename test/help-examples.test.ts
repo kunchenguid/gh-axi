@@ -13,6 +13,7 @@ import { SEARCH_HELP } from "../src/commands/search.js";
 import { API_HELP } from "../src/commands/api.js";
 import { GIST_HELP } from "../src/commands/gist.js";
 import { TOP_HELP } from "../src/cli.js";
+import { HYGIENE_HELP } from "../src/commands/hygiene.js";
 
 /**
  * Every HELP constant must contain an "examples:" section with at least 2
@@ -66,6 +67,14 @@ describe("--body-file discoverability", () => {
     expect(ISSUE_HELP).toContain("--body-file <path>");
     expect(PR_HELP).toContain("--body-file <path>");
     expect(RELEASE_HELP).toContain("--body-file");
+  });
+});
+
+describe("dashboard hygiene discoverability", () => {
+  it("documents the supported explicit hygiene command", () => {
+    expect(TOP_HELP).toContain("gh-axi hygiene --fix-ignore-conflicts");
+    expect(TOP_HELP).not.toContain("gh-axi --fix-ignore-conflicts");
+    expect(HYGIENE_HELP).toContain("--fix-ignore-conflicts");
   });
 });
 
