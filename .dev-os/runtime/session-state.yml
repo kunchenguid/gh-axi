@@ -1,0 +1,9 @@
+schema: session-state/v2
+spec: null
+head_sha: e45d6b32b82835754f05a96e695e0ba46cb81e34
+checkpoint_sha: e45d6b32b82835754f05a96e695e0ba46cb81e34
+next_action: "Run project-status or devos-recover --list"
+last_action: l1-empty-repair
+status: complete
+updated_at: "2026-08-26T20:19:55Z"
+source: l1-empty-repair

@@ -168,6 +168,7 @@ JSON responses are normally stripped of noisy fields before TOON encoding, but a
 | ---------- | --------------------------------------------------------------------------- |
 | `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue         |
 | `pr`       | Pull requests — list, view, create, merge, review, checks                   |
+| `stack`    | Stacked branches and PRs - create, submit, sync, rebase, merge, navigate    |
 | `hygiene`  | Local repository `.gitignore` tracking hygiene and reusable preflight       |
 | `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
 | `workflow` | Workflows - list, view, run (trigger), enable, disable                      |
