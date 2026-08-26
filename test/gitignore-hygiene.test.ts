@@ -251,16 +251,16 @@ describe("gitignore hygiene", () => {
     ).toBe(0);
   });
 
-  it("keeps all state when a real batch repair fails", async () => {
+  it("keeps all state when the index changes before batch repair", async () => {
     const r = await repo();
     await commit(r, { ".gitignore": "a\nb\n", a: "a", b: "b" });
     const findings = (await detected(r)).findings;
     await writeFile(join(r, "a"), "changed");
     expect((await git(r, ["add", "-f", "--", "a"])).exitCode).toBe(0);
     await writeFile(join(r, ".git", "index.lock"), "locked");
-    await expect(
-      repairGitignoreConflicts(findings, (a, i) => git(r, a, i)),
-    ).rejects.toThrow();
+    expect(await repairGitignoreConflicts(findings, (a, i) => git(r, a, i))).toBe(
+      0,
+    );
     expect((await git(r, ["ls-files", "--error-unmatch", "a"])).exitCode).toBe(
       0,
     );
