@@ -233,6 +233,13 @@ describe("gitignore hygiene", () => {
     expect(
       (await git(r, ["ls-files", "--error-unmatch", "b"])).exitCode,
     ).not.toBe(0);
+    expect(result.findings).toEqual([
+      expect.objectContaining({
+        path: "a",
+        eligible: false,
+        classification: "manual",
+      }),
+    ]);
   });
 
   it("prompts once and fixes on yes", async () => {

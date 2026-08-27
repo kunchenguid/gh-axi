@@ -304,11 +304,14 @@ export async function runGitignorePreflight(
   if (decision === "always")
     await successful(runner, ["config", "--local", ALWAYS_FIX_KEY, "true"]);
   const repaired = await repairGitignoreConflicts(report.findings, runner);
+  const remaining = await detectGitignoreConflicts(runner);
   return {
-    ...report,
+    ...remaining,
     action:
-      repaired > 0 && !report.findings.some((finding) => !finding.eligible)
+      remaining.findings.length === 0 && remaining.gitAvailable
         ? "fixed"
-        : "manual",
+        : repaired > 0 || remaining.findings.length > 0
+          ? "manual"
+          : "none",
   };
 }
