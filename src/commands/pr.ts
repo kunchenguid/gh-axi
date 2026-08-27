@@ -568,12 +568,6 @@ async function prCreate(
         })
       : { findings: [], gitAvailable: false, action: "none" as const };
 
-  const stdout = await ghExec(ghArgs, ctx);
-  // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
-  const urlMatch = stdout.match(/\/pull\/(\d+)/);
-  const num = urlMatch ? Number(urlMatch[1]) : undefined;
-  const url = stdout.trim().split("\n").pop()?.trim() ?? "";
-
   const blocks = [
     encode({
       hygiene: {
@@ -585,6 +579,20 @@ async function prCreate(
   ];
   if (hygiene.findings.length)
     blocks.push(renderList("ignore_conflicts", hygiene.findings, hygieneSchema));
+  if (hygiene.action === "reported")
+    return renderOutput([
+      ...blocks,
+      renderHelp([
+        "Run `gh-axi pr create --title \"<title>\" --fix-ignore-conflicts` to untrack eligible ignored files before creating the PR",
+      ]),
+    ]);
+
+  const stdout = await ghExec(ghArgs, ctx);
+  // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
+  const urlMatch = stdout.match(/\/pull\/(\d+)/);
+  const num = urlMatch ? Number(urlMatch[1]) : undefined;
+  const url = stdout.trim().split("\n").pop()?.trim() ?? "";
+
   blocks.push(
     renderDetail("created", { number: num ?? url, url }, [
       field("number"),

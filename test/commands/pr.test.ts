@@ -1171,6 +1171,35 @@ describe("prCommand", () => {
     expect(result).toContain("pull/9");
   });
 
+  it("reports non-interactive hygiene conflicts before creating a PR", async () => {
+    const hygiene = vi.fn(async () => ({
+      findings: [
+        {
+          path: "ignored",
+          source: ".gitignore",
+          line: 1,
+          rule: "ignored",
+          eligible: true,
+        },
+      ],
+      gitAvailable: true,
+      action: "reported" as const,
+      local_files: "preserved",
+    }));
+
+    const result = await prCommand(
+      ["create", "--title", "T"],
+      { ...ctx, source: "git" },
+      hygiene,
+    );
+
+    expect(mockedGhExec).not.toHaveBeenCalled();
+    expect(result).toContain("ignore_conflicts");
+    expect(result).toContain("ignored");
+    expect(result).toContain(".gitignore");
+    expect(result).toContain("--fix-ignore-conflicts");
+  });
+
   it("creates a PR after declined hygiene preflight", async () => {
     mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/10\n");
     const hygiene = vi.fn(async () => ({
