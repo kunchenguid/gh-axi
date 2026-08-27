@@ -578,7 +578,9 @@ async function prCreate(
     }),
   ];
   if (hygiene.findings.length)
-    blocks.push(renderList("ignore_conflicts", hygiene.findings, hygieneSchema));
+    blocks.push(
+      renderList("ignore_conflicts", hygiene.findings, hygieneSchema),
+    );
   if (hygiene.findings.length && hygiene.action !== "fixed")
     return renderOutput([
       ...blocks,
@@ -588,7 +590,7 @@ async function prCreate(
               "Resolve the listed manual ignore conflicts before creating the PR",
             ]
           : [
-              "Run `gh-axi pr create --title \"<title>\" --fix-ignore-conflicts` to untrack eligible ignored files before creating the PR",
+              'Run `gh-axi pr create --title "<title>" --fix-ignore-conflicts` to untrack eligible ignored files before creating the PR',
             ],
       ),
     ]);

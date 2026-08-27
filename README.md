@@ -114,7 +114,7 @@ gh-axi setup hooks              # install optional agent session hooks
 gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
 gh-axi --fix-ignore-conflicts  # dashboard: explicitly repair tracked ignored entries
-gh-axi pr create --title "..." --fix-ignore-conflicts
+gh-axi pr create --title "..." --fix-ignore-conflicts  # explicitly repair before PR creation
 ```
 
 For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` on the relevant command.

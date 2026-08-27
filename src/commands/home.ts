@@ -110,7 +110,9 @@ export async function homeCommand(
     }),
   );
   if (hygiene.findings.length)
-    blocks.push(renderList("ignore_conflicts", hygiene.findings, hygieneSchema));
+    blocks.push(
+      renderList("ignore_conflicts", hygiene.findings, hygieneSchema),
+    );
 
   const hints: string[] = [];
   if (issues.length >= 3)
