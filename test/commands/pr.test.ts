@@ -1171,6 +1171,21 @@ describe("prCommand", () => {
     expect(result).toContain("pull/9");
   });
 
+  it("runs hygiene preflight for local PR creation without resolved context", async () => {
+    mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/9\n");
+    const hygiene = vi.fn(async () => ({
+      findings: [],
+      gitAvailable: true,
+      action: "none" as const,
+      local_files: "preserved",
+    }));
+
+    await prCommand(["create", "--title", "T"], undefined, hygiene);
+
+    expect(hygiene).toHaveBeenCalledWith({ policy: "report" });
+    expect(mockedGhExec).toHaveBeenCalled();
+  });
+
   it("reports non-interactive hygiene conflicts before creating a PR", async () => {
     const hygiene = vi.fn(async () => ({
       findings: [

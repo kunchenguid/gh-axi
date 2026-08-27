@@ -563,7 +563,7 @@ async function prCreate(
   pushRepeated(ghArgs, "--project", projects);
 
   const hygiene =
-    ctx?.source === "git"
+    !ctx || ctx.source === "git"
       ? await preflight({
           policy: explicitFix
             ? "explicit-fix"
