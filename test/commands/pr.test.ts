@@ -1200,21 +1200,61 @@ describe("prCommand", () => {
     expect(result).toContain("--fix-ignore-conflicts");
   });
 
-  it("creates a PR after declined hygiene preflight", async () => {
-    mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/10\n");
+  it("reports declined hygiene conflicts before creating a PR", async () => {
     const hygiene = vi.fn(async () => ({
-      findings: [{ path: "ignored", eligible: true }],
+      findings: [
+        {
+          path: "ignored",
+          source: ".gitignore",
+          line: 1,
+          rule: "ignored",
+          eligible: true,
+        },
+      ],
       gitAvailable: true,
       action: "declined" as const,
       local_files: "preserved",
     }));
+
     const result = await prCommand(
       ["create", "--title", "T"],
       { ...ctx, source: "git" },
       hygiene,
     );
-    expect(mockedGhExec).toHaveBeenCalled();
-    expect(result).toContain("pull/10");
-    expect(result).toContain("preserved");
+
+    expect(mockedGhExec).not.toHaveBeenCalled();
+    expect(result).toContain("ignore_conflicts");
+    expect(result).toContain("ignored");
+    expect(result).toContain(".gitignore");
+  });
+
+  it("reports manual hygiene conflicts before creating a PR", async () => {
+    const hygiene = vi.fn(async () => ({
+      findings: [
+        {
+          path: "ignored",
+          source: ".gitignore",
+          line: 1,
+          rule: "ignored",
+          eligible: false,
+          reason: "index differs from HEAD (staged content)",
+        },
+      ],
+      gitAvailable: true,
+      action: "manual" as const,
+      local_files: "preserved",
+    }));
+
+    const result = await prCommand(
+      ["create", "--title", "T", "--fix-ignore-conflicts"],
+      { ...ctx, source: "git" },
+      hygiene,
+    );
+
+    expect(mockedGhExec).not.toHaveBeenCalled();
+    expect(result).toContain("ignore_conflicts");
+    expect(result).toContain("ignored");
+    expect(result).toContain(".gitignore");
+    expect(result).toContain("Resolve the listed manual ignore conflicts");
   });
 });
