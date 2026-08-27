@@ -249,11 +249,12 @@ export const terminalPrompt: Prompt = async (message) => {
 };
 
 function escapeTerminalControl(value: string): string {
-  return value.replace(
-    /[\x00-\x1f\x7f-\x9f]/g,
-    (character) =>
-      `\\x${character.codePointAt(0)!.toString(16).padStart(2, "0").toUpperCase()}`,
-  );
+  return value.replace(/[\p{Cc}\p{Cf}]/gu, (character) => {
+    const codePoint = character.codePointAt(0)!;
+    return codePoint <= 0xff
+      ? `\\x${codePoint.toString(16).padStart(2, "0").toUpperCase()}`
+      : `\\u{${codePoint.toString(16).toUpperCase()}}`;
+  });
 }
 
 function promptFinding(finding: HygieneFinding): string {

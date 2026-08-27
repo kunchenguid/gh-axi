@@ -215,6 +215,26 @@ describe("gitignore hygiene", () => {
     expect(prompt).toHaveBeenCalledTimes(1);
   });
 
+  it("escapes Unicode format controls in the interactive consent prompt", async () => {
+    const r = await repo();
+    const path = `safe\u202Etxt`;
+    await commit(r, { ".gitignore": `safe\u202E*\n`, [path]: "x" });
+    const prompt = vi.fn(async (message: string) => {
+      expect(message).toContain("safe\\u{202E}txt");
+      expect(message).not.toContain("\u202E");
+      return "no" as const;
+    });
+
+    await runGitignorePreflight({
+      policy: "interactive",
+      interactive: true,
+      prompt,
+      runner: (a, i, e) => git(r, a, i, e),
+    });
+
+    expect(prompt).toHaveBeenCalledTimes(1);
+  });
+
   it("retains a manual outcome when only eligible conflicts were repaired", async () => {
     const r = await repo();
     await commit(r, { ".gitignore": "a\nb\n", a: "one", b: "one" });
