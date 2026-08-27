@@ -195,6 +195,46 @@ describe("gitignore hygiene", () => {
     expect(prompt).toHaveBeenCalledTimes(1);
   });
 
+  it("escapes terminal control bytes in the interactive consent prompt", async () => {
+    const r = await repo();
+    const path = "\x1b[2Jerase.txt";
+    await commit(r, { ".gitignore": "*.txt\n", [path]: "x" });
+    const prompt = vi.fn(async (message: string) => {
+      expect(message).toContain("\\x1B[2Jerase.txt");
+      expect(message).not.toContain("\x1b");
+      return "no" as const;
+    });
+
+    await runGitignorePreflight({
+      policy: "interactive",
+      interactive: true,
+      prompt,
+      runner: (a, i, e) => git(r, a, i, e),
+    });
+
+    expect(prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains a manual outcome when only eligible conflicts were repaired", async () => {
+    const r = await repo();
+    await commit(r, { ".gitignore": "a\nb\n", a: "one", b: "one" });
+    await writeFile(join(r, "a"), "staged");
+    expect((await git(r, ["add", "-f", "--", "a"])).exitCode).toBe(0);
+
+    const result = await runGitignorePreflight({
+      policy: "explicit-fix",
+      runner: (a, i, e) => git(r, a, i, e),
+    });
+
+    expect(result.action).toBe("manual");
+    expect((await git(r, ["ls-files", "--error-unmatch", "a"])).exitCode).toBe(
+      0,
+    );
+    expect(
+      (await git(r, ["ls-files", "--error-unmatch", "b"])).exitCode,
+    ).not.toBe(0);
+  });
+
   it("prompts once and fixes on yes", async () => {
     const r = await repo();
     await commit(r, { ".gitignore": "ignored\n", ignored: "x" });

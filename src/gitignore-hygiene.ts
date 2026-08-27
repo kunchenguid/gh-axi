@@ -247,6 +247,19 @@ export const terminalPrompt: Prompt = async (message) => {
     rl.close();
   }
 };
+
+function escapeTerminalControl(value: string): string {
+  return value.replace(
+    /[\x00-\x1f\x7f-\x9f]/g,
+    (character) =>
+      `\\x${character.codePointAt(0)!.toString(16).padStart(2, "0").toUpperCase()}`,
+  );
+}
+
+function promptFinding(finding: HygieneFinding): string {
+  return `${escapeTerminalControl(finding.path)} - ${escapeTerminalControl(finding.source)}:${finding.line} (${escapeTerminalControl(finding.rule)})`;
+}
+
 async function configuredAlways(runner: GitRunner): Promise<boolean> {
   const result = await runner([
     "config",
@@ -283,7 +296,7 @@ export async function runGitignorePreflight(
       : await (options.prompt ?? terminalPrompt)(
           report.findings
             .filter((f) => f.eligible)
-            .map((f) => `${f.path} - ${f.source}:${f.line} (${f.rule})`)
+            .map(promptFinding)
             .join("\n") +
             "\nLocal files are preserved. Fix all? [y]es/[n]o/[a] Always fix: ",
         );
@@ -291,5 +304,11 @@ export async function runGitignorePreflight(
   if (decision === "always")
     await successful(runner, ["config", "--local", ALWAYS_FIX_KEY, "true"]);
   const repaired = await repairGitignoreConflicts(report.findings, runner);
-  return { ...report, action: repaired > 0 ? "fixed" : "manual" };
+  return {
+    ...report,
+    action:
+      repaired > 0 && !report.findings.some((finding) => !finding.eligible)
+        ? "fixed"
+        : "manual",
+  };
 }
