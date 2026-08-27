@@ -1277,12 +1277,7 @@ describe("prCommand", () => {
 
     await expect(
       prCommand(
-        [
-          "create",
-          "--title",
-          "T",
-          "--fix-ignore-conflicts=true",
-        ],
+        ["create", "--title", "T", "--fix-ignore-conflicts=true"],
         { ...ctx, source: "git" },
         hygiene,
       ),
