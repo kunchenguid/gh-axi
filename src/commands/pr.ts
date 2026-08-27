@@ -533,6 +533,11 @@ async function prCreate(
   ctx?: RepoContext,
   preflight: typeof runGitignorePreflight = runGitignorePreflight,
 ): Promise<string> {
+  if (args.some((arg) => arg.startsWith("--fix-ignore-conflicts=")))
+    throw new AxiError(
+      "--fix-ignore-conflicts does not accept a value",
+      "VALIDATION_ERROR",
+    );
   const explicitFix = takeBoolFlag(args, "--fix-ignore-conflicts");
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");

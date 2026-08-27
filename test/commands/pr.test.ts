@@ -1257,4 +1257,26 @@ describe("prCommand", () => {
     expect(result).toContain(".gitignore");
     expect(result).toContain("Resolve the listed manual ignore conflicts");
   });
+  it("rejects values on the explicit hygiene-fix switch without creating a PR", async () => {
+    const hygiene = vi.fn();
+
+    await expect(
+      prCommand(
+        [
+          "create",
+          "--title",
+          "T",
+          "--fix-ignore-conflicts=true",
+        ],
+        { ...ctx, source: "git" },
+        hygiene,
+      ),
+    ).rejects.toMatchObject({
+      message: "--fix-ignore-conflicts does not accept a value",
+      code: "VALIDATION_ERROR",
+    });
+
+    expect(hygiene).not.toHaveBeenCalled();
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
 });
