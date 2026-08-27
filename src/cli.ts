@@ -36,7 +36,7 @@ export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
 commands[16]:
   (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 flags[5]:
-  -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --fix-ignore-conflicts (dashboard only), --help, -v/-V/--version
+  -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --fix-ignore-conflicts (dashboard and pr create), --help, -v/-V/--version
 examples:
   gh-axi
   gh-axi issue list --state open
