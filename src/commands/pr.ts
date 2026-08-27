@@ -7,7 +7,10 @@ import { formatCountLine } from "../format.js";
 import { fetchListTotal, type ListFilter } from "../totals.js";
 import { getSuggestions } from "../suggestions.js";
 import { isStdinTTY } from "../stdin.js";
-import { runGitignorePreflight } from "../gitignore-hygiene.js";
+import {
+  displayHygieneFinding,
+  runGitignorePreflight,
+} from "../gitignore-hygiene.js";
 import {
   takeFlag,
   takeBoolFlag,
@@ -584,7 +587,11 @@ async function prCreate(
   ];
   if (hygiene.findings.length)
     blocks.push(
-      renderList("ignore_conflicts", hygiene.findings, hygieneSchema),
+      renderList(
+        "ignore_conflicts",
+        hygiene.findings.map(displayHygieneFinding),
+        hygieneSchema,
+      ),
     );
   if (hygiene.findings.length && hygiene.action !== "fixed")
     return renderOutput([

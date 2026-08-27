@@ -6,6 +6,7 @@ vi.mock("../../src/gh.js", () => ({
 }));
 vi.mock("../../src/stdin.js", () => ({ isStdinTTY: vi.fn(() => true) }));
 vi.mock("../../src/gitignore-hygiene.js", () => ({
+  displayHygieneFinding: (finding: unknown) => finding,
   runGitignorePreflight: vi.fn(async () => ({
     findings: [],
     gitAvailable: true,
@@ -145,7 +146,6 @@ describe("homeCommand", () => {
     expect(result).toContain("reported");
     expect(result).toContain("preserved");
   });
-
   it("works without repo context", async () => {
     mockedGhJson.mockResolvedValue([]);
 

@@ -1215,6 +1215,34 @@ describe("prCommand", () => {
     expect(result).toContain("--fix-ignore-conflicts");
   });
 
+  it("renders terminal controls in reported conflicts as harmless text", async () => {
+    const hygiene = vi.fn(async () => ({
+      findings: [
+        {
+          path: "\x1b]52;clipboard\x07ignored",
+          source: ".gitignore",
+          line: 1,
+          rule: "\u202Eignored",
+          eligible: true,
+        },
+      ],
+      gitAvailable: true,
+      action: "reported" as const,
+    }));
+
+    const result = await prCommand(
+      ["create", "--title", "T"],
+      { ...ctx, source: "git" },
+      hygiene,
+    );
+
+    expect(result).toContain("\\\\x1B]52;clipboard\\\\x07ignored");
+    expect(result).toContain("\\\\u{202E}ignored");
+    expect(result).not.toContain("\x1b");
+    expect(result).not.toContain("\u202E");
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
+
   it("reports declined hygiene conflicts before creating a PR", async () => {
     const hygiene = vi.fn(async () => ({
       findings: [

@@ -1,7 +1,10 @@
 import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson } from "../gh.js";
-import { runGitignorePreflight } from "../gitignore-hygiene.js";
+import {
+  displayHygieneFinding,
+  runGitignorePreflight,
+} from "../gitignore-hygiene.js";
 import { isStdinTTY } from "../stdin.js";
 import { getSuggestions } from "../suggestions.js";
 import {
@@ -111,7 +114,11 @@ export async function homeCommand(
   );
   if (hygiene.findings.length)
     blocks.push(
-      renderList("ignore_conflicts", hygiene.findings, hygieneSchema),
+      renderList(
+        "ignore_conflicts",
+        hygiene.findings.map(displayHygieneFinding),
+        hygieneSchema,
+      ),
     );
 
   const hints: string[] = [];

@@ -248,7 +248,7 @@ export const terminalPrompt: Prompt = async (message) => {
   }
 };
 
-function escapeTerminalControl(value: string): string {
+export function escapeTerminalControl(value: string): string {
   return value.replace(/[\p{Cc}\p{Cf}]/gu, (character) => {
     const codePoint = character.codePointAt(0)!;
     return codePoint <= 0xff
@@ -257,6 +257,14 @@ function escapeTerminalControl(value: string): string {
   });
 }
 
+export function displayHygieneFinding(finding: HygieneFinding): HygieneFinding {
+  return {
+    ...finding,
+    path: escapeTerminalControl(finding.path),
+    source: escapeTerminalControl(finding.source ?? ""),
+    rule: escapeTerminalControl(finding.rule ?? ""),
+  };
+}
 function promptFinding(finding: HygieneFinding): string {
   return `${escapeTerminalControl(finding.path)} - ${escapeTerminalControl(finding.source)}:${finding.line} (${escapeTerminalControl(finding.rule)})`;
 }
