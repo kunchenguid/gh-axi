@@ -329,6 +329,33 @@ describe("gitignore hygiene", () => {
     ).toBe(0);
   });
 
+  it("returns manual when post-repair validation is unavailable", async () => {
+    const r = await repo();
+    await commit(r, { ".gitignore": "ignored\n", ignored: "x" });
+    let trackedChecks = 0;
+    const runner: GitRunner = async (args, input, env) => {
+      if (args[0] === "ls-files" && args.includes("-ci")) {
+        trackedChecks += 1;
+        if (trackedChecks === 3)
+          return {
+            stdout: "",
+            stderr: "post-repair check failed",
+            exitCode: 1,
+          };
+      }
+      return git(r, args, input, env);
+    };
+
+    const result = await runGitignorePreflight({
+      policy: "explicit-fix",
+      runner,
+    });
+
+    expect(result).toMatchObject({ action: "manual", gitAvailable: false });
+    expect(
+      (await git(r, ["ls-files", "--error-unmatch", "ignored"])).exitCode,
+    ).not.toBe(0);
+  });
   it("returns manual and performs no mutation when a safety probe fails", async () => {
     const r = await repo();
     await commit(r, { ".gitignore": "ignored\n", ignored: "x" });

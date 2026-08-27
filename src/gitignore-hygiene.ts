@@ -316,8 +316,9 @@ export async function runGitignorePreflight(
   const remaining = await detectGitignoreConflicts(runner);
   return {
     ...remaining,
-    action:
-      remaining.findings.length === 0 && remaining.gitAvailable
+    action: !remaining.gitAvailable
+      ? "manual"
+      : remaining.findings.length === 0
         ? "fixed"
         : repaired > 0 || remaining.findings.length > 0
           ? "manual"
