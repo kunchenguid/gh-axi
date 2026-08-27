@@ -579,7 +579,7 @@ async function prCreate(
   const blocks = [
     encode({
       hygiene: {
-        action: hygiene.findings.length > 0 ? hygiene.action : "none",
+        action: hygiene.action,
         local_files: "preserved",
         findings: hygiene.findings.length,
       },
@@ -593,7 +593,7 @@ async function prCreate(
         hygieneSchema,
       ),
     );
-  if (hygiene.findings.length && hygiene.action !== "fixed")
+  if (hygiene.action !== "none" && hygiene.action !== "fixed")
     return renderOutput([
       ...blocks,
       renderHelp(

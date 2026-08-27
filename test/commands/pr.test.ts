@@ -1300,6 +1300,24 @@ describe("prCommand", () => {
     expect(result).toContain(".gitignore");
     expect(result).toContain("Resolve the listed manual ignore conflicts");
   });
+  it("blocks PR creation when hygiene verification cannot confirm repair", async () => {
+    const hygiene = vi.fn(async () => ({
+      findings: [],
+      gitAvailable: false,
+      action: "manual" as const,
+    }));
+
+    const result = await prCommand(
+      ["create", "--title", "T", "--fix-ignore-conflicts"],
+      { ...ctx, source: "git" },
+      hygiene,
+    );
+
+    expect(mockedGhExec).not.toHaveBeenCalled();
+    expect(result).toContain("action: manual");
+    expect(result).toContain("Resolve the listed manual ignore conflicts");
+  });
+
   it("rejects values on the explicit hygiene-fix switch without creating a PR", async () => {
     const hygiene = vi.fn();
 
