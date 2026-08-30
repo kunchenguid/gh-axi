@@ -116,18 +116,30 @@ function appendOptionalValueBoolFlag(
   outputFlag: string,
   inputFlags: string[] = [outputFlag],
 ): void {
-  for (const flag of inputFlags) {
-    const equalsPrefix = `${flag}=`;
-    const equalsIndex = args.findIndex((arg) => arg.startsWith(equalsPrefix));
-    if (equalsIndex !== -1) {
-      ghArgs.push(
-        `${outputFlag}=${args[equalsIndex].slice(equalsPrefix.length)}`,
-      );
-      args.splice(equalsIndex, 1);
-      return;
-    }
+  const occurrences = args.flatMap((arg, index) =>
+    inputFlags.some((flag) => arg === flag || arg.startsWith(`${flag}=`))
+      ? [index]
+      : [],
+  );
+  if (occurrences.length > 1) {
+    throw new AxiError(
+      `${outputFlag} may only be specified once`,
+      "VALIDATION_ERROR",
+    );
   }
-  appendBoolFlag(ghArgs, args, outputFlag, inputFlags);
+  if (occurrences.length === 0) return;
+
+  const index = occurrences[0];
+  const arg = args[index];
+  const inputFlag = inputFlags.find(
+    (flag) => arg === flag || arg.startsWith(`${flag}=`),
+  )!;
+  ghArgs.push(
+    arg === inputFlag
+      ? outputFlag
+      : `${outputFlag}=${arg.slice(inputFlag.length + 1)}`,
+  );
+  args.splice(index, 1);
 }
 
 function findProvidedFlags(args: string[], flags: string[]): string[] {
