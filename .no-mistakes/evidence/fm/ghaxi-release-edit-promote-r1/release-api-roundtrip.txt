@@ -1,0 +1,75 @@
+Stateful fake GitHub round-trip through the public gh-axi CLI
+
+$ gh-axi api /repos/octo/repo/releases/tags/v1.0.0
+id: 1
+tag_name: v1.0.0
+name: Version 1 prerelease
+prerelease: true
+draft: false
+
+$ gh-axi api /repos/octo/repo/releases/latest
+id: 2
+tag_name: v0.9.0
+name: Version 0.9
+prerelease: false
+draft: false
+
+$ gh-axi release edit v1.0.0 --prerelease=false --latest
+edit: ok
+tag: v1.0.0
+help[1]:
+  Run `gh-axi release view v1.0.0 -R octo/repo` to see updated release
+
+$ gh-axi api /repos/octo/repo/releases/tags/v1.0.0
+id: 1
+tag_name: v1.0.0
+name: Version 1 prerelease
+prerelease: false
+draft: false
+
+$ gh-axi api /repos/octo/repo/releases/latest
+id: 1
+tag_name: v1.0.0
+name: Version 1 prerelease
+prerelease: false
+draft: false
+
+$ gh-axi release edit v1.0.0 --latest=false
+edit: ok
+tag: v1.0.0
+help[1]:
+  Run `gh-axi release view v1.0.0 -R octo/repo` to see updated release
+
+$ gh-axi api /repos/octo/repo/releases/latest
+id: 2
+tag_name: v0.9.0
+name: Version 0.9
+prerelease: false
+draft: false
+
+$ gh-axi release edit v1.0.0 --prerelease
+edit: ok
+tag: v1.0.0
+help[1]:
+  Run `gh-axi release view v1.0.0 -R octo/repo` to see updated release
+
+$ gh-axi api /repos/octo/repo/releases/tags/v1.0.0
+id: 1
+tag_name: v1.0.0
+name: Version 1 prerelease
+prerelease: true
+draft: false
+
+$ gh-axi api PATCH /repos/octo/repo/releases/1 --field name=Version\ 1\ stable\ via\ API --field prerelease=false
+id: 1
+tag_name: v1.0.0
+name: Version 1 stable via API
+prerelease: false
+draft: false
+
+$ gh-axi api /repos/octo/repo/releases/1
+id: 1
+tag_name: v1.0.0
+name: Version 1 stable via API
+prerelease: false
+draft: false
