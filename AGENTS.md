@@ -64,10 +64,6 @@ Instead, `resolveOwner()` defaults `--owner` to the current repo's owner (`ctx?.
 Since Projects v2 items carry per-project custom fields (Status, Priority, ...) with no fixed schema, `item-list`/`field-list` render through bespoke functions (`renderProjectItems`/`renderProjectFields`) that flatten any unknown scalar top-level key into its own column, rather than a fixed `FieldDef` schema.
 Requires the `project` (or `read:project`) OAuth scope on the `gh` token; `src/errors.ts` matches gh's literal `"authentication token is missing required scopes [...]"` stderr (verified against a live token missing the scope) and maps it to `FORBIDDEN` with a `gh auth refresh -s <scope>` suggestion — this pattern is generic, not project-specific, so it also covers other gh features gated by OAuth scopes.
 
-## Release edit boolean-with-value flags (`src/commands/release.ts`)
-
-`gh release edit` accepts `--flag=false` to unset a boolean (`--prerelease=false` promotes a prerelease; `--latest=false` demotes repo-latest; `--draft=false` publishes a draft). `takeBoolFlag` / `appendBoolFlag` only match the bare `--flag` and treat it as always-true, so the `=false` form is dropped and the edit silently no-ops (prints the tag, changes nothing). Use `appendOptionalValueBoolFlag` for `--prerelease`, `--draft`, and `--latest` on edit. `RELEASE_FLAGS.edit` must list `--latest` or `rejectUnknownFlags` rejects the promote path before the flags can be forwarded.
-
 ## Repeatable flags (`src/args.ts`)
 
 `gh` accepts `--label`, `--assignee`, `--reviewer`, `--project`, and the `--add-*`/`--remove-*` variants once per value, so gh-axi must collect _every_ occurrence.

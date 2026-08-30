@@ -43,10 +43,14 @@ function save() {
 function releaseByPath(path) {
   const tagPrefix = "/repos/octo/repo/releases/tags/";
   if (path.startsWith(tagPrefix)) {
-    return state.releases.find((release) => release.tag_name === path.slice(tagPrefix.length));
+    return state.releases.find(
+      (release) => release.tag_name === path.slice(tagPrefix.length),
+    );
   }
   if (path === "/repos/octo/repo/releases/latest") {
-    return state.releases.find((release) => release.tag_name === state.latestTag);
+    return state.releases.find(
+      (release) => release.tag_name === state.latestTag,
+    );
   }
   const idMatch = path.match(/^\/repos\/octo\/repo\/releases\/(\d+)$/);
   if (idMatch) {
@@ -56,7 +60,9 @@ function releaseByPath(path) {
 }
 
 if (args[0] === "release" && args[1] === "edit") {
-  const release = state.releases.find((candidate) => candidate.tag_name === args[2]);
+  const release = state.releases.find(
+    (candidate) => candidate.tag_name === args[2],
+  );
   if (!release) process.exit(1);
 
   for (const key of ["prerelease", "draft"]) {
