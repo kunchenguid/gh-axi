@@ -61,6 +61,37 @@ describe("apiCommand", () => {
     );
   });
 
+  it("round-trips a PATCH with --field instead of silently sending GET", async () => {
+    mockedGhExec.mockResolvedValue(
+      JSON.stringify({ id: 42, prerelease: false, make_latest: true }),
+    );
+
+    const result = await apiCommand([
+      "PATCH",
+      "/repos/octo/repo/releases/1",
+      "--field",
+      "prerelease=false",
+      "--field",
+      "make_latest=true",
+    ]);
+
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs).toEqual(
+      expect.arrayContaining([
+        "api",
+        "/repos/octo/repo/releases/1",
+        "--method",
+        "PATCH",
+        "--field",
+        "prerelease=false",
+        "--field",
+        "make_latest=true",
+      ]),
+    );
+    expect(ghArgs).not.toContain("GET");
+    expect(result).toContain("prerelease: false");
+  });
+
   it("maps -X <method> to --method instead of silently sending GET", async () => {
     mockedGhExec.mockResolvedValue("{}");
 

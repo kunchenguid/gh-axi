@@ -31,7 +31,7 @@ const RELEASE_FLAGS: Record<string, readonly string[]> = {
   ],
   edit: [
     "--body", "--body-file", "--title", "--notes", "-n", "--notes-file",
-    "-F", "--draft", "--prerelease",
+    "-F", "--draft", "--prerelease", "--latest",
   ],
   delete: [],
   download: ["--pattern", "--dir"],
@@ -48,13 +48,14 @@ flags{view}:
 flags{create}:
   --title/-t, --notes/-n or --body, --notes-file/-F or --body-file, --draft/-d, --prerelease/-p, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag, --notes-from-tag, --fail-on-no-commits, --latest[=true|false], <files...>
 flags{edit}:
-  --title, --notes/-n or --body, --notes-file/-F or --body-file, --draft, --prerelease
+  --title, --notes/-n or --body, --notes-file/-F or --body-file, --draft[=true|false], --prerelease[=true|false], --latest[=true|false]
 flags{download}:
   --pattern, --dir
 examples:
   gh-axi release list --exclude-drafts
   gh-axi release view v1.2.0 --full
-  gh-axi release create v1.3.0 --body-file notes.md --draft dist/app.zip`;
+  gh-axi release create v1.3.0 --body-file notes.md --draft dist/app.zip
+  gh-axi release edit v1.3.0 --prerelease=false --latest`;
 
 const listSchema: FieldDef[] = [
   field("tagName", "tag"),
@@ -278,11 +279,19 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
   const remaining = [...args];
   const body = takeReleaseBodyAlias(remaining);
   assertNoReleaseNotesConflict(body, remaining, RELEASE_NOTES_FLAGS);
-  const title = takeFirstFlag(remaining, ["--title"]);
-  const notes = takeFirstFlag(remaining, ["--notes", "-n"]);
-  const notesFile = takeFirstFlag(remaining, ["--notes-file", "-F"]);
-  const draft = takeBoolFlag(remaining, "--draft");
-  const prerelease = takeBoolFlag(remaining, "--prerelease");
+  const optionArgs: string[] = [];
+  appendValueFlag(optionArgs, remaining, "--title");
+  if (body !== undefined) optionArgs.push("--notes", body);
+  appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
+  appendValueFlag(optionArgs, remaining, "--notes-file", [
+    "--notes-file",
+    "-F",
+  ]);
+  // gh accepts --flag=false to unset these; takeBoolFlag would drop that form
+  // and the edit would silently no-op (prints the tag, changes nothing).
+  appendOptionalValueBoolFlag(optionArgs, remaining, "--draft");
+  appendOptionalValueBoolFlag(optionArgs, remaining, "--prerelease");
+  appendOptionalValueBoolFlag(optionArgs, remaining, "--latest");
   const positionals = remaining.filter((a) => !a.startsWith("-"));
   const tag = positionals[1];
   if (!tag)
@@ -291,13 +300,7 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
       "VALIDATION_ERROR",
     );
 
-  const ghArgs = ["release", "edit", tag];
-  if (title) ghArgs.push("--title", title);
-  if (body !== undefined) ghArgs.push("--notes", body);
-  if (notes) ghArgs.push("--notes", notes);
-  if (notesFile) ghArgs.push("--notes-file", notesFile);
-  if (draft) ghArgs.push("--draft");
-  if (prerelease) ghArgs.push("--prerelease");
+  const ghArgs = ["release", "edit", tag, ...optionArgs];
 
   await ghExec(ghArgs, ctx);
   const suggestions = getSuggestions({
