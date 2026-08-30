@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.35](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.34...gh-axi-v0.1.35) (2026-08-30)
+
+
+### Bug Fixes
+
+* **release:** correctly promote and demote releases ([#132](https://github.com/kunchenguid/gh-axi/issues/132)) ([22b6151](https://github.com/kunchenguid/gh-axi/commit/22b6151ced05f254f75c1e0202e80c91385f41e6))
+
 ## [0.1.34](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.33...gh-axi-v0.1.34) (2026-08-23)
 
 
