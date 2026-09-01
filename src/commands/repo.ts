@@ -3,7 +3,7 @@ import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
 import { basename, resolve } from 'node:path';
-import { getFlag, hasFlag, takeFlag, takeBoolFlag, rejectUnknownFlags } from '../args.js';
+import { getFlag, hasFlag, takeFlag, takeRequiredFlag, takeBoolFlag, rejectUnknownFlags } from '../args.js';
 import {
   field,
   lower,
@@ -119,10 +119,18 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
   const description = takeFlag(rest, '--description');
   const clone = takeBoolFlag(rest, '--clone');
   const template = takeFlag(rest, '--template');
-  const source = takeFlag(rest, '--source');
+  const source = takeRequiredFlag(rest, '--source');
   const push = takeBoolFlag(rest, '--push');
-  const remote = takeFlag(rest, '--remote');
-  const name = rest.find((a) => !a.startsWith('-'));
+  const remote = takeRequiredFlag(rest, '--remote');
+  const nameIdx = rest.findIndex((a) => !a.startsWith('-'));
+  const name = nameIdx === -1 ? undefined : rest.splice(nameIdx, 1)[0];
+  if (rest.length > 0) {
+    throw new AxiError(
+      `Unsupported extra argument${rest.length > 1 ? 's' : ''} for repo create: ${rest.join(', ')}`,
+      'VALIDATION_ERROR',
+      ['gh-axi repo create --help'],
+    );
+  }
 
   if (source) {
     if (clone) throw new AxiError('--source cannot be combined with --clone', 'VALIDATION_ERROR');

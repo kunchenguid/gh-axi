@@ -219,6 +219,41 @@ describe('repoCommand', () => {
         repoCommand(['create', 'my-repo', '--remote', 'upstream']),
       ).rejects.toThrow('--remote requires --source');
     });
+
+    it('rejects a dangling --source instead of creating remote-first', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--source']),
+      ).rejects.toThrow('--source requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects a blank --source= instead of creating remote-first', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--source=']),
+      ).rejects.toThrow('--source requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects a dangling --remote', async () => {
+      await expect(
+        repoCommand(['create', '--source', '.', '--remote']),
+      ).rejects.toThrow('--remote requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects a duplicate --source instead of misreading its value as the name', async () => {
+      await expect(
+        repoCommand(['create', '--source', 'a', '--source', 'b']),
+      ).rejects.toThrow('Unsupported extra argument for repo create: --source');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects unconsumed --flag=value forms instead of silently dropping them', async () => {
+      await expect(
+        repoCommand(['create', '--source', '.', '--push=true']),
+      ).rejects.toThrow('Unsupported extra argument for repo create: --push=true');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe('list', () => {
