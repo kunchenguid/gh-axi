@@ -303,6 +303,20 @@ describe('repoCommand', () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
+    it('rejects --source followed by another option instead of consuming it as the value', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--source', '--push']),
+      ).rejects.toThrow('--source requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects --remote followed by another option instead of consuming it as the value', async () => {
+      await expect(
+        repoCommand(['create', '--source', '.', '--remote', '--public']),
+      ).rejects.toThrow('--remote requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it('rejects a duplicate --source instead of misreading its value as the name', async () => {
       await expect(
         repoCommand(['create', '--source', 'a', '--source', 'b']),

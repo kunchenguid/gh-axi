@@ -96,6 +96,20 @@ describe("takeRequiredFlag", () => {
       new AxiError("--source requires a value", "VALIDATION_ERROR"),
     );
   });
+
+  it("throws VALIDATION_ERROR instead of consuming a following option token as the value", () => {
+    const args = ["--source", "--push"];
+    expect(() => takeRequiredFlag(args, "--source")).toThrow(
+      new AxiError("--source requires a value", "VALIDATION_ERROR"),
+    );
+    expect(args).toEqual(["--source", "--push"]);
+  });
+
+  it("accepts a dash-leading value via the --flag=value form", () => {
+    const args = ["--source=-dashy", "--push"];
+    expect(takeRequiredFlag(args, "--source")).toBe("-dashy");
+    expect(args).toEqual(["--push"]);
+  });
 });
 
 describe("hasFlag", () => {
