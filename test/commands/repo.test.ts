@@ -196,6 +196,24 @@ describe('repoCommand', () => {
       ]);
     });
 
+    it('accepts a name after the -- end-of-options separator', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand(['create', '--public', '--', 'my-repo']);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', 'my-repo', '--public',
+      ]);
+      expect(result).toContain('created: ok');
+      expect(result).toContain('my-repo');
+    });
+
+    it('does not parse tokens after -- as flags', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--', '--push']),
+      ).rejects.toThrow('Unsupported extra argument for repo create: --push');
+    });
+
     it('rejects --source combined with --clone', async () => {
       await expect(
         repoCommand(['create', 'my-repo', '--source', '.', '--clone']),

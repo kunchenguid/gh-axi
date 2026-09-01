@@ -113,6 +113,9 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
   // Consume flags destructively so a flag value (e.g. `--source .`) is never
   // mistaken for the name positional.
   const rest = args.slice(1);
+  // `--` ends flag parsing; everything after it is positional.
+  const sepIdx = rest.indexOf('--');
+  const tail = sepIdx === -1 ? [] : rest.splice(sepIdx).slice(1);
   const isPublic = takeBoolFlag(rest, '--public');
   const isPrivate = takeBoolFlag(rest, '--private');
   const isInternal = takeBoolFlag(rest, '--internal');
@@ -123,10 +126,11 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
   const push = takeBoolFlag(rest, '--push');
   const remote = takeRequiredFlag(rest, '--remote');
   const nameIdx = rest.findIndex((a) => !a.startsWith('-'));
-  const name = nameIdx === -1 ? undefined : rest.splice(nameIdx, 1)[0];
-  if (rest.length > 0) {
+  const name = nameIdx === -1 ? tail.shift() : rest.splice(nameIdx, 1)[0];
+  const leftovers = [...rest, ...tail];
+  if (leftovers.length > 0) {
     throw new AxiError(
-      `Unsupported extra argument${rest.length > 1 ? 's' : ''} for repo create: ${rest.join(', ')}`,
+      `Unsupported extra argument${leftovers.length > 1 ? 's' : ''} for repo create: ${leftovers.join(', ')}`,
       'VALIDATION_ERROR',
       ['gh-axi repo create --help'],
     );
