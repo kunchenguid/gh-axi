@@ -146,7 +146,8 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ['repo', 'create'];
-  if (name) ghArgs.push(name);
+  const dashLeadingName = name !== undefined && name.startsWith('-');
+  if (name && !dashLeadingName) ghArgs.push(name);
   if (isPublic) ghArgs.push('--public');
   else if (isPrivate) ghArgs.push('--private');
   else if (isInternal) ghArgs.push('--internal');
@@ -159,6 +160,7 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
     if (clone) ghArgs.push('--clone');
     if (template) ghArgs.push('--template', template);
   }
+  if (dashLeadingName) ghArgs.push('--', name as string);
 
   const output = await ghExec(ghArgs);
   const suggestions = getSuggestions({ domain: 'repo', action: 'create', repo: ctx });

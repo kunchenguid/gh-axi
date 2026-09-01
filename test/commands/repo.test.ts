@@ -234,6 +234,30 @@ describe('repoCommand', () => {
       ).rejects.toThrow('Unsupported extra argument for repo create: --push');
     });
 
+    it('forwards a dash-leading name behind a trailing -- so gh treats it as a positional', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand(['create', '--public', '--', '-tool']);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', '--public', '--', '-tool',
+      ]);
+      expect(result).toContain('created: ok');
+      expect(result).toContain('-tool');
+    });
+
+    it('does not let a dash-leading name after -- turn into a gh flag in local-source mode', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand(['create', '--source', '.', '--', '--public']);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', '--source', '.', '--', '--public',
+      ]);
+      expect(result).toContain('created: ok');
+      expect(result).toContain('--public');
+    });
+
     it('rejects --source combined with --clone', async () => {
       await expect(
         repoCommand(['create', 'my-repo', '--source', '.', '--clone']),
