@@ -2,7 +2,13 @@ import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { ghJson, ghExec } from "../gh.js";
 import { AxiError } from "../errors.js";
-import { getFlag, hasFlag, takeBoolFlag, takeFlag, rejectUnknownFlags } from "../args.js";
+import {
+  getFlag,
+  hasFlag,
+  takeBoolFlag,
+  takeFlag,
+  rejectUnknownFlags,
+} from "../args.js";
 import { takeBody, truncateBody } from "../body.js";
 import {
   field,
@@ -23,15 +29,38 @@ const RELEASE_FLAGS: Record<string, readonly string[]> = {
   list: ["--limit", "--exclude-drafts", "--exclude-pre-releases"],
   view: ["--full"],
   create: [
-    "--body", "--body-file", "--title", "-t", "--notes", "-n",
-    "--notes-file", "-F", "--target", "--discussion-category",
-    "--notes-start-tag", "--draft", "-d", "--prerelease", "-p",
-    "--generate-notes", "--verify-tag", "--notes-from-tag",
-    "--fail-on-no-commits", "--latest",
+    "--body",
+    "--body-file",
+    "--title",
+    "-t",
+    "--notes",
+    "-n",
+    "--notes-file",
+    "-F",
+    "--target",
+    "--discussion-category",
+    "--notes-start-tag",
+    "--draft",
+    "-d",
+    "--prerelease",
+    "-p",
+    "--generate-notes",
+    "--verify-tag",
+    "--notes-from-tag",
+    "--fail-on-no-commits",
+    "--latest",
   ],
   edit: [
-    "--body", "--body-file", "--title", "--notes", "-n", "--notes-file",
-    "-F", "--draft", "--prerelease",
+    "--body",
+    "--body-file",
+    "--title",
+    "--notes",
+    "-n",
+    "--notes-file",
+    "-F",
+    "--draft",
+    "--prerelease",
+    "--latest",
   ],
   delete: [],
   download: ["--pattern", "--dir"],
@@ -48,13 +77,14 @@ flags{view}:
 flags{create}:
   --title/-t, --notes/-n or --body, --notes-file/-F or --body-file, --draft/-d, --prerelease/-p, --target, --generate-notes, --discussion-category, --notes-start-tag, --verify-tag, --notes-from-tag, --fail-on-no-commits, --latest[=true|false], <files...>
 flags{edit}:
-  --title, --notes/-n or --body, --notes-file/-F or --body-file, --draft, --prerelease
+  --title, --notes/-n or --body, --notes-file/-F or --body-file, --draft[=true|false], --prerelease[=true|false], --latest[=true|false]
 flags{download}:
   --pattern, --dir
 examples:
   gh-axi release list --exclude-drafts
   gh-axi release view v1.2.0 --full
-  gh-axi release create v1.3.0 --body-file notes.md --draft dist/app.zip`;
+  gh-axi release create v1.3.0 --body-file notes.md --draft dist/app.zip
+  gh-axi release edit v1.3.0 --prerelease=false --latest`;
 
 const listSchema: FieldDef[] = [
   field("tagName", "tag"),
@@ -115,18 +145,30 @@ function appendOptionalValueBoolFlag(
   outputFlag: string,
   inputFlags: string[] = [outputFlag],
 ): void {
-  for (const flag of inputFlags) {
-    const equalsPrefix = `${flag}=`;
-    const equalsIndex = args.findIndex((arg) => arg.startsWith(equalsPrefix));
-    if (equalsIndex !== -1) {
-      ghArgs.push(
-        `${outputFlag}=${args[equalsIndex].slice(equalsPrefix.length)}`,
-      );
-      args.splice(equalsIndex, 1);
-      return;
-    }
+  const occurrences = args.flatMap((arg, index) =>
+    inputFlags.some((flag) => arg === flag || arg.startsWith(`${flag}=`))
+      ? [index]
+      : [],
+  );
+  if (occurrences.length > 1) {
+    throw new AxiError(
+      `${outputFlag} may only be specified once`,
+      "VALIDATION_ERROR",
+    );
   }
-  appendBoolFlag(ghArgs, args, outputFlag, inputFlags);
+  if (occurrences.length === 0) return;
+
+  const index = occurrences[0];
+  const arg = args[index];
+  const inputFlag = inputFlags.find(
+    (flag) => arg === flag || arg.startsWith(`${flag}=`),
+  )!;
+  ghArgs.push(
+    arg === inputFlag
+      ? outputFlag
+      : `${outputFlag}=${arg.slice(inputFlag.length + 1)}`,
+  );
+  args.splice(index, 1);
 }
 
 function findProvidedFlags(args: string[], flags: string[]): string[] {
@@ -278,11 +320,19 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
   const remaining = [...args];
   const body = takeReleaseBodyAlias(remaining);
   assertNoReleaseNotesConflict(body, remaining, RELEASE_NOTES_FLAGS);
-  const title = takeFirstFlag(remaining, ["--title"]);
-  const notes = takeFirstFlag(remaining, ["--notes", "-n"]);
-  const notesFile = takeFirstFlag(remaining, ["--notes-file", "-F"]);
-  const draft = takeBoolFlag(remaining, "--draft");
-  const prerelease = takeBoolFlag(remaining, "--prerelease");
+  const optionArgs: string[] = [];
+  appendValueFlag(optionArgs, remaining, "--title");
+  if (body !== undefined) optionArgs.push("--notes", body);
+  appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
+  appendValueFlag(optionArgs, remaining, "--notes-file", [
+    "--notes-file",
+    "-F",
+  ]);
+  // gh accepts --flag=false to unset these; takeBoolFlag would drop that form
+  // and the edit would silently no-op (prints the tag, changes nothing).
+  appendOptionalValueBoolFlag(optionArgs, remaining, "--draft");
+  appendOptionalValueBoolFlag(optionArgs, remaining, "--prerelease");
+  appendOptionalValueBoolFlag(optionArgs, remaining, "--latest");
   const positionals = remaining.filter((a) => !a.startsWith("-"));
   const tag = positionals[1];
   if (!tag)
@@ -291,13 +341,7 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
       "VALIDATION_ERROR",
     );
 
-  const ghArgs = ["release", "edit", tag];
-  if (title) ghArgs.push("--title", title);
-  if (body !== undefined) ghArgs.push("--notes", body);
-  if (notes) ghArgs.push("--notes", notes);
-  if (notesFile) ghArgs.push("--notes-file", notesFile);
-  if (draft) ghArgs.push("--draft");
-  if (prerelease) ghArgs.push("--prerelease");
+  const ghArgs = ["release", "edit", tag, ...optionArgs];
 
   await ghExec(ghArgs, ctx);
   const suggestions = getSuggestions({
@@ -432,19 +476,39 @@ export async function releaseCommand(
       rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.view, "release", "view");
       return viewRelease(args, ctx);
     case "create":
-      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.create, "release", "create");
+      rejectUnknownFlags(
+        args.slice(1),
+        RELEASE_FLAGS.create,
+        "release",
+        "create",
+      );
       return createRelease(args, ctx);
     case "edit":
       rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.edit, "release", "edit");
       return editRelease(args, ctx);
     case "delete":
-      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.delete, "release", "delete");
+      rejectUnknownFlags(
+        args.slice(1),
+        RELEASE_FLAGS.delete,
+        "release",
+        "delete",
+      );
       return deleteRelease(args, ctx);
     case "download":
-      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.download, "release", "download");
+      rejectUnknownFlags(
+        args.slice(1),
+        RELEASE_FLAGS.download,
+        "release",
+        "download",
+      );
       return downloadRelease(args, ctx);
     case "upload":
-      rejectUnknownFlags(args.slice(1), RELEASE_FLAGS.upload, "release", "upload");
+      rejectUnknownFlags(
+        args.slice(1),
+        RELEASE_FLAGS.upload,
+        "release",
+        "upload",
+      );
       return uploadRelease(args, ctx);
     default:
       return renderError(`Unknown subcommand: ${sub}`, "VALIDATION_ERROR", [

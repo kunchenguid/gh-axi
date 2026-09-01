@@ -58,6 +58,34 @@ function requireFlagValue(value: string, flag: string): string {
   return value;
 }
 
+/**
+ * Like takeFlag, but throws VALIDATION_ERROR when the flag is present with a
+ * missing or blank value, rather than silently returning undefined for it.
+ * A following option token (`--source --push`) is treated as a missing value,
+ * not consumed as one; use `--flag=value` for a dash-leading value.
+ */
+export function takeRequiredFlag(
+  args: string[],
+  flag: string,
+): string | undefined {
+  const equalsPrefix = flagEqualsPrefix(flag);
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === flag) {
+      const val = args[i + 1];
+      if (val === undefined || val.startsWith("-"))
+        throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
+      args.splice(i, 2);
+      return requireFlagValue(val, flag);
+    }
+    if (arg.startsWith(equalsPrefix)) {
+      args.splice(i, 1);
+      return requireFlagValue(arg.slice(equalsPrefix.length), flag);
+    }
+  }
+  return undefined;
+}
+
 function collectAllFlags(
   args: string[],
   flag: string,

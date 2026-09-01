@@ -2,7 +2,8 @@ import { encode } from '@toon-format/toon';
 import type { RepoContext } from '../context.js';
 import { ghJson, ghExec } from '../gh.js';
 import { AxiError } from '../errors.js';
-import { getFlag, hasFlag, rejectUnknownFlags } from '../args.js';
+import { basename, resolve } from 'node:path';
+import { getFlag, hasFlag, takeFlag, takeRequiredFlag, takeBoolFlag, rejectUnknownFlags } from '../args.js';
 import {
   field,
   lower,
@@ -23,7 +24,7 @@ const REPO_FLAGS: Record<string, readonly string[]> = {
   view: [],
   create: [
     '--public', '--private', '--internal', '--description', '--clone',
-    '--template',
+    '--template', '--source', '--push', '--remote',
   ],
   edit: [
     '--description', '--visibility', '--default-branch', '--enable-issues',
@@ -36,11 +37,12 @@ const REPO_FLAGS: Record<string, readonly string[]> = {
 
 export const REPO_HELP = `usage: gh-axi repo <subcommand> [flags]
 subcommands[6]:
-  view [owner/name], create <name>, edit, clone <repo>, fork [repo], list [owner]
+  view [owner/name], create [name], edit, clone <repo>, fork [repo], list [owner]
 flags{view}:
   --repo <owner/name> or exactly one positional owner/name; choose one selector
 flags{create}:
   --public, --private, --internal, --description, --clone, --template
+  --source <path> (publish existing local repo; name defaults to source dir name), --push, --remote <name> (both require --source)
 flags{edit}:
   --description, --visibility, --default-branch, --enable-issues, --enable-wiki
 flags{fork}:
@@ -52,6 +54,7 @@ examples:
   gh-axi repo view --repo owner/name
   gh-axi repo view owner/name
   gh-axi repo create my-project --public --description "A new project"
+  gh-axi repo create --public --source . --push
   gh-axi repo list --visibility public --language TypeScript`;
 
 const viewSchema: FieldDef[] = [
@@ -107,24 +110,84 @@ async function viewRepo(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
-  const positionals = args.filter((a) => !a.startsWith('--'));
-  const name = positionals[1];
-  if (!name) throw new AxiError('Repository name is required: gh-axi repo create <name>', 'VALIDATION_ERROR');
+  // Consume flags destructively so a flag value (e.g. `--source .`) is never
+  // mistaken for the name positional.
+  const rest = args.slice(1);
+  // `--` ends flag parsing; everything after it is positional.
+  const sepIdx = rest.indexOf('--');
+  const tail = sepIdx === -1 ? [] : rest.splice(sepIdx).slice(1);
+  const isPublic = takeBoolFlag(rest, '--public');
+  const isPrivate = takeBoolFlag(rest, '--private');
+  const isInternal = takeBoolFlag(rest, '--internal');
+  const description = takeFlag(rest, '--description');
+  const clone = takeBoolFlag(rest, '--clone');
+  const template = takeFlag(rest, '--template');
+  const source = takeRequiredFlag(rest, '--source');
+  const push = takeBoolFlag(rest, '--push');
+  const remote = takeRequiredFlag(rest, '--remote');
+  const nameIdx = rest.findIndex((a) => !a.startsWith('-'));
+  const name = nameIdx === -1 ? tail.shift() : rest.splice(nameIdx, 1)[0];
+  const leftovers = [...rest, ...tail];
+  if (leftovers.length > 0) {
+    throw new AxiError(
+      `Unsupported extra argument${leftovers.length > 1 ? 's' : ''} for repo create: ${leftovers.join(', ')}`,
+      'VALIDATION_ERROR',
+      ['gh-axi repo create --help'],
+    );
+  }
 
-  const ghArgs = ['repo', 'create', name];
-  if (hasFlag(args, '--public')) ghArgs.push('--public');
-  else if (hasFlag(args, '--private')) ghArgs.push('--private');
-  else if (hasFlag(args, '--internal')) ghArgs.push('--internal');
-  const description = getFlag(args, '--description');
+  if (name !== undefined && name.trim() === '') {
+    throw new AxiError('Repository name cannot be blank', 'VALIDATION_ERROR');
+  }
+
+  if (source) {
+    if (clone) throw new AxiError('--source cannot be combined with --clone', 'VALIDATION_ERROR');
+    if (template) throw new AxiError('--source cannot be combined with --template', 'VALIDATION_ERROR');
+  } else {
+    if (push) throw new AxiError('--push requires --source <path>', 'VALIDATION_ERROR');
+    if (remote) throw new AxiError('--remote requires --source <path>', 'VALIDATION_ERROR');
+    if (!name) throw new AxiError('Repository name is required: gh-axi repo create <name>', 'VALIDATION_ERROR');
+  }
+
+  const ghArgs = ['repo', 'create'];
+  const dashLeadingName = name !== undefined && name.startsWith('-');
+  if (name && !dashLeadingName) ghArgs.push(name);
+  if (isPublic) ghArgs.push('--public');
+  else if (isPrivate) ghArgs.push('--private');
+  else if (isInternal) ghArgs.push('--internal');
   if (description) ghArgs.push('--description', description);
-  if (hasFlag(args, '--clone')) ghArgs.push('--clone');
-  const template = getFlag(args, '--template');
-  if (template) ghArgs.push('--template', template);
+  if (source) {
+    ghArgs.push('--source', source);
+    if (remote) ghArgs.push('--remote', remote);
+    if (push) ghArgs.push('--push');
+  } else {
+    if (clone) ghArgs.push('--clone');
+    if (template) ghArgs.push('--template', template);
+  }
+  if (dashLeadingName) ghArgs.push('--', name as string);
 
-  await ghExec(ghArgs);
+  const output = await ghExec(ghArgs);
   const suggestions = getSuggestions({ domain: 'repo', action: 'create', repo: ctx });
+  // gh defaults the repo name to the source directory's name and normalizes it
+  // (e.g. "my app" -> "my-app"), so prefer the real owner/name from the
+  // created-repo URL gh prints; fall back to the raw basename if absent.
+  const urlNwo = name
+    ? undefined
+    : output.match(/https?:\/\/[^/\s]+\/([^/\s]+\/[^/\s]+)/)?.[1];
+  const created: Record<string, unknown> = {
+    created: 'ok',
+    repo: name ?? urlNwo ?? basename(resolve(source as string)),
+  };
+  if (source) {
+    if (isPublic) created.visibility = 'public';
+    else if (isPrivate) created.visibility = 'private';
+    else if (isInternal) created.visibility = 'internal';
+    created.source = source;
+    created.remote = remote ?? 'origin';
+    created.pushed = push;
+  }
   return renderOutput([
-    encode({ created: 'ok', repo: name }),
+    encode(created),
     renderHelp(suggestions),
   ]);
 }

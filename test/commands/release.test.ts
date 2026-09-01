@@ -368,6 +368,21 @@ describe("releaseCommand", () => {
     });
   });
 
+  describe("edit boolean-with-value validation", () => {
+    it.each([
+      ["--latest=false", "--latest"],
+      ["--prerelease", "--prerelease=false"],
+      ["--draft=true", "--draft=false"],
+    ])("rejects conflicting repeated forms %s %s", async (first, second) => {
+      await expect(
+        releaseCommand(["edit", "v1.0.0", first, second], ctx),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+      });
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+  });
+
   describe("repo context threading", () => {
     beforeEach(() => {
       mockedGhJson.mockImplementation(async (args) => {

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getFlag,
   takeFlag,
+  takeRequiredFlag,
   hasFlag,
   takeBoolFlag,
   getAllFlags,
@@ -68,6 +69,46 @@ describe("takeFlag", () => {
     const val = takeFlag(args, "--flag");
     expect(val).toBe("val");
     expect(args).toEqual(["--other"]);
+  });
+});
+
+describe("takeRequiredFlag", () => {
+  it("returns value and removes flag+value from args", () => {
+    const args = ["--source", ".", "--push"];
+    expect(takeRequiredFlag(args, "--source")).toBe(".");
+    expect(args).toEqual(["--push"]);
+  });
+
+  it("returns undefined when flag is absent", () => {
+    const args = ["--push"];
+    expect(takeRequiredFlag(args, "--source")).toBeUndefined();
+    expect(args).toEqual(["--push"]);
+  });
+
+  it("throws VALIDATION_ERROR for a dangling flag with no value", () => {
+    expect(() => takeRequiredFlag(["--push", "--source"], "--source")).toThrow(
+      new AxiError("--source requires a value", "VALIDATION_ERROR"),
+    );
+  });
+
+  it("throws VALIDATION_ERROR for a blank --flag= value", () => {
+    expect(() => takeRequiredFlag(["--source="], "--source")).toThrow(
+      new AxiError("--source requires a value", "VALIDATION_ERROR"),
+    );
+  });
+
+  it("throws VALIDATION_ERROR instead of consuming a following option token as the value", () => {
+    const args = ["--source", "--push"];
+    expect(() => takeRequiredFlag(args, "--source")).toThrow(
+      new AxiError("--source requires a value", "VALIDATION_ERROR"),
+    );
+    expect(args).toEqual(["--source", "--push"]);
+  });
+
+  it("accepts a dash-leading value via the --flag=value form", () => {
+    const args = ["--source=-dashy", "--push"];
+    expect(takeRequiredFlag(args, "--source")).toBe("-dashy");
+    expect(args).toEqual(["--push"]);
   });
 });
 
