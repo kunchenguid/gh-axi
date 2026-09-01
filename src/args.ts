@@ -58,6 +58,20 @@ function requireFlagValue(value: string, flag: string): string {
   return value;
 }
 
+/**
+ * Like takeFlag, but throws VALIDATION_ERROR when the flag is present with a
+ * missing or blank value, rather than silently returning undefined for it.
+ */
+export function takeRequiredFlag(
+  args: string[],
+  flag: string,
+): string | undefined {
+  const equalsPrefix = flagEqualsPrefix(flag);
+  if (!args.some((a) => a === flag || a.startsWith(equalsPrefix)))
+    return undefined;
+  return requireFlagValue(takeFlag(args, flag) ?? "", flag);
+}
+
 function collectAllFlags(
   args: string[],
   flag: string,
