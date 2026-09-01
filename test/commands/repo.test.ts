@@ -316,6 +316,27 @@ describe('repoCommand', () => {
       ).rejects.toThrow('Unsupported extra argument for repo create: --push=true');
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
+
+    it('rejects an empty-string name in local-source mode instead of silently dropping it', async () => {
+      await expect(
+        repoCommand(['create', '', '--source', '.']),
+      ).rejects.toThrow('Repository name cannot be blank');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects a whitespace-only name in remote-first mode', async () => {
+      await expect(
+        repoCommand(['create', '  ', '--public']),
+      ).rejects.toThrow('Repository name cannot be blank');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty-string name after the -- separator', async () => {
+      await expect(
+        repoCommand(['create', '--source', '.', '--', '']),
+      ).rejects.toThrow('Repository name cannot be blank');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe('list', () => {

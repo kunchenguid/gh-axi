@@ -136,6 +136,10 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
 
+  if (name !== undefined && name.trim() === '') {
+    throw new AxiError('Repository name cannot be blank', 'VALIDATION_ERROR');
+  }
+
   if (source) {
     if (clone) throw new AxiError('--source cannot be combined with --clone', 'VALIDATION_ERROR');
     if (template) throw new AxiError('--source cannot be combined with --template', 'VALIDATION_ERROR');
