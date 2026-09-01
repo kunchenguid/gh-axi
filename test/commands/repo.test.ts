@@ -186,6 +186,26 @@ describe('repoCommand', () => {
       expect(result).toContain('pushed: false');
     });
 
+    it('reports the actual owner/name from gh output when the name is defaulted', async () => {
+      mockedGhExec.mockResolvedValue(
+        '✓ Created repository simkimsia/my-app on GitHub\nhttps://github.com/simkimsia/my-app\n',
+      );
+
+      const result = await repoCommand(['create', '--public', '--source', '/tmp/my app']);
+
+      // GitHub normalized the directory name "my app" to "my-app".
+      expect(result).toContain('repo: simkimsia/my-app');
+    });
+
+    it('reports the explicit name unchanged even when gh output has a URL', async () => {
+      mockedGhExec.mockResolvedValue('https://github.com/simkimsia/named-repo\n');
+
+      const result = await repoCommand(['create', 'named-repo', '--public', '--source', '.']);
+
+      expect(result).toContain('repo: named-repo');
+      expect(result).not.toContain('simkimsia/named-repo');
+    });
+
     it('does not mistake the --source value for the name positional', async () => {
       mockedGhExec.mockResolvedValue('');
 

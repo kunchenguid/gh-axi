@@ -160,12 +160,17 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
     if (template) ghArgs.push('--template', template);
   }
 
-  await ghExec(ghArgs);
+  const output = await ghExec(ghArgs);
   const suggestions = getSuggestions({ domain: 'repo', action: 'create', repo: ctx });
+  // gh defaults the repo name to the source directory's name and normalizes it
+  // (e.g. "my app" -> "my-app"), so prefer the real owner/name from the
+  // created-repo URL gh prints; fall back to the raw basename if absent.
+  const urlNwo = name
+    ? undefined
+    : output.match(/https?:\/\/[^/\s]+\/([^/\s]+\/[^/\s]+)/)?.[1];
   const created: Record<string, unknown> = {
     created: 'ok',
-    // gh defaults the repo name to the source directory's name.
-    repo: name ?? basename(resolve(source as string)),
+    repo: name ?? urlNwo ?? basename(resolve(source as string)),
   };
   if (source) {
     if (isPublic) created.visibility = 'public';
