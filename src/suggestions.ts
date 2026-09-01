@@ -476,7 +476,9 @@ const table: SuggestionEntry[] = [
   // Repo create
   {
     match: (c) => c.domain === "repo" && c.action === "create",
-    lines: () => [],
+    lines: () => [
+      `Run \`gh-axi repo view --repo <owner/name>\` to see the new repository`,
+    ],
   },
 
   // Repo list

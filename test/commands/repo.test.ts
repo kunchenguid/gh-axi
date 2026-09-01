@@ -156,6 +156,69 @@ describe('repoCommand', () => {
         expect.arrayContaining(['--public']),
       );
     });
+
+    it('forwards --source, --push, and --remote for local-source mode', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand([
+        'create', 'my-repo', '--public', '--source', '.', '--push', '--remote', 'upstream',
+      ]);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', 'my-repo', '--public',
+        '--source', '.', '--remote', 'upstream', '--push',
+      ]);
+      expect(result).toContain('created: ok');
+      expect(result).toContain('pushed: true');
+      expect(result).toContain('remote: upstream');
+    });
+
+    it('defaults the name to the source directory name when omitted', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand(['create', '--public', '--source', '/tmp/scaffolded-app']);
+
+      // No name positional is forwarded; gh resolves it from --source.
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', '--public', '--source', '/tmp/scaffolded-app',
+      ]);
+      expect(result).toContain('repo: scaffolded-app');
+      expect(result).toContain('pushed: false');
+    });
+
+    it('does not mistake the --source value for the name positional', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      await repoCommand(['create', '--source', '/tmp/scaffolded-app', '--private', 'named-repo']);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', 'named-repo', '--private', '--source', '/tmp/scaffolded-app',
+      ]);
+    });
+
+    it('rejects --source combined with --clone', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--source', '.', '--clone']),
+      ).rejects.toThrow('--source cannot be combined with --clone');
+    });
+
+    it('rejects --source combined with --template', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--source', '.', '--template', 'owner/tpl']),
+      ).rejects.toThrow('--source cannot be combined with --template');
+    });
+
+    it('rejects --push without --source', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--push']),
+      ).rejects.toThrow('--push requires --source');
+    });
+
+    it('rejects --remote without --source', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--remote', 'upstream']),
+      ).rejects.toThrow('--remote requires --source');
+    });
   });
 
   describe('list', () => {
