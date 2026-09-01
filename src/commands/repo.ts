@@ -136,6 +136,10 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
 
+  if (name !== undefined && name.trim() === '') {
+    throw new AxiError('Repository name cannot be blank', 'VALIDATION_ERROR');
+  }
+
   if (source) {
     if (clone) throw new AxiError('--source cannot be combined with --clone', 'VALIDATION_ERROR');
     if (template) throw new AxiError('--source cannot be combined with --template', 'VALIDATION_ERROR');
@@ -146,7 +150,8 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ['repo', 'create'];
-  if (name) ghArgs.push(name);
+  const dashLeadingName = name !== undefined && name.startsWith('-');
+  if (name && !dashLeadingName) ghArgs.push(name);
   if (isPublic) ghArgs.push('--public');
   else if (isPrivate) ghArgs.push('--private');
   else if (isInternal) ghArgs.push('--internal');
@@ -159,13 +164,19 @@ async function createRepo(args: string[], ctx?: RepoContext): Promise<string> {
     if (clone) ghArgs.push('--clone');
     if (template) ghArgs.push('--template', template);
   }
+  if (dashLeadingName) ghArgs.push('--', name as string);
 
-  await ghExec(ghArgs);
+  const output = await ghExec(ghArgs);
   const suggestions = getSuggestions({ domain: 'repo', action: 'create', repo: ctx });
+  // gh defaults the repo name to the source directory's name and normalizes it
+  // (e.g. "my app" -> "my-app"), so prefer the real owner/name from the
+  // created-repo URL gh prints; fall back to the raw basename if absent.
+  const urlNwo = name
+    ? undefined
+    : output.match(/https?:\/\/[^/\s]+\/([^/\s]+\/[^/\s]+)/)?.[1];
   const created: Record<string, unknown> = {
     created: 'ok',
-    // gh defaults the repo name to the source directory's name.
-    repo: name ?? basename(resolve(source as string)),
+    repo: name ?? urlNwo ?? basename(resolve(source as string)),
   };
   if (source) {
     if (isPublic) created.visibility = 'public';

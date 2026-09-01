@@ -186,6 +186,26 @@ describe('repoCommand', () => {
       expect(result).toContain('pushed: false');
     });
 
+    it('reports the actual owner/name from gh output when the name is defaulted', async () => {
+      mockedGhExec.mockResolvedValue(
+        '✓ Created repository simkimsia/my-app on GitHub\nhttps://github.com/simkimsia/my-app\n',
+      );
+
+      const result = await repoCommand(['create', '--public', '--source', '/tmp/my app']);
+
+      // GitHub normalized the directory name "my app" to "my-app".
+      expect(result).toContain('repo: simkimsia/my-app');
+    });
+
+    it('reports the explicit name unchanged even when gh output has a URL', async () => {
+      mockedGhExec.mockResolvedValue('https://github.com/simkimsia/named-repo\n');
+
+      const result = await repoCommand(['create', 'named-repo', '--public', '--source', '.']);
+
+      expect(result).toContain('repo: named-repo');
+      expect(result).not.toContain('simkimsia/named-repo');
+    });
+
     it('does not mistake the --source value for the name positional', async () => {
       mockedGhExec.mockResolvedValue('');
 
@@ -212,6 +232,30 @@ describe('repoCommand', () => {
       await expect(
         repoCommand(['create', 'my-repo', '--', '--push']),
       ).rejects.toThrow('Unsupported extra argument for repo create: --push');
+    });
+
+    it('forwards a dash-leading name behind a trailing -- so gh treats it as a positional', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand(['create', '--public', '--', '-tool']);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', '--public', '--', '-tool',
+      ]);
+      expect(result).toContain('created: ok');
+      expect(result).toContain('-tool');
+    });
+
+    it('does not let a dash-leading name after -- turn into a gh flag in local-source mode', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      const result = await repoCommand(['create', '--source', '.', '--', '--public']);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo', 'create', '--source', '.', '--', '--public',
+      ]);
+      expect(result).toContain('created: ok');
+      expect(result).toContain('--public');
     });
 
     it('rejects --source combined with --clone', async () => {
@@ -259,6 +303,20 @@ describe('repoCommand', () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
+    it('rejects --source followed by another option instead of consuming it as the value', async () => {
+      await expect(
+        repoCommand(['create', 'my-repo', '--source', '--push']),
+      ).rejects.toThrow('--source requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects --remote followed by another option instead of consuming it as the value', async () => {
+      await expect(
+        repoCommand(['create', '--source', '.', '--remote', '--public']),
+      ).rejects.toThrow('--remote requires a value');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it('rejects a duplicate --source instead of misreading its value as the name', async () => {
       await expect(
         repoCommand(['create', '--source', 'a', '--source', 'b']),
@@ -270,6 +328,27 @@ describe('repoCommand', () => {
       await expect(
         repoCommand(['create', '--source', '.', '--push=true']),
       ).rejects.toThrow('Unsupported extra argument for repo create: --push=true');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty-string name in local-source mode instead of silently dropping it', async () => {
+      await expect(
+        repoCommand(['create', '', '--source', '.']),
+      ).rejects.toThrow('Repository name cannot be blank');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects a whitespace-only name in remote-first mode', async () => {
+      await expect(
+        repoCommand(['create', '  ', '--public']),
+      ).rejects.toThrow('Repository name cannot be blank');
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty-string name after the -- separator', async () => {
+      await expect(
+        repoCommand(['create', '--source', '.', '--', '']),
+      ).rejects.toThrow('Repository name cannot be blank');
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
