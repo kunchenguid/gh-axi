@@ -720,7 +720,9 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
         await ghExec(ghArgs, ctx);
       }
     } catch (error) {
-      if (!resolvedType && !clearTypeFlag) throw error;
+      if (attachments.length === 0 || (!resolvedType && !clearTypeFlag)) {
+        throw error;
+      }
       attachFailure = error;
       if (error instanceof AttachmentMutationError) attachmentError = error;
     }

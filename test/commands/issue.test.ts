@@ -1132,6 +1132,22 @@ describe("issueCommand", () => {
       expect(flat).toContain("issueTypeId:null");
     });
 
+    it("does not clear type after a non-attach edit fails", async () => {
+      mockedGhExec.mockRejectedValue(
+        new AxiError("label does not exist", "VALIDATION_ERROR"),
+      );
+
+      await expect(
+        issueCommand(
+          ["edit", "10", "--no-type", "--add-label", "missing"],
+          ctx,
+        ),
+      ).rejects.toThrow("label does not exist");
+
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
+    });
+
     it("rejects --type without a value", async () => {
       await expect(issueCommand(["edit", "10", "--type"], ctx)).rejects.toThrow(
         AxiError,
