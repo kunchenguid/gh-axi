@@ -552,6 +552,18 @@ async function applyIssueType(
   }
 }
 
+async function preserveAttachmentState<T>(
+  attachmentError: AttachmentMutationError | undefined,
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (attachmentError) throw attachmentError.withFollowupError(error);
+    throw error;
+  }
+}
+
 async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const title = getFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
@@ -604,15 +616,19 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
     attachments.length > 0
       ? "number,title,state,url,id,body"
       : "number,title,state,url,id";
-  const item = await ghJson<Record<string, unknown>>(
-    ["issue", "view", String(num), "--json", createJsonFields],
-    ctx,
+  const item = await preserveAttachmentState(attachmentError, () =>
+    ghJson<Record<string, unknown>>(
+      ["issue", "view", String(num), "--json", createJsonFields],
+      ctx,
+    ),
   );
 
   if (resolvedType) {
     const issueNodeId = item.id;
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await applyIssueType(issueNodeId, resolvedType.id);
+      await preserveAttachmentState(attachmentError, () =>
+        applyIssueType(issueNodeId, resolvedType.id),
+      );
     }
     item.issueType = { name: resolvedType.name };
   }
@@ -696,15 +712,19 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
     attachments.length > 0
       ? "number,title,state,labels,assignees,id,body"
       : "number,title,state,labels,assignees,id";
-  const item = await ghJson<Record<string, unknown>>(
-    ["issue", "view", String(num), "--json", editJsonFields],
-    ctx,
+  const item = await preserveAttachmentState(attachmentError, () =>
+    ghJson<Record<string, unknown>>(
+      ["issue", "view", String(num), "--json", editJsonFields],
+      ctx,
+    ),
   );
 
   if (resolvedType || clearTypeFlag) {
     const issueNodeId = item.id;
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null);
+      await preserveAttachmentState(attachmentError, () =>
+        applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null),
+      );
     }
     item.issueType = resolvedType ? { name: resolvedType.name } : null;
   }

@@ -16,17 +16,35 @@ export class AttachmentMutationError extends AxiError {
   constructor(
     readonly stdout: string,
     readonly mutationUrl: string,
-    error: AxiError,
+    readonly attachmentError: AxiError,
+    readonly followupError?: AxiError,
   ) {
     super(
-      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${error.message}`,
-      error.code,
+      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${attachmentError.message}${followupError ? `; follow-up issue type update failed: ${followupError.message}` : ""}`,
+      attachmentError.code,
       [
         `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
-        ...error.suggestions,
+        ...attachmentError.suggestions,
+        ...(followupError?.suggestions ?? []),
       ],
     );
     this.name = "AttachmentMutationError";
+  }
+
+  withFollowupError(error: unknown): AttachmentMutationError {
+    const followupError =
+      error instanceof AxiError
+        ? error
+        : new AxiError(
+            error instanceof Error ? error.message : String(error),
+            "UNKNOWN",
+          );
+    return new AttachmentMutationError(
+      this.stdout,
+      this.mutationUrl,
+      this.attachmentError,
+      followupError,
+    );
   }
 }
 

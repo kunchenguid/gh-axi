@@ -1869,6 +1869,72 @@ describe("issueCommand", () => {
       });
     });
 
+    it("preserves partial create state when fetching the issue fails", async () => {
+      await withPng(async (file) => {
+        mockTypeQueryOnce([{ id: "T_bug", name: "Bug" }]);
+        const url = "https://github.com/octo/repo/issues/99";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created issue", "UNKNOWN"),
+        );
+
+        await expect(
+          issueCommand(
+            [
+              "create",
+              "--title",
+              "UI bug",
+              "--type",
+              "Bug",
+              "--attach",
+              file,
+            ],
+            ctx,
+          ),
+        ).rejects.toMatchObject({
+          message: expect.stringMatching(
+            /Mutation succeeded at .*issues\/99.*attachment upload failed.*follow-up issue type update failed: Could not fetch the created issue/,
+          ),
+        });
+      });
+    });
+
+    it("preserves partial edit state when the type mutation fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/10";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 10,
+          title: "UI bug",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+          id: "I_node10",
+          body: "",
+        });
+        mockedGhRaw.mockResolvedValueOnce({
+          stdout: "",
+          stderr: "HTTP 403: Forbidden",
+          exitCode: 1,
+        });
+
+        await expect(
+          issueCommand(
+            ["edit", "10", "--no-type", "--attach", file],
+            ctx,
+          ),
+        ).rejects.toMatchObject({
+          message: expect.stringMatching(
+            /Mutation succeeded at .*issues\/10.*attachment upload failed.*follow-up issue type update failed: Insufficient permissions/,
+          ),
+        });
+      });
+    });
+
     it("still requires a body on comment when --attach is absent", async () => {
       await expect(issueCommand(["comment", "99"], ctx)).rejects.toThrow(
         /--body or --body-file is required/,
