@@ -1,0 +1,9 @@
+--version
+issue create --title UI bug --body  --attach before.png#before --attach after.png --repo octo/repo
+issue view 99 --json number,title,state,url,id,body --repo octo/repo
+--version
+issue create --title UI bug --body  --attach --body --repo octo/repo
+issue view 99 --json number,title,state,url,id,body --repo octo/repo
+--version
+issue create --title UI bug --body  --attach good.png --attach oversized.png --repo octo/repo
+issue view 99 --json number,title,state,url,id,body --repo octo/repo

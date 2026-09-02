@@ -1,0 +1,50 @@
+$ gh-axi issue create --title "UI bug" --attach before.png#before --attach after.png -R octo/repo
+issue:
+  number: 99
+  title: UI bug
+  state: open
+  url: "https://github.com/octo/repo/issues/99"
+attachments[2]{file}:
+  before.png#before
+  after.png
+asset_urls[1]{url}:
+  "https://github.com/user-attachments/assets/11111111-2222-3333-4444-555555555555"
+help[2]:
+  Run `gh-axi issue view 99 -R octo/repo` to see the full issue
+  Run `gh-axi issue edit 99 --add-label <label> -R octo/repo` to label
+
+$ gh-axi issue create --title "UI bug" --attach --body -R octo/repo
+issue:
+  number: 99
+  title: UI bug
+  state: open
+  url: "https://github.com/octo/repo/issues/99"
+attachments[1]{file}:
+  "--body"
+asset_urls[1]{url}:
+  "https://github.com/user-attachments/assets/11111111-2222-3333-4444-555555555555"
+help[2]:
+  Run `gh-axi issue view 99 -R octo/repo` to see the full issue
+  Run `gh-axi issue edit 99 --add-label <label> -R octo/repo` to label
+
+Forwarded gh calls (showing that --body remained the raw attachment value):
+--version
+issue create --title UI bug --body  --attach before.png#before --attach after.png --repo octo/repo
+issue view 99 --json number,title,state,url,id,body --repo octo/repo
+--version
+issue create --title UI bug --body  --attach --body --repo octo/repo
+issue view 99 --json number,title,state,url,id,body --repo octo/repo
+
+$ gh-axi issue create --title "UI bug" --attach good.png --attach oversized.png -R octo/repo
+error: "Mutation succeeded at https://github.com/octo/repo/issues/99, but attachment upload failed: --attach oversized.png: images must be at most 10.0 MB"
+code: VALIDATION_ERROR
+attachment_operation: failed
+asset_urls[1]: "https://github.com/user-attachments/assets/11111111-2222-3333-4444-555555555555"
+help[1]: "Do not retry the mutation; inspect https://github.com/octo/repo/issues/99 before uploading missing attachments"
+exit_status=2
+
+$ GH_BIN=gh gh-axi issue create --title "UI bug" --attach missing.png -R octo/repo
+error: "--attach requires gh 2.99.0+; installed gh 2.96.0"
+code: VALIDATION_ERROR
+help[2]: Upgrade gh to 2.99.0 or newer,Or point GH_BIN at a 2.99.0+ gh binary
+exit_status=2

@@ -1,0 +1,91 @@
+$ gh-axi issue create --help
+usage: gh-axi issue <subcommand> [flags]
+subcommands[14]:
+  list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>, subissue <add|remove|list>
+flags{list}:
+  --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
+flags{view}:
+  --comments, --full (show the complete issue body and comment bodies without truncation)
+flags{create}:
+  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
+flags{edit}:
+  --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
+flags{close}:
+  --reason <completed|not_planned>, --comment <text>
+flags{comment}:
+  --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
+flags{transfer}:
+  --to-repo <owner/name> (required)
+subissue:
+  add <parent> <child> [<child> ...], remove <parent> <child>, list <parent>
+examples:
+  gh-axi issue list --state closed --label bug
+  gh-axi issue view 42 --comments
+  gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
+  gh-axi issue create --title "UI bug" --attach './repro.png#Login error'
+  gh-axi issue comment 42 --body-file comment.md
+  gh-axi issue comment 42 --attach ./before.png --attach ./after.png
+  gh-axi issue close 42 --reason completed
+  gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
+  gh-axi issue subissue add 16 20 101 125
+  gh-axi issue subissue list 16
+$ gh-axi pr comment --help
+usage: gh-axi pr <subcommand> [flags]
+subcommands[15]:
+  list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, revert <number>
+flags{list}:
+  --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
+flags{view}:
+  --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
+flags{create}:
+  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
+flags{edit}:
+  --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
+flags{merge}:
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
+flags{review}:
+  --approve, --request-changes, --comment, --body <text> or --body-file <path>
+flags{comment}:
+  --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
+flags{checks}:
+  (none)
+flags{diff}:
+  --full (show complete diff without truncation)
+examples:
+  gh-axi pr list --state open --label bug
+  gh-axi pr view 42 --comments
+  gh-axi pr view 42 --reviews
+  gh-axi pr create --title "Fix login" --attach './before.png#Before'
+  gh-axi pr comment 42 --body-file review.md
+  gh-axi pr comment 42 --attach ./after.png
+  gh-axi pr merge 42 --squash --delete-branch
+$ gh-axi pr review --help
+usage: gh-axi pr <subcommand> [flags]
+subcommands[15]:
+  list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, revert <number>
+flags{list}:
+  --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
+flags{view}:
+  --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
+flags{create}:
+  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
+flags{edit}:
+  --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
+flags{merge}:
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
+flags{review}:
+  --approve, --request-changes, --comment, --body <text> or --body-file <path>
+flags{comment}:
+  --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
+flags{checks}:
+  (none)
+flags{diff}:
+  --full (show complete diff without truncation)
+examples:
+  gh-axi pr list --state open --label bug
+  gh-axi pr view 42 --comments
+  gh-axi pr view 42 --reviews
+  gh-axi pr create --title "Fix login" --attach './before.png#Before'
+  gh-axi pr comment 42 --body-file review.md
+  gh-axi pr comment 42 --attach ./after.png
+  gh-axi pr merge 42 --squash --delete-branch
