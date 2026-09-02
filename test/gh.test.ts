@@ -1,6 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { ghJson, ghExec, ghRaw, ghExecWithStdin } from "../src/gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ensureAttachmentSupport,
+  ghRaw,
+  ghExecWithStdin,
+  resolveGhBin,
+} from "../src/gh.js";
 import type { RepoContext } from "../src/context.js";
 import { AxiError } from "../src/errors.js";
 
@@ -189,6 +197,67 @@ describe("ghExec", () => {
   });
 });
 
+describe("ensureAttachmentSupport", () => {
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  it("accepts gh 2.99.0 and newer", async () => {
+    mockExecFileResult(null, "gh version 2.99.0 (2026-04-01)\n", "");
+
+    await expect(ensureAttachmentSupport()).resolves.toBeUndefined();
+    expect(mockedExecFile.mock.calls[0][1]).toEqual(["--version"]);
+  });
+
+  it("rejects older gh with installed and required versions", async () => {
+    mockExecFileResult(null, "gh version 2.98.0 (2026-03-18)\n", "");
+
+    await expect(ensureAttachmentSupport()).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "--attach requires gh 2.99.0+; installed gh 2.98.0",
+    });
+    expect(mockedExecFile).toHaveBeenCalledTimes(1);
+    expect(mockedExecFile.mock.calls[0][1]).toEqual(["--version"]);
+  });
+});
+
+describe("ghExecWithAttachmentState", () => {
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  it("surfaces the completed mutation URL on partial upload failure", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(
+      error,
+      "https://github.com/octo/repo/issues/42\n",
+      "large.png: images must be at most 10.0 MB",
+    );
+
+    await expect(
+      ghExecWithAttachmentState(["issue", "create", "--attach", "large.png"]),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message:
+        "Mutation succeeded at https://github.com/octo/repo/issues/42, but attachment upload failed: --attach large.png: images must be at most 10.0 MB",
+    });
+  });
+
+  it("keeps ordinary mapped errors when no mutation URL was emitted", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(error, "", "HTTP 403: Forbidden");
+
+    await expect(
+      ghExecWithAttachmentState(["issue", "create", "--attach", "a.png"]),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Insufficient permissions for this action",
+    });
+  });
+});
+
 describe("ghRaw", () => {
   beforeEach(() => {
     mockedExecFile.mockReset();
@@ -234,6 +303,41 @@ describe("ghRaw", () => {
     const callArgs = mockedExecFile.mock.calls[0][1] as string[];
     expect(callArgs).toContain("--repo");
     expect(callArgs).toContain("o/r");
+  });
+});
+
+describe("resolveGhBin", () => {
+  const previous = process.env["GH_BIN"];
+
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env["GH_BIN"];
+    else process.env["GH_BIN"] = previous;
+  });
+
+  it("defaults to gh when GH_BIN is unset", () => {
+    delete process.env["GH_BIN"];
+    expect(resolveGhBin()).toBe("gh");
+  });
+
+  it("uses GH_BIN when set", () => {
+    process.env["GH_BIN"] = "/tmp/custom-gh";
+    expect(resolveGhBin()).toBe("/tmp/custom-gh");
+  });
+
+  it("treats a blank GH_BIN as unset", () => {
+    process.env["GH_BIN"] = "   ";
+    expect(resolveGhBin()).toBe("gh");
+  });
+
+  it("passes GH_BIN to execFile", async () => {
+    process.env["GH_BIN"] = "/tmp/custom-gh";
+    mockExecFileResult(null, "[]", "");
+    await ghJson(["issue", "list"]);
+    expect(mockedExecFile.mock.calls[0][0]).toBe("/tmp/custom-gh");
   });
 });
 

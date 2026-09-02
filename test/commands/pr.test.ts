@@ -6,17 +6,39 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
+  ghExecWithAttachmentState: vi.fn(),
+  ensureAttachmentSupport: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ensureAttachmentSupport,
+  ghRaw,
+} from "../../src/gh.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
-import { AxiError } from "../../src/errors.js";
+import { AttachmentMutationError, AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
+import { withPng } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhExecWithAttachmentState = vi.mocked(ghExecWithAttachmentState);
+const mockedEnsureAttachmentSupport = vi.mocked(ensureAttachmentSupport);
 const mockedGhRaw = vi.mocked(ghRaw);
+
+function partialAttachmentError(url: string): AttachmentMutationError {
+  return new AttachmentMutationError(
+    `${url}\n`,
+    url,
+    new AxiError(
+      "--attach oversized.png: images must be at most 10 MB",
+      "VALIDATION_ERROR",
+    ),
+  );
+}
 
 const ctx: RepoContext = {
   owner: "octo",
@@ -1150,6 +1172,264 @@ describe("prCommand", () => {
 
       expect(result).not.toContain("truncated:");
       expect(result).not.toContain("original_length");
+    });
+  });
+
+  describe("--attach", () => {
+    const assetUrl =
+      "https://github.com/user-attachments/assets/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+    it("documents --attach and the gh >= 2.99.0 requirement in help", async () => {
+      const result = await prCommand(["--help"]);
+      expect(result).toContain("--attach <path[#alt]>");
+      expect(result).toContain("gh >= 2.99.0");
+      expect(result).toContain("(repeatable");
+    });
+
+    it("does not pass --attach when the flag is absent", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/12\n");
+      await prCommand(["create", "--title", "T"], ctx);
+      const argv = mockedGhExec.mock.calls[0][0] as string[];
+      expect(argv).not.toContain("--attach");
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+      expect(mockedEnsureAttachmentSupport).not.toHaveBeenCalled();
+    });
+
+    it("does not consume --attach as a missing title value", async () => {
+      await expect(
+        prCommand(["create", "--title", "--attach", "./a.png"], ctx),
+      ).rejects.toThrow("--title is required");
+
+      expect(mockedEnsureAttachmentSupport).toHaveBeenCalledOnce();
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+    });
+
+    it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue(
+          "https://github.com/octo/repo/pull/12\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          body: `![repro](${assetUrl})`,
+        });
+
+        const spec = `${file}#Before`;
+        const result = await prCommand(
+          ["create", "--title", "T", "--attach", spec, "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          [
+            "pr",
+            "create",
+            "--title",
+            "T",
+            "--body",
+            "",
+            "--attach",
+            spec,
+            "--attach",
+            file,
+          ],
+          ctx,
+        );
+        expect(result).toContain("attachments");
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("preserves a successful create when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12";
+        mockedGhExecWithAttachmentState.mockResolvedValue(`${url}\n`);
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created pull request", "UNKNOWN"),
+        );
+
+        await expect(
+          prCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created pull request`,
+        });
+      });
+    });
+
+    it("reports only newly uploaded asset URLs on edit", async () => {
+      await withPng(async (file) => {
+        const oldUrl =
+          "https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000";
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
+        mockedGhJson
+          .mockResolvedValueOnce({ body: oldUrl })
+          .mockResolvedValueOnce({ body: `${oldUrl}\n${assetUrl}` });
+
+        const result = await prCommand(["edit", "12", "--attach", file], ctx);
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          ["pr", "edit", "12", "--attach", file],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+        expect(result).not.toContain(oldUrl);
+      });
+    });
+
+    it("preserves a successful edit when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before" })
+          .mockRejectedValueOnce(
+            new AxiError("Could not fetch the edited pull request", "UNKNOWN"),
+          );
+
+        await expect(
+          prCommand(["edit", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message:
+            "Mutation succeeded at pull request #12, but follow-up operation failed: Could not fetch the edited pull request",
+        });
+      });
+    });
+
+    it("fetches the created attached comment by its emitted URL", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue(
+          "https://github.com/octo/repo/pull/12#issuecomment-67890\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          user: { login: "alice" },
+          body: `![repro](${assetUrl})`,
+          created_at: "2026-01-01T00:00:00Z",
+        });
+
+        const result = await prCommand(
+          ["comment", "12", "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          ["pr", "comment", "12", "--attach", file],
+          ctx,
+        );
+        expect(mockedGhJson).toHaveBeenCalledWith([
+          "api",
+          "repos/octo/repo/issues/comments/67890",
+        ]);
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("preserves a successful comment when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12#issuecomment-67890";
+        mockedGhExecWithAttachmentState.mockResolvedValue(`${url}\n`);
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created comment", "UNKNOWN"),
+        );
+
+        await expect(
+          prCommand(["comment", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created comment`,
+        });
+      });
+    });
+
+    it("reports partial create asset URLs", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({ body: assetUrl });
+
+        await expect(
+          prCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
+    it("reports partial edit asset URLs", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError("https://github.com/octo/repo/pull/12"),
+        );
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before" })
+          .mockResolvedValueOnce({ body: assetUrl });
+
+        await expect(
+          prCommand(["edit", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
+    it("reports partial comment asset URLs", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12#issuecomment-67890";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          user: { login: "alice" },
+          body: assetUrl,
+          created_at: "2026-01-01T00:00:00Z",
+        });
+
+        await expect(
+          prCommand(["comment", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
+    it("still requires a body on comment when --attach is absent", async () => {
+      await expect(prCommand(["comment", "12"], ctx)).rejects.toThrow(
+        /--body or --body-file is required/,
+      );
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("surfaces gh attachment validation errors", async () => {
+      mockedGhExecWithAttachmentState.mockRejectedValue(
+        new AxiError(
+          "--attach ./note.txt is not a supported file type",
+          "VALIDATION_ERROR",
+        ),
+      );
+
+      await expect(
+        prCommand(["create", "--title", "T", "--attach", "./note.txt"], ctx),
+      ).rejects.toThrow("--attach ./note.txt is not a supported file type");
+      expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+        [
+          "pr",
+          "create",
+          "--title",
+          "T",
+          "--body",
+          "",
+          "--attach",
+          "./note.txt",
+        ],
+        ctx,
+      );
+    });
+
+    it("does not add --attach to pr review", async () => {
+      await withPng(async (file) => {
+        await expect(
+          prCommand(
+            ["review", "12", "--comment", "--body", "ok", "--attach", file],
+            ctx,
+          ),
+        ).rejects.toThrow(/unknown flag for gh-axi pr review: --attach/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
     });
   });
 });

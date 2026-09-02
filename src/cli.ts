@@ -20,7 +20,12 @@ import { stackCommand, STACK_HELP } from "./commands/stack.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
-import { AxiError, exitCodeForError, StackError } from "./errors.js";
+import {
+  AxiError,
+  exitCodeForError,
+  OperationOutcomeError,
+  StackError,
+} from "./errors.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
@@ -37,6 +42,8 @@ commands[16]:
   (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 flags[4]:
   -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
+requires:
+  gh >= 2.99.0 for --attach on issue/pr create, edit, and comment (set GH_BIN to override the gh binary)
 examples:
   gh-axi
   gh-axi issue list --state open
@@ -117,6 +124,14 @@ export async function main(options: MainOptions = {}): Promise<void> {
         output: `${encode({
           error: axiError.message,
           code: axiError.code,
+          ...(error instanceof OperationOutcomeError
+            ? {
+                ...error.operationOutcomes,
+                ...(error.assetUrls.length > 0
+                  ? { asset_urls: error.assetUrls }
+                  : {}),
+              }
+            : {}),
           ...(axiError.suggestions.length > 0
             ? { help: axiError.suggestions }
             : {}),

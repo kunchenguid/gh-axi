@@ -1,7 +1,19 @@
 import type { RepoContext } from "../context.js";
 import { resolveHost } from "../host.js";
-import { ghJson, ghExec, ghRaw } from "../gh.js";
-import { AxiError, mapGhError } from "../errors.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ensureAttachmentSupport,
+  ghRaw,
+} from "../gh.js";
+import {
+  AttachmentMutationError,
+  AxiError,
+  MutationFollowupError,
+  OperationOutcomeError,
+  mapGhError,
+} from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   hasFlag,
@@ -14,7 +26,18 @@ import {
   takeBoolFlag,
   rejectUnknownFlags,
 } from "../args.js";
+import {
+  ATTACH_BODY_OPTIONS,
+  attachBodyOptions,
+  collectAttachments,
+  hasAttachmentFlag,
+  newAttachmentUrls,
+  pushAttachments,
+  preserveAttachMutation,
+  renderAttachOutput,
+} from "../attach.js";
 import { takeBody, truncateBody } from "../body.js";
+import { fetchCreatedComment } from "../comment.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import { formatCountLine } from "../format.js";
 import {
@@ -71,13 +94,13 @@ flags{list}:
 flags{view}:
   --comments, --full (show the complete issue body and comment bodies without truncation)
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path>, --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
+  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
 flags{edit}:
-  --title, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
+  --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
 flags{close}:
   --reason <completed|not_planned>, --comment <text>
 flags{comment}:
-  --body <text> or --body-file <path> (required)
+  --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{transfer}:
   --to-repo <owner/name> (required)
 subissue:
@@ -86,7 +109,9 @@ examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
+  gh-axi issue create --title "UI bug" --attach './repro.png#Login error'
   gh-axi issue comment 42 --body-file comment.md
+  gh-axi issue comment 42 --attach ./before.png --attach ./after.png
   gh-axi issue close 42 --reason completed
   gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
   gh-axi issue subissue add 16 20 101 125
@@ -124,6 +149,7 @@ const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--title",
     "--body",
     "--body-file",
+    "--attach",
     "--assignee",
     "--label",
     "--milestone",
@@ -134,6 +160,7 @@ const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--title",
     "--body",
     "--body-file",
+    "--attach",
     "--add-label",
     "--remove-label",
     "--add-assignee",
@@ -144,7 +171,7 @@ const ISSUE_FLAGS: Record<string, readonly string[]> = {
   ],
   close: ["--reason", "--comment"],
   reopen: [],
-  comment: ["--body", "--body-file"],
+  comment: ["--body", "--body-file", "--attach"],
   delete: [],
   lock: [],
   unlock: [],
@@ -531,11 +558,56 @@ async function applyIssueType(
   }
 }
 
-async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
+function issueEditOperationsError(
+  attachFailure: unknown,
+  typeFailure: unknown,
+  typeResult: string,
+  assetUrls: string[] = [],
+  readbackFailure?: unknown,
+): OperationOutcomeError {
+  const attachError =
+    attachFailure instanceof AxiError ? attachFailure : undefined;
+  const typeError = typeFailure instanceof AxiError ? typeFailure : undefined;
+  const primary = attachError ?? typeError;
+  const attachOutcome = attachFailure
+    ? `failed (${attachError?.message ?? String(attachFailure)})`
+    : "succeeded";
+  const typeOutcome = typeFailure
+    ? `failed (${typeError?.message ?? String(typeFailure)})`
+    : `succeeded (${typeResult})`;
+  const readbackError =
+    readbackFailure instanceof AxiError ? readbackFailure : undefined;
+  const readbackOutcome = readbackFailure
+    ? `failed (${readbackError?.message ?? String(readbackFailure)})`
+    : undefined;
+  return new OperationOutcomeError(
+    new AxiError(
+      `attachment_operation: ${attachOutcome}; issue_type_edit: ${typeOutcome}${readbackOutcome ? `; attachment_readback: ${readbackOutcome}` : ""}`,
+      primary?.code ?? readbackError?.code ?? "UNKNOWN",
+      [
+        ...(attachError?.suggestions ?? []),
+        ...(typeError?.suggestions ?? []),
+        ...(readbackError?.suggestions ?? []),
+      ],
+    ),
+    {
+      attachment_operation: attachOutcome,
+      issue_type_edit: typeOutcome,
+      ...(readbackOutcome ? { attachment_readback: readbackOutcome } : {}),
+    },
+    assetUrls,
+  );
+}
+
+async function createIssue(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const title = getFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
-  const body = takeBody(args);
+  const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
   const milestone = getFlag(args, "--milestone");
@@ -549,7 +621,10 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ["issue", "create", "--title", title];
-  if (body !== undefined) ghArgs.push("--body", body);
+  if (body !== undefined || attachments.length > 0) {
+    ghArgs.push("--body", body ?? "");
+  }
+  pushAttachments(ghArgs, attachments);
   pushRepeated(ghArgs, "--assignee", assignees);
   pushRepeated(ghArgs, "--label", labels);
   if (milestone) ghArgs.push("--milestone", milestone);
@@ -557,30 +632,92 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   // gh issue create outputs the URL; use --json to get structured data
   // Unfortunately gh issue create doesn't support --json, so we parse the URL
-  const output = await ghExec(ghArgs, ctx);
+  let output: string;
+  let attachmentError: AttachmentMutationError | undefined;
+  try {
+    output =
+      attachments.length > 0
+        ? await ghExecWithAttachmentState(ghArgs, ctx)
+        : await ghExec(ghArgs, ctx);
+  } catch (error) {
+    if (!(error instanceof AttachmentMutationError)) throw error;
+    output = error.stdout;
+    attachmentError = error;
+  }
   const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/);
   const url = urlMatch ? urlMatch[0] : output.trim();
   const numMatch = url.match(/\/issues\/(\d+)/);
   const num = numMatch ? parseInt(numMatch[1], 10) : 0;
 
   // Fetch the created issue for structured output; include id for type mutation
-  const item = await ghJson<Record<string, unknown>>(
-    ["issue", "view", String(num), "--json", "number,title,state,url,id"],
-    ctx,
-  );
+  const createJsonFields =
+    attachments.length > 0
+      ? "number,title,state,url,id,body"
+      : "number,title,state,url,id";
+  let item: Record<string, unknown>;
+  try {
+    item = await ghJson<Record<string, unknown>>(
+      ["issue", "view", String(num), "--json", createJsonFields],
+      ctx,
+    );
+  } catch (error) {
+    if (attachmentError && resolvedType) {
+      throw issueEditOperationsError(
+        attachmentError,
+        error,
+        `set to ${resolvedType.name}`,
+      );
+    }
+    if (attachmentError) throw attachmentError.withFollowupError(error);
+    if (attachments.length > 0) {
+      throw MutationFollowupError.from(url, error);
+    }
+    throw error;
+  }
 
+  let typeFailure: unknown;
   if (resolvedType) {
     const issueNodeId = item.id;
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await applyIssueType(issueNodeId, resolvedType.id);
+      if (attachments.length > 0) {
+        try {
+          await applyIssueType(issueNodeId, resolvedType.id);
+        } catch (error) {
+          typeFailure = error;
+        }
+      } else {
+        await applyIssueType(issueNodeId, resolvedType.id);
+      }
     }
     item.issueType = { name: resolvedType.name };
+  }
+
+  if (attachmentError || typeFailure) {
+    const assetUrls = newAttachmentUrls(
+      typeof item.body === "string" ? item.body : undefined,
+      body,
+    );
+    if (resolvedType) {
+      throw issueEditOperationsError(
+        attachmentError,
+        typeFailure,
+        `set to ${resolvedType.name}`,
+        assetUrls,
+      );
+    }
+    throw attachmentError!.withResults(assetUrls);
   }
 
   const schema = resolvedType
     ? [...createResultSchema, issueTypeField]
     : createResultSchema;
   const blocks: string[] = [renderDetail("issue", item, schema)];
+  const attachOut = renderAttachOutput(
+    attachments,
+    typeof item.body === "string" ? item.body : undefined,
+    body,
+  );
+  if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
     domain: "issue",
     action: "create",
@@ -592,11 +729,15 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput(blocks);
 }
 
-async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
+async function editIssue(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
 
   const title = getFlag(args, "--title");
-  const body = takeBody(args);
+  const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = getAllFlags(args, "--add-label");
   const removeLabels = getAllFlags(args, "--remove-label");
   const addAssignees = getAllFlags(args, "--add-assignee");
@@ -612,9 +753,28 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
     resolvedType = await resolveIssueType(typeName, ctx);
   }
 
+  let attachmentBaseline = body;
+  let issueNodeId: string | undefined;
+  if (
+    attachments.length > 0 &&
+    (attachmentBaseline === undefined || resolvedType || clearTypeFlag)
+  ) {
+    const fields = [
+      ...(attachmentBaseline === undefined ? ["body"] : []),
+      ...(resolvedType || clearTypeFlag ? ["id"] : []),
+    ];
+    const current = await ghJson<{ body?: string; id?: string }>(
+      ["issue", "view", String(num), "--json", fields.join(",")],
+      ctx,
+    );
+    if (attachmentBaseline === undefined) attachmentBaseline = current.body;
+    issueNodeId = current.id;
+  }
+
   const ghArgs = ["issue", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
   if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
   pushRepeated(ghArgs, "--add-label", addLabels);
   pushRepeated(ghArgs, "--remove-label", removeLabels);
   pushRepeated(ghArgs, "--add-assignee", addAssignees);
@@ -623,28 +783,105 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   // Only call `gh issue edit` if there is a non-type field to update; otherwise
   // calling with just the issue number errors out.
+  let attachmentError: AttachmentMutationError | undefined;
+  let attachFailure: unknown;
   if (ghArgs.length > 3) {
-    await ghExec(ghArgs, ctx);
+    try {
+      if (attachments.length > 0) {
+        await ghExecWithAttachmentState(ghArgs, ctx);
+      } else {
+        await ghExec(ghArgs, ctx);
+      }
+    } catch (error) {
+      if (error instanceof AttachmentMutationError) {
+        attachFailure = error;
+        attachmentError = error;
+      } else if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
+        attachFailure = error;
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  let typeFailure: unknown;
+  if (
+    attachments.length > 0 &&
+    (resolvedType || clearTypeFlag) &&
+    issueNodeId
+  ) {
+    try {
+      await applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null);
+    } catch (error) {
+      typeFailure = error;
+    }
+  }
+
+  if (attachmentError && (resolvedType || clearTypeFlag)) {
+    const typeResult = typeFailure
+      ? `failed (${typeFailure instanceof Error ? typeFailure.message : String(typeFailure)})`
+      : `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`;
+    attachmentError = attachmentError.withResults([], {
+      attachment_operation: "failed",
+      issue_type_edit: typeResult,
+    });
   }
 
   // Fetch updated issue (include id for type mutation)
-  const item = await ghJson<Record<string, unknown>>(
-    [
-      "issue",
-      "view",
-      String(num),
-      "--json",
-      "number,title,state,labels,assignees,id",
-    ],
-    ctx,
-  );
+  const editJsonFields =
+    attachments.length > 0
+      ? "number,title,state,labels,assignees,id,body"
+      : "number,title,state,labels,assignees,id";
+  let item: Record<string, unknown>;
+  try {
+    item = await ghJson<Record<string, unknown>>(
+      ["issue", "view", String(num), "--json", editJsonFields],
+      ctx,
+    );
+  } catch (error) {
+    if (resolvedType || clearTypeFlag) {
+      throw issueEditOperationsError(
+        attachFailure,
+        typeFailure,
+        resolvedType ? `set to ${resolvedType.name}` : "cleared",
+        [],
+        error,
+      );
+    }
+    if (attachmentError) throw attachmentError.withFollowupError(error);
+    if (attachments.length > 0) {
+      throw MutationFollowupError.from(`issue #${num}`, error);
+    }
+    throw error;
+  }
 
   if (resolvedType || clearTypeFlag) {
-    const issueNodeId = item.id;
-    if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null);
+    if (attachments.length === 0) {
+      const postEditNodeId = item.id;
+      if (typeof postEditNodeId === "string" && postEditNodeId.length > 0) {
+        await applyIssueType(
+          postEditNodeId,
+          resolvedType ? resolvedType.id : null,
+        );
+      }
     }
     item.issueType = resolvedType ? { name: resolvedType.name } : null;
+  }
+
+  if (attachFailure || typeFailure) {
+    const assetUrls = newAttachmentUrls(
+      typeof item.body === "string" ? item.body : undefined,
+      attachmentBaseline,
+    );
+    if (!resolvedType && !clearTypeFlag && attachmentError) {
+      throw attachmentError.withResults(assetUrls);
+    }
+    throw issueEditOperationsError(
+      attachFailure,
+      typeFailure,
+      resolvedType ? `set to ${resolvedType.name}` : "cleared",
+      assetUrls,
+    );
   }
 
   const schema =
@@ -652,6 +889,24 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
       ? [...editResultSchema, issueTypeField]
       : editResultSchema;
   const blocks: string[] = [renderDetail("issue", item, schema)];
+  if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
+    blocks.push(
+      renderDetail(
+        "operations",
+        {
+          attachment_operation: "succeeded",
+          issue_type_edit: `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`,
+        },
+        [field("attachment_operation"), field("issue_type_edit")],
+      ),
+    );
+  }
+  const attachOut = renderAttachOutput(
+    attachments,
+    typeof item.body === "string" ? item.body : undefined,
+    attachmentBaseline,
+  );
+  if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
     domain: "issue",
     action: "edit",
@@ -767,24 +1022,62 @@ async function reopenIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function commentOnIssue(
   args: string[],
-  ctx?: RepoContext,
+  ctx: RepoContext | undefined,
+  attachments: string[],
 ): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
-  const body = takeBody(args, { required: true });
+  const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
-  await ghExec(["issue", "comment", String(num), "--body", body], ctx);
+  const ghArgs = ["issue", "comment", String(num)];
+  if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
+  let commentOutput: string;
+  let attachmentError: AttachmentMutationError | undefined;
+  try {
+    commentOutput =
+      attachments.length > 0
+        ? await ghExecWithAttachmentState(ghArgs, ctx)
+        : await ghExec(ghArgs, ctx);
+  } catch (error) {
+    if (!(error instanceof AttachmentMutationError)) throw error;
+    commentOutput = error.stdout;
+    attachmentError = error;
+  }
 
-  // Fetch the latest comment
-  const issue = await ghJson<{ comments: IssueComment[] }>(
-    ["issue", "view", String(num), "--json", "comments"],
-    ctx,
-  );
-  const lastComment = issue.comments[issue.comments.length - 1];
-  const commentItem = { ...lastComment, number: num };
+  let createdComment: IssueComment | undefined;
+  if (attachments.length > 0) {
+    try {
+      createdComment = await preserveAttachMutation(commentOutput.trim(), () =>
+        fetchCreatedComment(commentOutput, ctx),
+      );
+    } catch (error) {
+      if (attachmentError) throw attachmentError.withFollowupError(error);
+      throw error;
+    }
+  } else {
+    const issue = await ghJson<{ comments: IssueComment[] }>(
+      ["issue", "view", String(num), "--json", "comments"],
+      ctx,
+    );
+    createdComment = issue.comments[issue.comments.length - 1];
+  }
+  if (attachmentError) {
+    throw attachmentError.withResults(
+      newAttachmentUrls(createdComment?.body, body),
+    );
+  }
+
+  const commentItem = { ...createdComment, number: num };
 
   const blocks: string[] = [
     renderDetail("comment", commentItem, commentResultSchema),
   ];
+  const attachOut = renderAttachOutput(
+    attachments,
+    typeof createdComment?.body === "string" ? createdComment.body : undefined,
+    body,
+  );
+  if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
     domain: "issue",
     action: "comment",
@@ -1358,6 +1651,15 @@ export async function issueCommand(
     return renderOutput(blocks);
   }
 
+  let attachments: string[] = [];
+  if (
+    (sub === "create" || sub === "edit" || sub === "comment") &&
+    hasAttachmentFlag(args)
+  ) {
+    await ensureAttachmentSupport();
+    attachments = collectAttachments(args, "take");
+  }
+
   switch (sub) {
     case "list":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.list, "issue", "list");
@@ -1367,10 +1669,10 @@ export async function issueCommand(
       return viewIssue(args, ctx);
     case "create":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.create, "issue", "create");
-      return createIssue(args, ctx);
+      return createIssue(args, ctx, attachments);
     case "edit":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.edit, "issue", "edit");
-      return editIssue(args, ctx);
+      return editIssue(args, ctx, attachments);
     case "close":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.close, "issue", "close");
       return closeIssue(args, ctx);
@@ -1384,7 +1686,7 @@ export async function issueCommand(
         "issue",
         "comment",
       );
-      return commentOnIssue(args, ctx);
+      return commentOnIssue(args, ctx, attachments);
     case "delete":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.delete, "issue", "delete");
       return deleteIssue(args, ctx);

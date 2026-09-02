@@ -6,20 +6,31 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
+  ghExecWithAttachmentState: vi.fn(),
+  ensureAttachmentSupport: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ensureAttachmentSupport,
+  ghRaw,
+} from "../../src/gh.js";
 import {
   issueCommand,
   ISSUE_HELP,
   SUBISSUE_HELP,
 } from "../../src/commands/issue.js";
-import { AxiError } from "../../src/errors.js";
+import { AttachmentMutationError, AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
+import { withPng, withTempDir, TINY_PNG } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhExecWithAttachmentState = vi.mocked(ghExecWithAttachmentState);
+const mockedEnsureAttachmentSupport = vi.mocked(ensureAttachmentSupport);
 const mockedGhRaw = vi.mocked(ghRaw);
 
 function mockTypeQueryOnce(nodes: Array<{ id: string; name: string }>): void {
@@ -48,6 +59,17 @@ const ctx: RepoContext = {
   nwo: "octo/repo",
   source: "flag",
 };
+
+function partialAttachmentError(url: string): AttachmentMutationError {
+  return new AttachmentMutationError(
+    `${url}\n`,
+    url,
+    new AxiError(
+      "--attach second.png: images must be at most 10 MB",
+      "VALIDATION_ERROR",
+    ),
+  );
+}
 
 async function withBodyFile<T>(
   body: string,
@@ -1110,6 +1132,22 @@ describe("issueCommand", () => {
       expect(flat).toContain("issueTypeId:null");
     });
 
+    it("does not clear type after a non-attach edit fails", async () => {
+      mockedGhExec.mockRejectedValue(
+        new AxiError("label does not exist", "VALIDATION_ERROR"),
+      );
+
+      await expect(
+        issueCommand(
+          ["edit", "10", "--no-type", "--add-label", "missing"],
+          ctx,
+        ),
+      ).rejects.toThrow("label does not exist");
+
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
+    });
+
     it("rejects --type without a value", async () => {
       await expect(issueCommand(["edit", "10", "--type"], ctx)).rejects.toThrow(
         AxiError,
@@ -1601,6 +1639,502 @@ describe("issueCommand", () => {
           AxiError,
         );
       });
+    });
+  });
+
+  describe("--attach", () => {
+    const assetUrl =
+      "https://github.com/user-attachments/assets/11111111-2222-3333-4444-555555555555";
+
+    it("documents --attach and the gh >= 2.99.0 requirement in help", async () => {
+      const result = await issueCommand(["--help"], ctx);
+      expect(result).toContain("--attach <path[#alt]>");
+      expect(result).toContain("gh >= 2.99.0");
+      expect(result).toContain("(repeatable");
+    });
+
+    it("does not pass --attach when the flag is absent", async () => {
+      mockedGhExec.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "New issue",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+      });
+
+      await issueCommand(["create", "--title", "New issue"], ctx);
+
+      const argv = mockedGhExec.mock.calls[0][0] as string[];
+      expect(argv).not.toContain("--attach");
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+      expect(mockedEnsureAttachmentSupport).not.toHaveBeenCalled();
+    });
+
+    it("rejects old gh before inspecting an attach value", async () => {
+      mockedEnsureAttachmentSupport.mockRejectedValue(
+        new AxiError(
+          "--attach requires gh 2.99.0+; installed gh 2.98.0",
+          "VALIDATION_ERROR",
+        ),
+      );
+
+      await expect(
+        issueCommand(
+          ["create", "--title", "UI bug", "--attach", "./missing.png"],
+          ctx,
+        ),
+      ).rejects.toThrow("--attach requires gh 2.99.0+; installed gh 2.98.0");
+      expect(mockedEnsureAttachmentSupport).toHaveBeenCalledOnce();
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+    });
+
+    it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "UI bug",
+          state: "OPEN",
+          url: "https://github.com/octo/repo/issues/99",
+          body: `![repro](${assetUrl})`,
+        });
+
+        const spec = `${file}#Login error`;
+        const result = await issueCommand(
+          ["create", "--title", "UI bug", "--attach", spec, "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          [
+            "issue",
+            "create",
+            "--title",
+            "UI bug",
+            "--body",
+            "",
+            "--attach",
+            spec,
+            "--attach",
+            file,
+          ],
+          ctx,
+        );
+        expect(result).toContain("attachments");
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("preserves a successful create when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/99";
+        mockedGhExecWithAttachmentState.mockResolvedValue(`${url}\n`);
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created issue", "UNKNOWN"),
+        );
+
+        await expect(
+          issueCommand(["create", "--title", "UI bug", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created issue`,
+        });
+      });
+    });
+
+    it("forwards hash-containing attachment values unchanged", async () => {
+      await withTempDir(async (dir) => {
+        const file = join(dir, "screen#1.png");
+        writeFileSync(file, TINY_PNG);
+        const spec = `${file}#Login error`;
+        mockedGhExecWithAttachmentState.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "UI bug",
+          state: "OPEN",
+          url: "https://github.com/octo/repo/issues/99",
+          body: `![Login error](${assetUrl})`,
+        });
+
+        const result = await issueCommand(
+          ["create", "--title", "UI bug", "--attach", file, "--attach", spec],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          [
+            "issue",
+            "create",
+            "--title",
+            "UI bug",
+            "--body",
+            "",
+            "--attach",
+            file,
+            "--attach",
+            spec,
+          ],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("reports only newly uploaded asset URLs on edit", async () => {
+      await withPng(async (file) => {
+        const oldUrl =
+          "https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000";
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
+        mockedGhJson
+          .mockResolvedValueOnce({ body: `old ${oldUrl}` })
+          .mockResolvedValueOnce({
+            number: 10,
+            title: "T",
+            state: "OPEN",
+            labels: [],
+            assignees: [],
+            body: `old ${oldUrl}\nnew ${assetUrl}`,
+          });
+
+        const result = await issueCommand(
+          ["edit", "10", "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          ["issue", "edit", "10", "--attach", file],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+        expect(result).not.toContain(oldUrl);
+      });
+    });
+
+    it("reports attachment and type edit outcomes separately", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before", id: "I_node10" })
+          .mockResolvedValueOnce({
+            number: 10,
+            title: "T",
+            state: "OPEN",
+            labels: [],
+            assignees: [],
+            id: "I_node10",
+            body: "after",
+          });
+        mockTypeMutationOnce();
+
+        const result = await issueCommand(
+          ["edit", "10", "--no-type", "--attach", file],
+          ctx,
+        );
+
+        expect(result).toContain("attachment_operation: succeeded");
+        expect(result).toContain("issue_type_edit: succeeded (cleared)");
+      });
+    });
+
+    it("fetches the created attached comment by its emitted URL", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99#issuecomment-12345\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          user: { login: "alice" },
+          body: `![repro](${assetUrl})`,
+          created_at: "2026-01-01T00:00:00Z",
+        });
+
+        const result = await issueCommand(
+          ["comment", "99", "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          ["issue", "comment", "99", "--attach", file],
+          ctx,
+        );
+        expect(mockedGhJson).toHaveBeenCalledWith([
+          "api",
+          "repos/octo/repo/issues/comments/12345",
+        ]);
+        expect(result).toContain("alice");
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("reports partial comment asset URLs", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/99#issuecomment-12345";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          user: { login: "alice" },
+          body: assetUrl,
+          created_at: "2026-01-01T00:00:00Z",
+        });
+
+        await expect(
+          issueCommand(["comment", "99", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
+    it("applies the requested type before surfacing partial create failure", async () => {
+      await withPng(async (file) => {
+        mockTypeQueryOnce([{ id: "T_bug", name: "Bug" }]);
+        const url = "https://github.com/octo/repo/issues/99";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "UI bug",
+          state: "OPEN",
+          url,
+          id: "I_node99",
+          body: "",
+        });
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(
+            ["create", "--title", "UI bug", "--type", "Bug", "--attach", file],
+            ctx,
+          ),
+        ).rejects.toMatchObject({
+          operationOutcomes: {
+            attachment_operation: expect.stringMatching(/^failed/),
+            issue_type_edit: "succeeded (set to Bug)",
+          },
+        });
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect(mutationCall?.[0]).toEqual(
+          expect.arrayContaining(["-f", "id=I_node99", "-f", "typeId=T_bug"]),
+        );
+      });
+    });
+
+    it("clears the type before surfacing partial edit failure", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/10";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before", id: "I_node10" })
+          .mockResolvedValueOnce({
+            number: 10,
+            title: "UI bug",
+            state: "OPEN",
+            labels: [],
+            assignees: [],
+            id: "I_node10",
+            body: assetUrl,
+          });
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: expect.stringMatching(
+            /attachment_operation: failed \(Mutation succeeded.*attachment upload failed.*\); issue_type_edit: succeeded \(cleared\)/,
+          ),
+          assetUrls: [assetUrl],
+        });
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect((mutationCall?.[0] as string[]).join(" ")).toContain(
+          "issueTypeId:null",
+        );
+      });
+    });
+
+    it("applies an independent type edit when attachment failure has no URL", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          new AxiError("could not upload attachment", "NOT_FOUND"),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 10,
+          title: "UI bug",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+          id: "I_node10",
+          body: "",
+        });
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          code: "NOT_FOUND",
+          message:
+            "attachment_operation: failed (could not upload attachment); issue_type_edit: succeeded (cleared)",
+        });
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect((mutationCall?.[0] as string[]).join(" ")).toContain(
+          "issueTypeId:null",
+        );
+      });
+    });
+
+    it("preserves partial create state when fetching the issue fails", async () => {
+      await withPng(async (file) => {
+        mockTypeQueryOnce([{ id: "T_bug", name: "Bug" }]);
+        const url = "https://github.com/octo/repo/issues/99";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created issue", "UNKNOWN"),
+        );
+
+        await expect(
+          issueCommand(
+            ["create", "--title", "UI bug", "--type", "Bug", "--attach", file],
+            ctx,
+          ),
+        ).rejects.toMatchObject({
+          operationOutcomes: {
+            attachment_operation: expect.stringMatching(/^failed/),
+            issue_type_edit: "failed (Could not fetch the created issue)",
+          },
+        });
+      });
+    });
+
+    it("applies type before a failed partial-edit readback", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/10";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before", id: "I_node10" })
+          .mockRejectedValueOnce(
+            new AxiError("Could not fetch the edited issue", "UNKNOWN"),
+          );
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          operationOutcomes: {
+            attachment_operation: expect.stringMatching(/^failed/),
+            issue_type_edit: "succeeded (cleared)",
+          },
+        });
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect(mutationCall).toBeDefined();
+      });
+    });
+
+    it("preserves partial edit state when the type mutation fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/10";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 10,
+          title: "UI bug",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+          id: "I_node10",
+          body: "",
+        });
+        mockedGhRaw.mockResolvedValueOnce({
+          stdout: "",
+          stderr: "HTTP 403: Forbidden",
+          exitCode: 1,
+        });
+
+        await expect(
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: expect.stringMatching(
+            /attachment_operation: failed \(Mutation succeeded at .*issues\/10.*attachment upload failed.*\); issue_type_edit: failed \(Insufficient permissions/,
+          ),
+        });
+      });
+    });
+
+    it("still requires a body on comment when --attach is absent", async () => {
+      await expect(issueCommand(["comment", "99"], ctx)).rejects.toThrow(
+        /--body or --body-file is required/,
+      );
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("delegates raw attachment values to gh unchanged", async () => {
+      const values = ["#alt", "-", "--body", "./missing.png#alt", "./note.txt"];
+      mockedGhExecWithAttachmentState.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "T",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+        body: "",
+      });
+
+      await issueCommand(
+        [
+          "create",
+          "--title",
+          "T",
+          ...values.flatMap((value) => ["--attach", value]),
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+        [
+          "issue",
+          "create",
+          "--title",
+          "T",
+          "--body",
+          "",
+          ...values.flatMap((value) => ["--attach", value]),
+        ],
+        ctx,
+      );
     });
   });
 });

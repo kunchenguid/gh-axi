@@ -12,6 +12,105 @@ export type ErrorCode =
 
 export { AxiError, exitCodeForError };
 
+function toAxiError(error: unknown): AxiError {
+  return error instanceof AxiError
+    ? error
+    : new AxiError(
+        error instanceof Error ? error.message : String(error),
+        "UNKNOWN",
+      );
+}
+
+export class MutationFollowupError extends AxiError {
+  constructor(
+    readonly mutationState: string,
+    readonly followupError: AxiError,
+  ) {
+    super(
+      `Mutation succeeded at ${mutationState}, but follow-up operation failed: ${followupError.message}`,
+      followupError.code,
+      [
+        `Do not retry the mutation; inspect ${mutationState} before retrying the follow-up operation`,
+        ...followupError.suggestions,
+      ],
+    );
+    this.name = "MutationFollowupError";
+  }
+
+  static from(mutationState: string, error: unknown): MutationFollowupError {
+    return new MutationFollowupError(mutationState, toAxiError(error));
+  }
+}
+
+export class OperationOutcomeError extends AxiError {
+  readonly operationOutcomes: Record<string, string>;
+  readonly assetUrls: string[];
+
+  constructor(
+    error: AxiError,
+    operationOutcomes: Record<string, string>,
+    assetUrls: string[] = [],
+  ) {
+    super(error.message, error.code, error.suggestions);
+    this.name = "OperationOutcomeError";
+    this.operationOutcomes = operationOutcomes;
+    this.assetUrls = assetUrls;
+  }
+}
+
+export class AttachmentMutationError extends OperationOutcomeError {
+  constructor(
+    readonly stdout: string,
+    readonly mutationUrl: string,
+    readonly attachmentError: AxiError,
+    readonly followupError?: AxiError,
+    operationOutcomes: Record<string, string> = {
+      attachment_operation: "failed",
+    },
+    assetUrls: string[] = [],
+  ) {
+    super(
+      new AxiError(
+        `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${attachmentError.message}${followupError ? `; follow-up operation failed: ${followupError.message}` : ""}`,
+        attachmentError.code,
+        [
+          `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
+          ...attachmentError.suggestions,
+          ...(followupError?.suggestions ?? []),
+        ],
+      ),
+      operationOutcomes,
+      assetUrls,
+    );
+    this.name = "AttachmentMutationError";
+  }
+
+  withFollowupError(error: unknown): AttachmentMutationError {
+    return new AttachmentMutationError(
+      this.stdout,
+      this.mutationUrl,
+      this.attachmentError,
+      toAxiError(error),
+      this.operationOutcomes,
+      this.assetUrls,
+    );
+  }
+
+  withResults(
+    assetUrls: string[],
+    operationOutcomes: Record<string, string> = this.operationOutcomes,
+  ): AttachmentMutationError {
+    return new AttachmentMutationError(
+      this.stdout,
+      this.mutationUrl,
+      this.attachmentError,
+      this.followupError,
+      operationOutcomes,
+      assetUrls,
+    );
+  }
+}
+
 export class StackError extends AxiError {
   constructor(
     message: string,
@@ -131,6 +230,63 @@ const patterns: ErrorPattern[] = [
     pattern: /issue cannot be a sub-?issue of itself/i,
     code: "VALIDATION_ERROR",
     message: () => "An issue cannot be a sub-issue of itself",
+  },
+  {
+    // gh 2.98 and older reject --attach as an unknown flag. Must sit ahead of
+    // any broader unknown-flag pattern so the upgrade hint is not swallowed.
+    pattern: /unknown flag: --attach/,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "--attach requires gh >= 2.99.0. Upgrade gh, or set GH_BIN to a 2.99.0+ binary",
+    suggestions: () => [
+      "Install GitHub CLI 2.99.0 or newer from https://github.com/cli/cli/releases",
+      "Or point GH_BIN at a 2.99.0+ gh binary",
+    ],
+  },
+  {
+    pattern: /`--attach` accepts at most 50 values per command/,
+    code: "VALIDATION_ERROR",
+    message: () => "--attach accepts at most 50 values per command",
+  },
+  {
+    pattern: /`--attach` is not supported when using (`--\S+`)/,
+    code: "VALIDATION_ERROR",
+    message: (m) => `--attach cannot be combined with ${m[1]}`,
+  },
+  {
+    pattern:
+      /^could not upload ([^\n]+)\nattaching files requires write access to the repository$/im,
+    code: "FORBIDDEN",
+    message: (m) =>
+      `Could not upload ${m[1]}: attaching files requires write access to the repository`,
+  },
+  {
+    pattern: /cannot set alt text on video/,
+    code: "VALIDATION_ERROR",
+    message: () => "--attach: cannot set alt text on video",
+  },
+  {
+    pattern: /^(.+?) is not a supported file type \(supported: ([^)]+)\)$/m,
+    code: "VALIDATION_ERROR",
+    message: (m) =>
+      `--attach ${m[1]} is not a supported file type (supported: ${m[2]})`,
+  },
+  {
+    pattern: /^(.+?): images must be at most ([^\n]+)$/m,
+    code: "VALIDATION_ERROR",
+    message: (m) => `--attach ${m[1]}: images must be at most ${m[2].trim()}`,
+  },
+  {
+    pattern: /^(.+?): videos must be at most ([^\n]+)$/m,
+    code: "VALIDATION_ERROR",
+    message: (m) => `--attach ${m[1]}: videos must be at most ${m[2].trim()}`,
+  },
+  {
+    pattern:
+      /attach(?:ment)? uploads? (?:are|is) not (?:supported|available).*(?:Enterprise Server|GHES)/i,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "--attach is not supported on GitHub Enterprise Server in this gh release",
   },
   {
     pattern: /HTTP 403/,
