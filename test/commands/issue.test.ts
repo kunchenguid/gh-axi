@@ -21,7 +21,10 @@ import {
   ISSUE_HELP,
   SUBISSUE_HELP,
 } from "../../src/commands/issue.js";
-import { AxiError } from "../../src/errors.js";
+import {
+  AttachmentMutationError,
+  AxiError,
+} from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 import { withPng, withTempDir, TINY_PNG } from "../helpers/media.js";
 
@@ -58,6 +61,17 @@ const ctx: RepoContext = {
   nwo: "octo/repo",
   source: "flag",
 };
+
+function partialAttachmentError(url: string): AttachmentMutationError {
+  return new AttachmentMutationError(
+    `${url}\n`,
+    url,
+    new AxiError(
+      "--attach second.png: images must be at most 10 MB",
+      "VALIDATION_ERROR",
+    ),
+  );
+}
 
 async function withBodyFile<T>(
   body: string,
@@ -1774,6 +1788,84 @@ describe("issueCommand", () => {
         expect(result).toContain("alice");
         expect(result).toContain(file);
         expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("applies the requested type before surfacing partial create failure", async () => {
+      await withPng(async (file) => {
+        mockTypeQueryOnce([{ id: "T_bug", name: "Bug" }]);
+        const url = "https://github.com/octo/repo/issues/99";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "UI bug",
+          state: "OPEN",
+          url,
+          id: "I_node99",
+          body: "",
+        });
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(
+            [
+              "create",
+              "--title",
+              "UI bug",
+              "--type",
+              "Bug",
+              "--attach",
+              file,
+            ],
+            ctx,
+          ),
+        ).rejects.toThrow(/Mutation succeeded.*attachment upload failed/);
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect(mutationCall?.[0]).toEqual(
+          expect.arrayContaining(["-f", "id=I_node99", "-f", "typeId=T_bug"]),
+        );
+      });
+    });
+
+    it("clears the type before surfacing partial edit failure", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/10";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 10,
+          title: "UI bug",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+          id: "I_node10",
+          body: "",
+        });
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(
+            ["edit", "10", "--no-type", "--attach", file],
+            ctx,
+          ),
+        ).rejects.toThrow(/Mutation succeeded.*attachment upload failed/);
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect((mutationCall?.[0] as string[]).join(" ")).toContain(
+          "issueTypeId:null",
+        );
       });
     });
 

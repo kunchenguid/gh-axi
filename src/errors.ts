@@ -12,6 +12,24 @@ export type ErrorCode =
 
 export { AxiError, exitCodeForError };
 
+export class AttachmentMutationError extends AxiError {
+  constructor(
+    readonly stdout: string,
+    readonly mutationUrl: string,
+    error: AxiError,
+  ) {
+    super(
+      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${error.message}`,
+      error.code,
+      [
+        `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
+        ...error.suggestions,
+      ],
+    );
+    this.name = "AttachmentMutationError";
+  }
+}
+
 export class StackError extends AxiError {
   constructor(
     message: string,

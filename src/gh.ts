@@ -1,6 +1,11 @@
 import { execFile } from "node:child_process";
 import { type RepoContext } from "./context.js";
-import { AxiError, ghNotInstalledError, mapGhError } from "./errors.js";
+import {
+  AttachmentMutationError,
+  AxiError,
+  ghNotInstalledError,
+  mapGhError,
+} from "./errors.js";
 
 export interface ExecResult {
   stdout: string;
@@ -118,14 +123,7 @@ export async function ghExecWithAttachmentState(
     const error = mapGhError(result.stderr, result.exitCode);
     const mutationUrl = result.stdout.match(/https?:\/\/[^\s]+/)?.[0];
     if (!mutationUrl) throw error;
-    throw new AxiError(
-      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${error.message}`,
-      error.code,
-      [
-        `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
-        ...error.suggestions,
-      ],
-    );
+    throw new AttachmentMutationError(result.stdout, mutationUrl, error);
   }
   return result.stdout;
 }

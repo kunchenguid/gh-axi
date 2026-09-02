@@ -6,7 +6,11 @@ import {
   ghExecWithAttachmentState,
   ghRaw,
 } from "../gh.js";
-import { AxiError, mapGhError } from "../errors.js";
+import {
+  AttachmentMutationError,
+  AxiError,
+  mapGhError,
+} from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   hasFlag,
@@ -576,10 +580,20 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   // gh issue create outputs the URL; use --json to get structured data
   // Unfortunately gh issue create doesn't support --json, so we parse the URL
-  const output =
-    attachments.length > 0
-      ? await ghExecWithAttachmentState(ghArgs, ctx)
-      : await ghExec(ghArgs, ctx);
+  let output: string;
+  let attachmentError: AttachmentMutationError | undefined;
+  try {
+    output =
+      attachments.length > 0
+        ? await ghExecWithAttachmentState(ghArgs, ctx)
+        : await ghExec(ghArgs, ctx);
+  } catch (error) {
+    if (!(error instanceof AttachmentMutationError) || !resolvedType) {
+      throw error;
+    }
+    output = error.stdout;
+    attachmentError = error;
+  }
   const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/);
   const url = urlMatch ? urlMatch[0] : output.trim();
   const numMatch = url.match(/\/issues\/(\d+)/);
@@ -602,6 +616,8 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
     }
     item.issueType = { name: resolvedType.name };
   }
+
+  if (attachmentError) throw attachmentError;
 
   const schema = resolvedType
     ? [...createResultSchema, issueTypeField]
@@ -656,11 +672,22 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   // Only call `gh issue edit` if there is a non-type field to update; otherwise
   // calling with just the issue number errors out.
+  let attachmentError: AttachmentMutationError | undefined;
   if (ghArgs.length > 3) {
-    if (attachments.length > 0) {
-      await ghExecWithAttachmentState(ghArgs, ctx);
-    } else {
-      await ghExec(ghArgs, ctx);
+    try {
+      if (attachments.length > 0) {
+        await ghExecWithAttachmentState(ghArgs, ctx);
+      } else {
+        await ghExec(ghArgs, ctx);
+      }
+    } catch (error) {
+      if (
+        !(error instanceof AttachmentMutationError) ||
+        (!resolvedType && !clearTypeFlag)
+      ) {
+        throw error;
+      }
+      attachmentError = error;
     }
   }
 
@@ -681,6 +708,8 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
     }
     item.issueType = resolvedType ? { name: resolvedType.name } : null;
   }
+
+  if (attachmentError) throw attachmentError;
 
   const schema =
     resolvedType || clearTypeFlag
