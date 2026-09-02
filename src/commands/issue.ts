@@ -29,6 +29,7 @@ import {
   ATTACH_BODY_OPTIONS,
   attachBodyOptions,
   collectAttachments,
+  hasAttachmentFlag,
   pushAttachments,
   preserveAttachMutation,
   renderAttachOutput,
@@ -574,7 +575,6 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
   const attachments = collectAttachments(args, "get");
-  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
@@ -672,7 +672,6 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const title = getFlag(args, "--title");
   const attachments = collectAttachments(args, "get");
-  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = getAllFlags(args, "--add-label");
   const removeLabels = getAllFlags(args, "--remove-label");
@@ -888,7 +887,6 @@ async function commentOnIssue(
 ): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
   const attachments = collectAttachments(args, "get");
-  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
   const ghArgs = ["issue", "comment", String(num)];
@@ -1495,6 +1493,13 @@ export async function issueCommand(
     return renderOutput(blocks);
   }
 
+  if (
+    (sub === "create" || sub === "edit" || sub === "comment") &&
+    hasAttachmentFlag(args)
+  ) {
+    await ensureAttachmentSupport();
+  }
+
   switch (sub) {
     case "list":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.list, "issue", "list");
@@ -1503,10 +1508,14 @@ export async function issueCommand(
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.view, "issue", "view");
       return viewIssue(args, ctx);
     case "create":
-      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.create, "issue", "create");
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.create, "issue", "create", [
+        "--attach",
+      ]);
       return createIssue(args, ctx);
     case "edit":
-      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.edit, "issue", "edit");
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.edit, "issue", "edit", [
+        "--attach",
+      ]);
       return editIssue(args, ctx);
     case "close":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.close, "issue", "close");
@@ -1520,6 +1529,7 @@ export async function issueCommand(
         ISSUE_FLAGS.comment,
         "issue",
         "comment",
+        ["--attach"],
       );
       return commentOnIssue(args, ctx);
     case "delete":

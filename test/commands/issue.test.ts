@@ -1656,20 +1656,22 @@ describe("issueCommand", () => {
       expect(mockedEnsureAttachmentSupport).not.toHaveBeenCalled();
     });
 
-    it("rejects old gh before running an attach mutation", async () => {
-      await withPng(async (file) => {
-        mockedEnsureAttachmentSupport.mockRejectedValue(
-          new AxiError(
-            "--attach requires gh 2.99.0+; installed gh 2.98.0",
-            "VALIDATION_ERROR",
-          ),
-        );
+    it("rejects old gh before inspecting an attach value", async () => {
+      mockedEnsureAttachmentSupport.mockRejectedValue(
+        new AxiError(
+          "--attach requires gh 2.99.0+; installed gh 2.98.0",
+          "VALIDATION_ERROR",
+        ),
+      );
 
-        await expect(
-          issueCommand(["create", "--title", "UI bug", "--attach", file], ctx),
-        ).rejects.toThrow("--attach requires gh 2.99.0+; installed gh 2.98.0");
-        expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
-      });
+      await expect(
+        issueCommand(
+          ["create", "--title", "UI bug", "--attach", "./missing.png"],
+          ctx,
+        ),
+      ).rejects.toThrow("--attach requires gh 2.99.0+; installed gh 2.98.0");
+      expect(mockedEnsureAttachmentSupport).toHaveBeenCalledOnce();
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
     });
 
     it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
@@ -1706,7 +1708,6 @@ describe("issueCommand", () => {
         );
         expect(result).toContain("attachments");
         expect(result).toContain(file);
-        expect(result).toContain("image");
         expect(result).toContain(assetUrl);
       });
     });
@@ -1727,7 +1728,7 @@ describe("issueCommand", () => {
       });
     });
 
-    it("preserves hashes in filenames and splits alt text at the longest existing path", async () => {
+    it("forwards hash-containing attachment values unchanged", async () => {
       await withTempDir(async (dir) => {
         const file = join(dir, "screen#1.png");
         writeFileSync(file, TINY_PNG);
@@ -1956,63 +1957,39 @@ describe("issueCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
-    it("rejects an unsupported type before calling gh", async () => {
-      await withTempDir(async (dir) => {
-        const file = join(dir, "note.txt");
-        writeFileSync(file, "not an image");
-        await expect(
-          issueCommand(["create", "--title", "T", "--attach", file], ctx),
-        ).rejects.toThrow(/not a supported file type/);
-        expect(mockedGhExec).not.toHaveBeenCalled();
-      });
-    });
-
-    it("rejects an oversized image before calling gh", async () => {
-      await withTempDir(async (dir) => {
-        const file = join(dir, "huge.png");
-        writeFileSync(file, Buffer.alloc(10 * 1024 * 1024 + 1));
-        await expect(
-          issueCommand(["create", "--title", "T", "--attach", file], ctx),
-        ).rejects.toThrow(/images must be at most 10 MB/);
-        expect(mockedGhExec).not.toHaveBeenCalled();
-      });
-    });
-
-    it("rejects alt text on a video before calling gh", async () => {
-      await withTempDir(async (dir) => {
-        const file = join(dir, "clip.mp4");
-        writeFileSync(file, TINY_PNG);
-        await expect(
-          issueCommand(
-            ["create", "--title", "T", "--attach", `${file}#nope`],
-            ctx,
-          ),
-        ).rejects.toThrow(/cannot set alt text on video/);
-        expect(mockedGhExec).not.toHaveBeenCalled();
-      });
-    });
-
-    it("rejects more than 50 attachments before calling gh", async () => {
-      await withPng(async (file) => {
-        const args = ["create", "--title", "T"];
-        for (let i = 0; i < 51; i++) args.push("--attach", file);
-        await expect(issueCommand(args, ctx)).rejects.toThrow(
-          /at most 50 values/,
-        );
-        expect(mockedGhExec).not.toHaveBeenCalled();
-      });
-    });
-
-    it("uses the last hash fallback for a missing path with alt text", async () => {
-      await expect(
-        issueCommand(
-          ["create", "--title", "T", "--attach", "./no-such-file.png#alt"],
-          ctx,
-        ),
-      ).rejects.toThrow(
-        /--attach \.\/no-such-file\.png: no such file or directory/,
+    it("delegates raw attachment values to gh unchanged", async () => {
+      const values = ["#alt", "-", "./missing.png#alt", "./note.txt"];
+      mockedGhExecWithAttachmentState.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
       );
-      expect(mockedGhExec).not.toHaveBeenCalled();
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "T",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+        body: "",
+      });
+
+      await issueCommand(
+        [
+          "create",
+          "--title",
+          "T",
+          ...values.flatMap((value) => ["--attach", value]),
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+        [
+          "issue",
+          "create",
+          "--title",
+          "T",
+          ...values.flatMap((value) => ["--attach", value]),
+        ],
+        ctx,
+      );
     });
   });
 });

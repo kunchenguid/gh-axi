@@ -76,7 +76,7 @@ describe.skipIf(!live)("live --attach upload via gh-axi CLI", () => {
 
       const stdout = created.read();
       expect(stdout).toContain("attachments");
-      expect(stdout).toContain("image");
+      expect(stdout).toContain(file);
       expect(stdout).toMatch(/user-attachments\/assets\//);
 
       const numMatch = stdout.match(/number:\s*(\d+)/);

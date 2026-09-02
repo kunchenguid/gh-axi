@@ -175,8 +175,10 @@ export function rejectUnknownFlags(
   known: readonly string[],
   command: string,
   sub: string,
+  dashValueFlags: readonly string[] = [],
 ): void {
   const knownSet = new Set(known);
+  const dashValueSet = new Set(dashValueFlags);
   const unknown: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const tok = args[i];
@@ -184,7 +186,10 @@ export function rejectUnknownFlags(
     if (!tok.startsWith("-")) continue;
     const name = tok.split("=", 1)[0];
     if (name === "--help" || name === "-h") continue;
-    if (knownSet.has(name)) continue;
+    if (knownSet.has(name)) {
+      if (dashValueSet.has(name) && !tok.includes("=")) i++;
+      continue;
+    }
     if (!unknown.includes(name)) unknown.push(name);
   }
   if (unknown.length === 0) return;

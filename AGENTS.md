@@ -93,7 +93,7 @@ Never expose an interactive path. Force `view --json`, `submit --auto`, and `mer
 
 ## Repeatable `--attach` (`src/attach.ts`)
 
-`--attach <path[#alt]>` is repeatable on `issue`/`pr` `create`, `edit`, and `comment` (gh itself does not offer it on `pr review`). Values are validated locally then forwarded to `gh`; the wrapped binary is `GH_BIN` or `gh` on PATH, and `--attach` requires gh >= 2.99.0. Tests resolve that binary from `GH_BIN`, then a worktree `.tools/gh-2.99.0/**/bin/gh`, then PATH. Live upload tests also need `GH_AXI_TEST_REPO` set to a captain-owned test repo, never a product repo.
+`--attach <path[#alt]>` is repeatable on `issue`/`pr` `create`, `edit`, and `comment` (gh itself does not offer it on `pr review`). gh-axi checks the wrapped binary (`GH_BIN` or `gh` on PATH) is >= 2.99.0 before validation, then forwards values unchanged so gh owns parsing, validation, and upload behavior. Tests resolve that binary from `GH_BIN`, then a worktree `.tools/gh-2.99.0/**/bin/gh`, then PATH. Live upload tests also need `GH_AXI_TEST_REPO` set to a captain-owned test repo, never a product repo.
 
 ## Raising PRs to upstream
 

@@ -21,7 +21,7 @@ import {
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
-import { withPng, withTempDir } from "../helpers/media.js";
+import { withPng } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
@@ -1316,15 +1316,21 @@ describe("prCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
-    it("rejects an unsupported type before calling gh", async () => {
-      await withTempDir(async (dir) => {
-        const file = join(dir, "note.txt");
-        writeFileSync(file, "nope");
-        await expect(
-          prCommand(["create", "--title", "T", "--attach", file], ctx),
-        ).rejects.toThrow(/not a supported file type/);
-        expect(mockedGhExec).not.toHaveBeenCalled();
-      });
+    it("surfaces gh attachment validation errors", async () => {
+      mockedGhExecWithAttachmentState.mockRejectedValue(
+        new AxiError(
+          "--attach ./note.txt is not a supported file type",
+          "VALIDATION_ERROR",
+        ),
+      );
+
+      await expect(
+        prCommand(["create", "--title", "T", "--attach", "./note.txt"], ctx),
+      ).rejects.toThrow("--attach ./note.txt is not a supported file type");
+      expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+        ["pr", "create", "--title", "T", "--attach", "./note.txt"],
+        ctx,
+      );
     });
 
     it("does not add --attach to pr review", async () => {

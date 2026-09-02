@@ -118,6 +118,77 @@ describe("CLI entrypoint", () => {
     });
   });
 
+  it("rejects old gh before inspecting attachment inputs", async () => {
+    mockedExecFileSync.mockReturnValue("https://github.com/octo/repo.git\n");
+    mockedExecFile.mockImplementation((_cmd, args, _opts, callback) => {
+      expect(args).toEqual(["--version"]);
+      (callback as ExecFileCallback)(
+        null,
+        "gh version 2.98.0 (2026-03-18)\n",
+        "",
+      );
+      return {} as ReturnType<typeof execFile>;
+    });
+    const output = createStdout();
+
+    await main({
+      argv: [
+        "issue",
+        "create",
+        "--title",
+        "UI bug",
+        "--attach",
+        "./missing.png",
+      ],
+      stdout: output.stdout,
+    });
+
+    expect(output.read()).toContain(
+      "--attach requires gh 2.99.0+; installed gh 2.98.0",
+    );
+    expect(mockedExecFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards raw attachment values to gh validation", async () => {
+    mockedExecFileSync.mockReturnValue("https://github.com/octo/repo.git\n");
+    mockedExecFile.mockImplementation((_cmd, args, _opts, callback) => {
+      const argv = args as string[];
+      if (argv[0] === "--version") {
+        (callback as ExecFileCallback)(
+          null,
+          "gh version 2.99.0 (2026-04-01)\n",
+          "",
+        );
+      } else {
+        expect(argv).toEqual([
+          "issue",
+          "create",
+          "--title",
+          "UI bug",
+          "--attach",
+          "#alt",
+        ]);
+        const error = new Error("exit 1") as Error & { code: number };
+        error.code = 1;
+        (callback as ExecFileCallback)(
+          error,
+          "",
+          "#alt: no such file or directory",
+        );
+      }
+      return {} as ReturnType<typeof execFile>;
+    });
+    const output = createStdout();
+
+    await main({
+      argv: ["issue", "create", "--title", "UI bug", "--attach", "#alt"],
+      stdout: output.stdout,
+    });
+
+    expect(output.read()).toContain("#alt: no such file or directory");
+    expect(mockedExecFile).toHaveBeenCalledTimes(2);
+  });
+
   it("posts issue create --attach through the real runtime and names asset URLs", async () => {
     await withPng(async (file) => {
       const assetUrl =
