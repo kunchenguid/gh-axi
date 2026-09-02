@@ -1818,6 +1818,32 @@ describe("issueCommand", () => {
       });
     });
 
+    it("reports attachment and type edit outcomes separately", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before" })
+          .mockResolvedValueOnce({
+            number: 10,
+            title: "T",
+            state: "OPEN",
+            labels: [],
+            assignees: [],
+            id: "I_node10",
+            body: "after",
+          });
+        mockTypeMutationOnce();
+
+        const result = await issueCommand(
+          ["edit", "10", "--no-type", "--attach", file],
+          ctx,
+        );
+
+        expect(result).toContain("attachment_operation: succeeded");
+        expect(result).toContain("issue_type_edit: succeeded (cleared)");
+      });
+    });
+
     it("fetches the created attached comment by its emitted URL", async () => {
       await withPng(async (file) => {
         mockedGhExecWithAttachmentState.mockResolvedValue(
@@ -1902,7 +1928,11 @@ describe("issueCommand", () => {
 
         await expect(
           issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
-        ).rejects.toThrow(/Mutation succeeded.*attachment upload failed/);
+        ).rejects.toMatchObject({
+          message: expect.stringMatching(
+            /attachment_operation: failed \(Mutation succeeded.*attachment upload failed.*\); issue_type_edit: succeeded \(cleared\)/,
+          ),
+        });
 
         const mutationCall = mockedGhRaw.mock.calls.find((call) =>
           (call[0] as string[]).some(
@@ -1935,7 +1965,8 @@ describe("issueCommand", () => {
           issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
         ).rejects.toMatchObject({
           code: "NOT_FOUND",
-          message: "could not upload attachment",
+          message:
+            "attachment_operation: failed (could not upload attachment); issue_type_edit: succeeded (cleared)",
         });
 
         const mutationCall = mockedGhRaw.mock.calls.find((call) =>
@@ -1998,7 +2029,7 @@ describe("issueCommand", () => {
           issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
         ).rejects.toMatchObject({
           message: expect.stringMatching(
-            /Mutation succeeded at .*issues\/10.*attachment upload failed.*follow-up operation failed: Insufficient permissions/,
+            /attachment_operation: failed \(Mutation succeeded at .*issues\/10.*attachment upload failed.*\); issue_type_edit: failed \(Insufficient permissions/,
           ),
         });
       });
@@ -2012,7 +2043,7 @@ describe("issueCommand", () => {
     });
 
     it("delegates raw attachment values to gh unchanged", async () => {
-      const values = ["#alt", "-", "./missing.png#alt", "./note.txt"];
+      const values = ["#alt", "-", "--body", "./missing.png#alt", "./note.txt"];
       mockedGhExecWithAttachmentState.mockResolvedValue(
         "https://github.com/octo/repo/issues/99\n",
       );

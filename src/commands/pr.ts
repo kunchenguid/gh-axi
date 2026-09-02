@@ -538,10 +538,13 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput([renderDetail("pull_request", pr, schema)]);
 }
 
-async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
+async function prCreate(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
-  const attachments = collectAttachments(args, "take");
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const base = takeFlag(args, "--base");
   const head = takeFlag(args, "--head");
@@ -599,10 +602,13 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput(blocks);
 }
 
-async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
+async function prEdit(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const num = takeNumber(args, "PR");
   const title = takeFlag(args, "--title");
-  const attachments = collectAttachments(args, "take");
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = takeAllFlags(args, "--add-label");
   const removeLabels = takeAllFlags(args, "--remove-label");
@@ -993,9 +999,12 @@ async function prReopen(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
-async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
+async function prComment(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const num = takeNumber(args, "PR");
-  const attachments = collectAttachments(args, "take");
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
   const ghArgs = ["pr", "comment", String(num)];
@@ -1131,11 +1140,13 @@ export async function prCommand(
   const sub = args[0];
   const rest = args.slice(1);
 
+  let attachments: string[] = [];
   if (
     (sub === "create" || sub === "edit" || sub === "comment") &&
     hasAttachmentFlag(rest)
   ) {
     await ensureAttachmentSupport();
+    attachments = collectAttachments(rest, "take");
   }
 
   switch (sub) {
@@ -1146,11 +1157,11 @@ export async function prCommand(
       rejectUnknownFlags(rest, PR_FLAGS.view, "pr", "view");
       return prView(rest, ctx);
     case "create":
-      rejectUnknownFlags(rest, PR_FLAGS.create, "pr", "create", ["--attach"]);
-      return prCreate(rest, ctx);
+      rejectUnknownFlags(rest, PR_FLAGS.create, "pr", "create");
+      return prCreate(rest, ctx, attachments);
     case "edit":
-      rejectUnknownFlags(rest, PR_FLAGS.edit, "pr", "edit", ["--attach"]);
-      return prEdit(rest, ctx);
+      rejectUnknownFlags(rest, PR_FLAGS.edit, "pr", "edit");
+      return prEdit(rest, ctx, attachments);
     case "close":
       rejectUnknownFlags(rest, PR_FLAGS.close, "pr", "close");
       return prClose(rest, ctx);
@@ -1176,8 +1187,8 @@ export async function prCommand(
       rejectUnknownFlags(rest, PR_FLAGS.reopen, "pr", "reopen");
       return prReopen(rest, ctx);
     case "comment":
-      rejectUnknownFlags(rest, PR_FLAGS.comment, "pr", "comment", ["--attach"]);
-      return prComment(rest, ctx);
+      rejectUnknownFlags(rest, PR_FLAGS.comment, "pr", "comment");
+      return prComment(rest, ctx, attachments);
     case "update-branch":
       rejectUnknownFlags(
         rest,

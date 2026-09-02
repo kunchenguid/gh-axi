@@ -1184,6 +1184,15 @@ describe("prCommand", () => {
       expect(mockedEnsureAttachmentSupport).not.toHaveBeenCalled();
     });
 
+    it("does not consume --attach as a missing title value", async () => {
+      await expect(
+        prCommand(["create", "--title", "--attach", "./a.png"], ctx),
+      ).rejects.toThrow("--title is required");
+
+      expect(mockedEnsureAttachmentSupport).toHaveBeenCalledOnce();
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+    });
+
     it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
       await withPng(async (file) => {
         mockedGhExecWithAttachmentState.mockResolvedValue(

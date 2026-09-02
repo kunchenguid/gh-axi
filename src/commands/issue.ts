@@ -570,11 +570,36 @@ async function preserveAttachmentState<T>(
   }
 }
 
-async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
+function issueEditOperationsError(
+  attachFailure: unknown,
+  typeFailure: unknown,
+  typeResult: string,
+): AxiError {
+  const attachError =
+    attachFailure instanceof AxiError ? attachFailure : undefined;
+  const typeError = typeFailure instanceof AxiError ? typeFailure : undefined;
+  const primary = attachError ?? typeError;
+  const attachOutcome = attachFailure
+    ? `failed (${attachError?.message ?? String(attachFailure)})`
+    : "succeeded";
+  const typeOutcome = typeFailure
+    ? `failed (${typeError?.message ?? String(typeFailure)})`
+    : `succeeded (${typeResult})`;
+  return new AxiError(
+    `attachment_operation: ${attachOutcome}; issue_type_edit: ${typeOutcome}`,
+    primary?.code ?? "UNKNOWN",
+    [...(attachError?.suggestions ?? []), ...(typeError?.suggestions ?? [])],
+  );
+}
+
+async function createIssue(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const title = getFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
-  const attachments = collectAttachments(args, "get");
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
@@ -669,11 +694,14 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput(blocks);
 }
 
-async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
+async function editIssue(
+  args: string[],
+  ctx: RepoContext | undefined,
+  attachments: string[],
+): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
 
   const title = getFlag(args, "--title");
-  const attachments = collectAttachments(args, "get");
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = getAllFlags(args, "--add-label");
   const removeLabels = getAllFlags(args, "--remove-label");
@@ -745,28 +773,54 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
       ),
   );
 
+  let typeFailure: unknown;
   if (resolvedType || clearTypeFlag) {
     const issueNodeId = item.id;
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await preserveAttachmentState(
-        attachmentError,
-        attachments.length > 0 && attachFailure === undefined
-          ? `issue #${num}`
-          : undefined,
-        () =>
-          applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null),
-      );
+      if (attachments.length > 0) {
+        try {
+          await applyIssueType(
+            issueNodeId,
+            resolvedType ? resolvedType.id : null,
+          );
+        } catch (error) {
+          typeFailure = error;
+        }
+      } else {
+        await applyIssueType(
+          issueNodeId,
+          resolvedType ? resolvedType.id : null,
+        );
+      }
     }
     item.issueType = resolvedType ? { name: resolvedType.name } : null;
   }
 
-  if (attachFailure) throw attachFailure;
+  if (attachFailure || typeFailure) {
+    throw issueEditOperationsError(
+      attachFailure,
+      typeFailure,
+      resolvedType ? `set to ${resolvedType.name}` : "cleared",
+    );
+  }
 
   const schema =
     resolvedType || clearTypeFlag
       ? [...editResultSchema, issueTypeField]
       : editResultSchema;
   const blocks: string[] = [renderDetail("issue", item, schema)];
+  if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
+    blocks.push(
+      renderDetail(
+        "operations",
+        {
+          attachment_operation: "succeeded",
+          issue_type_edit: `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`,
+        },
+        [field("attachment_operation"), field("issue_type_edit")],
+      ),
+    );
+  }
   const attachOut = renderAttachOutput(
     attachments,
     typeof item.body === "string" ? item.body : undefined,
@@ -888,10 +942,10 @@ async function reopenIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function commentOnIssue(
   args: string[],
-  ctx?: RepoContext,
+  ctx: RepoContext | undefined,
+  attachments: string[],
 ): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
-  const attachments = collectAttachments(args, "get");
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
   const ghArgs = ["issue", "comment", String(num)];
@@ -1498,11 +1552,13 @@ export async function issueCommand(
     return renderOutput(blocks);
   }
 
+  let attachments: string[] = [];
   if (
     (sub === "create" || sub === "edit" || sub === "comment") &&
     hasAttachmentFlag(args)
   ) {
     await ensureAttachmentSupport();
+    attachments = collectAttachments(args, "take");
   }
 
   switch (sub) {
@@ -1513,15 +1569,11 @@ export async function issueCommand(
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.view, "issue", "view");
       return viewIssue(args, ctx);
     case "create":
-      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.create, "issue", "create", [
-        "--attach",
-      ]);
-      return createIssue(args, ctx);
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.create, "issue", "create");
+      return createIssue(args, ctx, attachments);
     case "edit":
-      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.edit, "issue", "edit", [
-        "--attach",
-      ]);
-      return editIssue(args, ctx);
+      rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.edit, "issue", "edit");
+      return editIssue(args, ctx, attachments);
     case "close":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.close, "issue", "close");
       return closeIssue(args, ctx);
@@ -1534,9 +1586,8 @@ export async function issueCommand(
         ISSUE_FLAGS.comment,
         "issue",
         "comment",
-        ["--attach"],
       );
-      return commentOnIssue(args, ctx);
+      return commentOnIssue(args, ctx, attachments);
     case "delete":
       rejectUnknownFlags(args.slice(1), ISSUE_FLAGS.delete, "issue", "delete");
       return deleteIssue(args, ctx);
