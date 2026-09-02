@@ -711,6 +711,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   // Only call `gh issue edit` if there is a non-type field to update; otherwise
   // calling with just the issue number errors out.
   let attachmentError: AttachmentMutationError | undefined;
+  let attachFailure: unknown;
   if (ghArgs.length > 3) {
     try {
       if (attachments.length > 0) {
@@ -719,13 +720,9 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
         await ghExec(ghArgs, ctx);
       }
     } catch (error) {
-      if (
-        !(error instanceof AttachmentMutationError) ||
-        (!resolvedType && !clearTypeFlag)
-      ) {
-        throw error;
-      }
-      attachmentError = error;
+      if (!resolvedType && !clearTypeFlag) throw error;
+      attachFailure = error;
+      if (error instanceof AttachmentMutationError) attachmentError = error;
     }
   }
 
@@ -736,7 +733,9 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
       : "number,title,state,labels,assignees,id";
   const item = await preserveAttachmentState(
     attachmentError,
-    attachments.length > 0 ? `issue #${num}` : undefined,
+    attachments.length > 0 && attachFailure === undefined
+      ? `issue #${num}`
+      : undefined,
     () =>
       ghJson<Record<string, unknown>>(
         ["issue", "view", String(num), "--json", editJsonFields],
@@ -749,7 +748,9 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
       await preserveAttachmentState(
         attachmentError,
-        attachments.length > 0 ? `issue #${num}` : undefined,
+        attachments.length > 0 && attachFailure === undefined
+          ? `issue #${num}`
+          : undefined,
         () =>
           applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null),
       );
@@ -757,7 +758,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
     item.issueType = resolvedType ? { name: resolvedType.name } : null;
   }
 
-  if (attachmentError) throw attachmentError;
+  if (attachFailure) throw attachFailure;
 
   const schema =
     resolvedType || clearTypeFlag

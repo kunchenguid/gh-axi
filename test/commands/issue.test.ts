@@ -1899,6 +1899,40 @@ describe("issueCommand", () => {
       });
     });
 
+    it("applies an independent type edit when attachment failure has no URL", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          new AxiError("could not upload attachment", "NOT_FOUND"),
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 10,
+          title: "UI bug",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+          id: "I_node10",
+          body: "",
+        });
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          code: "NOT_FOUND",
+          message: "could not upload attachment",
+        });
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect((mutationCall?.[0] as string[]).join(" ")).toContain(
+          "issueTypeId:null",
+        );
+      });
+    });
+
     it("preserves partial create state when fetching the issue fails", async () => {
       await withPng(async (file) => {
         mockTypeQueryOnce([{ id: "T_bug", name: "Bug" }]);

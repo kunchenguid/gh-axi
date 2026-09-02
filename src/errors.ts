@@ -214,23 +214,30 @@ const patterns: ErrorPattern[] = [
     message: (m) => `--attach cannot be combined with ${m[1]}`,
   },
   {
+    pattern:
+      /^could not upload ([^\n]+)\nattaching files requires write access to the repository$/im,
+    code: "FORBIDDEN",
+    message: (m) =>
+      `Could not upload ${m[1]}: attaching files requires write access to the repository`,
+  },
+  {
     pattern: /cannot set alt text on video/,
     code: "VALIDATION_ERROR",
     message: () => "--attach: cannot set alt text on video",
   },
   {
-    pattern: /(\S+) is not a supported file type \(supported: ([^)]+)\)/,
+    pattern: /^(.+?) is not a supported file type \(supported: ([^)]+)\)$/m,
     code: "VALIDATION_ERROR",
     message: (m) =>
       `--attach ${m[1]} is not a supported file type (supported: ${m[2]})`,
   },
   {
-    pattern: /(\S+): images must be at most ([^\n]+)/,
+    pattern: /^(.+?): images must be at most ([^\n]+)$/m,
     code: "VALIDATION_ERROR",
     message: (m) => `--attach ${m[1]}: images must be at most ${m[2].trim()}`,
   },
   {
-    pattern: /(\S+): videos must be at most ([^\n]+)/,
+    pattern: /^(.+?): videos must be at most ([^\n]+)$/m,
     code: "VALIDATION_ERROR",
     message: (m) => `--attach ${m[1]}: videos must be at most ${m[2].trim()}`,
   },

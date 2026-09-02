@@ -218,19 +218,41 @@ describe("mapGhError", () => {
 
   it("maps gh attach type and size stderr to VALIDATION_ERROR", () => {
     const typeErr = mapGhError(
-      "./note.txt is not a supported file type (supported: png, jpg, jpeg, gif, webp, svg, mp4, mov, webm)",
+      "/tmp/my image.txt is not a supported file type (supported: png, jpg, jpeg, gif, webp, svg, mp4, mov, webm)",
       1,
     );
     expect(typeErr.code).toBe("VALIDATION_ERROR");
-    expect(typeErr.message).toContain("not a supported file type");
+    expect(typeErr.message).toContain("--attach /tmp/my image.txt");
 
-    const sizeErr = mapGhError("./big.png: images must be at most 10.0 MB", 1);
+    const sizeErr = mapGhError(
+      "/tmp/my big.png: images must be at most 10.0 MB",
+      1,
+    );
     expect(sizeErr.code).toBe("VALIDATION_ERROR");
-    expect(sizeErr.message).toContain("images must be at most");
+    expect(sizeErr.message).toContain("--attach /tmp/my big.png");
+
+    const videoSizeErr = mapGhError(
+      "/tmp/my clip.mp4: videos must be at most 100.0 MB",
+      1,
+    );
+    expect(videoSizeErr.code).toBe("VALIDATION_ERROR");
+    expect(videoSizeErr.message).toContain("--attach /tmp/my clip.mp4");
 
     const videoErr = mapGhError("cannot set alt text on video", 1);
     expect(videoErr.code).toBe("VALIDATION_ERROR");
     expect(videoErr.message).toContain("cannot set alt text on video");
+  });
+
+  it("retains the write-access reason for attachment upload failures", () => {
+    const err = mapGhError(
+      "could not upload /tmp/my image.png\nattaching files requires write access to the repository",
+      1,
+    );
+
+    expect(err.code).toBe("FORBIDDEN");
+    expect(err.message).toBe(
+      "Could not upload /tmp/my image.png: attaching files requires write access to the repository",
+    );
   });
 });
 
