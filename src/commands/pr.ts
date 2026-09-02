@@ -3,6 +3,7 @@ import type { RepoContext } from "../context.js";
 import { ghJson, ghExec, ghRaw } from "../gh.js";
 import { AxiError } from "../errors.js";
 import { takeBody, truncateBody } from "../body.js";
+import { fetchCreatedComment } from "../comment.js";
 import {
   ATTACH_BODY_OPTIONS,
   attachBodyOptions,
@@ -967,7 +968,7 @@ async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "comment", String(num)];
   if (body !== undefined) ghArgs.push("--body", body);
   pushAttachments(ghArgs, attachments);
-  await ghExec(ghArgs, ctx);
+  const commentOutput = await ghExec(ghArgs, ctx);
 
   const blocks = [
     renderDetail("commented", { number: num, status: "ok" }, [
@@ -976,12 +977,8 @@ async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
     ]),
   ];
   if (attachments.length > 0) {
-    const pr = await ghJson<{ comments?: PrComment[] }>(
-      ["pr", "view", String(num), "--json", "comments"],
-      ctx,
-    );
-    const last = pr.comments?.[pr.comments.length - 1];
-    const attachOut = renderAttachOutput(attachments, last?.body);
+    const createdComment = await fetchCreatedComment(commentOutput, ctx);
+    const attachOut = renderAttachOutput(attachments, createdComment.body);
     if (attachOut) blocks.push(attachOut);
   }
   blocks.push(

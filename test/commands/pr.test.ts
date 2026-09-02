@@ -1213,11 +1213,15 @@ describe("prCommand", () => {
       });
     });
 
-    it("allows comment with --attach and no --body", async () => {
+    it("fetches the created attached comment by its emitted URL", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue("");
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/pull/12#issuecomment-67890\n",
+        );
         mockedGhJson.mockResolvedValue({
-          comments: [{ body: `![repro](${assetUrl})` }],
+          user: { login: "alice" },
+          body: `![repro](${assetUrl})`,
+          created_at: "2026-01-01T00:00:00Z",
         });
 
         const result = await prCommand(
@@ -1229,6 +1233,10 @@ describe("prCommand", () => {
           ["pr", "comment", "12", "--attach", file],
           ctx,
         );
+        expect(mockedGhJson).toHaveBeenCalledWith([
+          "api",
+          "repos/octo/repo/issues/comments/67890",
+        ]);
         expect(result).toContain(file);
         expect(result).toContain(assetUrl);
       });

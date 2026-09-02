@@ -22,6 +22,7 @@ import {
   renderAttachOutput,
 } from "../attach.js";
 import { takeBody, truncateBody } from "../body.js";
+import { fetchCreatedComment } from "../comment.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import { formatCountLine } from "../format.js";
 import {
@@ -803,22 +804,26 @@ async function commentOnIssue(
   const ghArgs = ["issue", "comment", String(num)];
   if (body !== undefined) ghArgs.push("--body", body);
   pushAttachments(ghArgs, attachments);
-  await ghExec(ghArgs, ctx);
+  const commentOutput = await ghExec(ghArgs, ctx);
 
-  // Fetch the latest comment
-  const issue = await ghJson<{ comments: IssueComment[] }>(
-    ["issue", "view", String(num), "--json", "comments"],
-    ctx,
-  );
-  const lastComment = issue.comments[issue.comments.length - 1];
-  const commentItem = { ...lastComment, number: num };
+  let createdComment: IssueComment | undefined;
+  if (attachments.length > 0) {
+    createdComment = await fetchCreatedComment(commentOutput, ctx);
+  } else {
+    const issue = await ghJson<{ comments: IssueComment[] }>(
+      ["issue", "view", String(num), "--json", "comments"],
+      ctx,
+    );
+    createdComment = issue.comments[issue.comments.length - 1];
+  }
+  const commentItem = { ...createdComment, number: num };
 
   const blocks: string[] = [
     renderDetail("comment", commentItem, commentResultSchema),
   ];
   const attachOut = renderAttachOutput(
     attachments,
-    typeof lastComment?.body === "string" ? lastComment.body : undefined,
+    typeof createdComment?.body === "string" ? createdComment.body : undefined,
   );
   if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({

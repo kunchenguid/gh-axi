@@ -1698,17 +1698,15 @@ describe("issueCommand", () => {
       });
     });
 
-    it("allows comment with --attach and no --body", async () => {
+    it("fetches the created attached comment by its emitted URL", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue("");
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99#issuecomment-12345\n",
+        );
         mockedGhJson.mockResolvedValue({
-          comments: [
-            {
-              author: { login: "alice" },
-              body: `![repro](${assetUrl})`,
-              createdAt: "2026-01-01T00:00:00Z",
-            },
-          ],
+          user: { login: "alice" },
+          body: `![repro](${assetUrl})`,
+          created_at: "2026-01-01T00:00:00Z",
         });
 
         const result = await issueCommand(
@@ -1720,6 +1718,11 @@ describe("issueCommand", () => {
           ["issue", "comment", "99", "--attach", file],
           ctx,
         );
+        expect(mockedGhJson).toHaveBeenCalledWith([
+          "api",
+          "repos/octo/repo/issues/comments/12345",
+        ]);
+        expect(result).toContain("alice");
         expect(result).toContain(file);
         expect(result).toContain(assetUrl);
       });
