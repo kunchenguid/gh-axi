@@ -589,7 +589,9 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ["issue", "create", "--title", title];
-  if (body !== undefined) ghArgs.push("--body", body);
+  if (body !== undefined || attachments.length > 0) {
+    ghArgs.push("--body", body ?? "");
+  }
   pushAttachments(ghArgs, attachments);
   pushRepeated(ghArgs, "--assignee", assignees);
   pushRepeated(ghArgs, "--label", labels);

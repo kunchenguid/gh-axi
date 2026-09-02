@@ -165,6 +165,8 @@ describe("CLI entrypoint", () => {
           "create",
           "--title",
           "UI bug",
+          "--body",
+          "",
           "--attach",
           "#alt",
         ]);
@@ -232,7 +234,16 @@ describe("CLI entrypoint", () => {
 
       expect(mockedExecFile).toHaveBeenCalledWith(
         "gh",
-        ["issue", "create", "--title", "UI bug", "--attach", file],
+        [
+          "issue",
+          "create",
+          "--title",
+          "UI bug",
+          "--body",
+          "",
+          "--attach",
+          file,
+        ],
         expect.any(Object),
         expect.any(Function),
       );

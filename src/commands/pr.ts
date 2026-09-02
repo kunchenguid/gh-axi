@@ -553,7 +553,9 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const projects = takeAllFlags(args, "--project");
 
   const ghArgs = ["pr", "create", "--title", title];
-  if (body !== undefined) ghArgs.push("--body", body);
+  if (body !== undefined || attachments.length > 0) {
+    ghArgs.push("--body", body ?? "");
+  }
   pushAttachments(ghArgs, attachments);
   if (base) ghArgs.push("--base", base);
   if (head) ghArgs.push("--head", head);

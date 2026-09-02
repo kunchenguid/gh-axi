@@ -1200,7 +1200,18 @@ describe("prCommand", () => {
         );
 
         expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
-          ["pr", "create", "--title", "T", "--attach", spec, "--attach", file],
+          [
+            "pr",
+            "create",
+            "--title",
+            "T",
+            "--body",
+            "",
+            "--attach",
+            spec,
+            "--attach",
+            file,
+          ],
           ctx,
         );
         expect(result).toContain("attachments");
@@ -1328,7 +1339,16 @@ describe("prCommand", () => {
         prCommand(["create", "--title", "T", "--attach", "./note.txt"], ctx),
       ).rejects.toThrow("--attach ./note.txt is not a supported file type");
       expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
-        ["pr", "create", "--title", "T", "--attach", "./note.txt"],
+        [
+          "pr",
+          "create",
+          "--title",
+          "T",
+          "--body",
+          "",
+          "--attach",
+          "./note.txt",
+        ],
         ctx,
       );
     });
