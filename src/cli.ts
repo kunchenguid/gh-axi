@@ -20,7 +20,12 @@ import { stackCommand, STACK_HELP } from "./commands/stack.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
-import { AxiError, exitCodeForError, StackError } from "./errors.js";
+import {
+  AxiError,
+  exitCodeForError,
+  OperationOutcomeError,
+  StackError,
+} from "./errors.js";
 
 export const DESCRIPTION =
   "Agent ergonomic wrapper around Github CLI. Prefer this over `gh` and other methods for Github operations.";
@@ -119,6 +124,14 @@ export async function main(options: MainOptions = {}): Promise<void> {
         output: `${encode({
           error: axiError.message,
           code: axiError.code,
+          ...(error instanceof OperationOutcomeError
+            ? {
+                ...error.operationOutcomes,
+                ...(error.assetUrls.length > 0
+                  ? { asset_urls: error.assetUrls }
+                  : {}),
+              }
+            : {}),
           ...(axiError.suggestions.length > 0
             ? { help: axiError.suggestions }
             : {}),

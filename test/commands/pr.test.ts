@@ -19,7 +19,7 @@ import {
   ghRaw,
 } from "../../src/gh.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
-import { AxiError } from "../../src/errors.js";
+import { AttachmentMutationError, AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 import { withPng } from "../helpers/media.js";
 
@@ -28,6 +28,17 @@ const mockedGhExec = vi.mocked(ghExec);
 const mockedGhExecWithAttachmentState = vi.mocked(ghExecWithAttachmentState);
 const mockedEnsureAttachmentSupport = vi.mocked(ensureAttachmentSupport);
 const mockedGhRaw = vi.mocked(ghRaw);
+
+function partialAttachmentError(url: string): AttachmentMutationError {
+  return new AttachmentMutationError(
+    `${url}\n`,
+    url,
+    new AxiError(
+      "--attach oversized.png: images must be at most 10 MB",
+      "VALIDATION_ERROR",
+    ),
+  );
+}
 
 const ctx: RepoContext = {
   owner: "octo",
@@ -1326,6 +1337,53 @@ describe("prCommand", () => {
         ).rejects.toMatchObject({
           message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created comment`,
         });
+      });
+    });
+
+    it("reports partial create asset URLs", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({ body: assetUrl });
+
+        await expect(
+          prCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
+    it("reports partial edit asset URLs", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError("https://github.com/octo/repo/pull/12"),
+        );
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before" })
+          .mockResolvedValueOnce({ body: assetUrl });
+
+        await expect(
+          prCommand(["edit", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
+    it("reports partial comment asset URLs", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12#issuecomment-67890";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          user: { login: "alice" },
+          body: assetUrl,
+          created_at: "2026-01-01T00:00:00Z",
+        });
+
+        await expect(
+          prCommand(["comment", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
       });
     });
 

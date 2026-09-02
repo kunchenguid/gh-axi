@@ -42,21 +42,45 @@ export class MutationFollowupError extends AxiError {
   }
 }
 
-export class AttachmentMutationError extends AxiError {
+export class OperationOutcomeError extends AxiError {
+  readonly operationOutcomes: Record<string, string>;
+  readonly assetUrls: string[];
+
+  constructor(
+    error: AxiError,
+    operationOutcomes: Record<string, string>,
+    assetUrls: string[] = [],
+  ) {
+    super(error.message, error.code, error.suggestions);
+    this.name = "OperationOutcomeError";
+    this.operationOutcomes = operationOutcomes;
+    this.assetUrls = assetUrls;
+  }
+}
+
+export class AttachmentMutationError extends OperationOutcomeError {
   constructor(
     readonly stdout: string,
     readonly mutationUrl: string,
     readonly attachmentError: AxiError,
     readonly followupError?: AxiError,
+    operationOutcomes: Record<string, string> = {
+      attachment_operation: "failed",
+    },
+    assetUrls: string[] = [],
   ) {
     super(
-      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${attachmentError.message}${followupError ? `; follow-up operation failed: ${followupError.message}` : ""}`,
-      attachmentError.code,
-      [
-        `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
-        ...attachmentError.suggestions,
-        ...(followupError?.suggestions ?? []),
-      ],
+      new AxiError(
+        `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${attachmentError.message}${followupError ? `; follow-up operation failed: ${followupError.message}` : ""}`,
+        attachmentError.code,
+        [
+          `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
+          ...attachmentError.suggestions,
+          ...(followupError?.suggestions ?? []),
+        ],
+      ),
+      operationOutcomes,
+      assetUrls,
     );
     this.name = "AttachmentMutationError";
   }
@@ -67,6 +91,22 @@ export class AttachmentMutationError extends AxiError {
       this.mutationUrl,
       this.attachmentError,
       toAxiError(error),
+      this.operationOutcomes,
+      this.assetUrls,
+    );
+  }
+
+  withResults(
+    assetUrls: string[],
+    operationOutcomes: Record<string, string> = this.operationOutcomes,
+  ): AttachmentMutationError {
+    return new AttachmentMutationError(
+      this.stdout,
+      this.mutationUrl,
+      this.attachmentError,
+      this.followupError,
+      operationOutcomes,
+      assetUrls,
     );
   }
 }

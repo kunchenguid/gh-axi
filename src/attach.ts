@@ -55,6 +55,18 @@ export async function preserveAttachMutation<T>(
   }
 }
 
+export function newAttachmentUrls(
+  body: string | undefined,
+  baselineBody: string | undefined = "",
+): string[] {
+  const seenUrls = new Set(extractAttachmentUrls(baselineBody ?? ""));
+  return extractAttachmentUrls(body ?? "").filter((url) => {
+    if (seenUrls.has(url)) return false;
+    seenUrls.add(url);
+    return true;
+  });
+}
+
 export function renderAttachOutput(
   specs: string[],
   body: string | undefined,
@@ -62,14 +74,7 @@ export function renderAttachOutput(
 ): string {
   if (specs.length === 0) return "";
   const files = specs.map((file) => ({ file }));
-  const seenUrls = new Set(extractAttachmentUrls(baselineBody ?? ""));
-  const urls = extractAttachmentUrls(body ?? "")
-    .filter((url) => {
-      if (seenUrls.has(url)) return false;
-      seenUrls.add(url);
-      return true;
-    })
-    .map((url) => ({ url }));
+  const urls = newAttachmentUrls(body, baselineBody).map((url) => ({ url }));
   const blocks = [renderList("attachments", files, [field("file")])];
   if (urls.length > 0) {
     blocks.push(renderList("asset_urls", urls, [field("url")]));

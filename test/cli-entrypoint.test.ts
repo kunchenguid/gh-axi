@@ -191,6 +191,66 @@ describe("CLI entrypoint", () => {
     expect(mockedExecFile).toHaveBeenCalledTimes(2);
   });
 
+  it("reports partial-upload asset URLs alongside the failure", async () => {
+    await withPng(async (file) => {
+      const assetUrl =
+        "https://github.com/user-attachments/assets/partial-0000-0000-000000000001";
+      mockedExecFileSync.mockReturnValue("https://github.com/octo/repo.git\n");
+      mockedExecFile.mockImplementation((_cmd, args, _opts, callback) => {
+        const argv = args as string[];
+        if (argv[0] === "--version") {
+          (callback as ExecFileCallback)(
+            null,
+            "gh version 2.99.0 (2026-04-01)\n",
+            "",
+          );
+        } else if (argv[0] === "issue" && argv[1] === "create") {
+          const error = new Error("exit 1") as Error & { code: number };
+          error.code = 1;
+          (callback as ExecFileCallback)(
+            error,
+            "https://github.com/octo/repo/issues/99\n",
+            "oversized.png: images must be at most 10.0 MB",
+          );
+        } else {
+          (callback as ExecFileCallback)(
+            null,
+            JSON.stringify({
+              number: 99,
+              title: "UI bug",
+              state: "OPEN",
+              url: "https://github.com/octo/repo/issues/99",
+              body: `![uploaded](${assetUrl})`,
+            }),
+            "",
+          );
+        }
+        return {} as ReturnType<typeof execFile>;
+      });
+      const output = createStdout();
+
+      await main({
+        argv: [
+          "issue",
+          "create",
+          "--title",
+          "UI bug",
+          "--attach",
+          file,
+          "--attach",
+          "oversized.png",
+        ],
+        stdout: output.stdout,
+      });
+
+      const rendered = output.read();
+      expect(rendered).toContain("attachment_operation: failed");
+      expect(rendered).toContain("asset_urls");
+      expect(rendered).toContain(assetUrl);
+      expect(rendered).toContain("images must be at most 10.0 MB");
+    });
+  });
+
   it("posts issue create --attach through the real runtime and names asset URLs", async () => {
     await withPng(async (file) => {
       const assetUrl =

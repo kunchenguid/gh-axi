@@ -1822,7 +1822,7 @@ describe("issueCommand", () => {
       await withPng(async (file) => {
         mockedGhExecWithAttachmentState.mockResolvedValue("");
         mockedGhJson
-          .mockResolvedValueOnce({ body: "before" })
+          .mockResolvedValueOnce({ body: "before", id: "I_node10" })
           .mockResolvedValueOnce({
             number: 10,
             title: "T",
@@ -1874,6 +1874,24 @@ describe("issueCommand", () => {
       });
     });
 
+    it("reports partial comment asset URLs", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/99#issuecomment-12345";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson.mockResolvedValue({
+          user: { login: "alice" },
+          body: assetUrl,
+          created_at: "2026-01-01T00:00:00Z",
+        });
+
+        await expect(
+          issueCommand(["comment", "99", "--attach", file], ctx),
+        ).rejects.toMatchObject({ assetUrls: [assetUrl] });
+      });
+    });
+
     it("applies the requested type before surfacing partial create failure", async () => {
       await withPng(async (file) => {
         mockTypeQueryOnce([{ id: "T_bug", name: "Bug" }]);
@@ -1896,7 +1914,12 @@ describe("issueCommand", () => {
             ["create", "--title", "UI bug", "--type", "Bug", "--attach", file],
             ctx,
           ),
-        ).rejects.toThrow(/Mutation succeeded.*attachment upload failed/);
+        ).rejects.toMatchObject({
+          operationOutcomes: {
+            attachment_operation: expect.stringMatching(/^failed/),
+            issue_type_edit: "succeeded (set to Bug)",
+          },
+        });
 
         const mutationCall = mockedGhRaw.mock.calls.find((call) =>
           (call[0] as string[]).some(
@@ -1915,15 +1938,17 @@ describe("issueCommand", () => {
         mockedGhExecWithAttachmentState.mockRejectedValue(
           partialAttachmentError(url),
         );
-        mockedGhJson.mockResolvedValue({
-          number: 10,
-          title: "UI bug",
-          state: "OPEN",
-          labels: [],
-          assignees: [],
-          id: "I_node10",
-          body: "",
-        });
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before", id: "I_node10" })
+          .mockResolvedValueOnce({
+            number: 10,
+            title: "UI bug",
+            state: "OPEN",
+            labels: [],
+            assignees: [],
+            id: "I_node10",
+            body: assetUrl,
+          });
         mockTypeMutationOnce();
 
         await expect(
@@ -1932,6 +1957,7 @@ describe("issueCommand", () => {
           message: expect.stringMatching(
             /attachment_operation: failed \(Mutation succeeded.*attachment upload failed.*\); issue_type_edit: succeeded \(cleared\)/,
           ),
+          assetUrls: [assetUrl],
         });
 
         const mutationCall = mockedGhRaw.mock.calls.find((call) =>
@@ -1997,10 +2023,42 @@ describe("issueCommand", () => {
             ctx,
           ),
         ).rejects.toMatchObject({
-          message: expect.stringMatching(
-            /Mutation succeeded at .*issues\/99.*attachment upload failed.*follow-up operation failed: Could not fetch the created issue/,
-          ),
+          operationOutcomes: {
+            attachment_operation: expect.stringMatching(/^failed/),
+            issue_type_edit: "failed (Could not fetch the created issue)",
+          },
         });
+      });
+    });
+
+    it("applies type before a failed partial-edit readback", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/10";
+        mockedGhExecWithAttachmentState.mockRejectedValue(
+          partialAttachmentError(url),
+        );
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before", id: "I_node10" })
+          .mockRejectedValueOnce(
+            new AxiError("Could not fetch the edited issue", "UNKNOWN"),
+          );
+        mockTypeMutationOnce();
+
+        await expect(
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          operationOutcomes: {
+            attachment_operation: expect.stringMatching(/^failed/),
+            issue_type_edit: "succeeded (cleared)",
+          },
+        });
+
+        const mutationCall = mockedGhRaw.mock.calls.find((call) =>
+          (call[0] as string[]).some(
+            (arg) => typeof arg === "string" && arg.includes("updateIssue"),
+          ),
+        );
+        expect(mutationCall).toBeDefined();
       });
     });
 
