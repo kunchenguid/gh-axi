@@ -62,9 +62,13 @@ export function renderAttachOutput(
 ): string {
   if (specs.length === 0) return "";
   const files = specs.map((file) => ({ file }));
-  const baselineUrls = new Set(extractAttachmentUrls(baselineBody ?? ""));
+  const seenUrls = new Set(extractAttachmentUrls(baselineBody ?? ""));
   const urls = extractAttachmentUrls(body ?? "")
-    .filter((url) => !baselineUrls.has(url))
+    .filter((url) => {
+      if (seenUrls.has(url)) return false;
+      seenUrls.add(url);
+      return true;
+    })
     .map((url) => ({ url }));
   const blocks = [renderList("attachments", files, [field("file")])];
   if (urls.length > 0) {

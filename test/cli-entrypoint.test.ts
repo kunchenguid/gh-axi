@@ -218,7 +218,7 @@ describe("CLI entrypoint", () => {
               title: "UI bug",
               state: "OPEN",
               url: "https://github.com/octo/repo/issues/99",
-              body: `![repro](${assetUrl})`,
+              body: `![repro](${assetUrl})\n![repro again](${assetUrl})`,
             }),
             "",
           );
@@ -251,6 +251,7 @@ describe("CLI entrypoint", () => {
       expect(rendered).toContain("attachments");
       expect(rendered).toContain(file);
       expect(rendered).toContain(assetUrl);
+      expect(rendered.split(assetUrl)).toHaveLength(2);
     });
   });
 });
