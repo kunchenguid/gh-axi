@@ -3,6 +3,7 @@ import { AxiError } from "./errors.js";
 import { ghJson } from "./gh.js";
 
 export interface CreatedComment {
+  [key: string]: unknown;
   author?: { login: string };
   body?: string;
   createdAt?: string;
@@ -36,9 +37,7 @@ export async function fetchCreatedComment(
   ]);
 
   return {
-    ...(comment.user?.login
-      ? { author: { login: comment.user.login } }
-      : {}),
+    ...(comment.user?.login ? { author: { login: comment.user.login } } : {}),
     ...(comment.body !== undefined ? { body: comment.body } : {}),
     ...(comment.created_at !== undefined
       ? { createdAt: comment.created_at }
