@@ -11,10 +11,9 @@ const resolved = resolveTestGh();
 const ok =
   resolved !== undefined && versionAtLeast(resolved.version, ATTACH_MIN_GH);
 const skipReason = attachSkipReason(resolved);
-const inCi = Boolean(process.env["CI"] || process.env["GITHUB_ACTIONS"]);
 
 describe("gh --attach availability", () => {
-  it.skipIf(!ok && !inCi)(
+  it.skipIf(!ok)(
     ok
       ? `resolved gh ${resolved?.version} at ${resolved?.path} is >= ${ATTACH_MIN_GH}`
       : skipReason,

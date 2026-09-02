@@ -12,6 +12,36 @@ export type ErrorCode =
 
 export { AxiError, exitCodeForError };
 
+function toAxiError(error: unknown): AxiError {
+  return error instanceof AxiError
+    ? error
+    : new AxiError(
+        error instanceof Error ? error.message : String(error),
+        "UNKNOWN",
+      );
+}
+
+export class MutationFollowupError extends AxiError {
+  constructor(
+    readonly mutationState: string,
+    readonly followupError: AxiError,
+  ) {
+    super(
+      `Mutation succeeded at ${mutationState}, but follow-up operation failed: ${followupError.message}`,
+      followupError.code,
+      [
+        `Do not retry the mutation; inspect ${mutationState} before retrying the follow-up operation`,
+        ...followupError.suggestions,
+      ],
+    );
+    this.name = "MutationFollowupError";
+  }
+
+  static from(mutationState: string, error: unknown): MutationFollowupError {
+    return new MutationFollowupError(mutationState, toAxiError(error));
+  }
+}
+
 export class AttachmentMutationError extends AxiError {
   constructor(
     readonly stdout: string,
@@ -20,7 +50,7 @@ export class AttachmentMutationError extends AxiError {
     readonly followupError?: AxiError,
   ) {
     super(
-      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${attachmentError.message}${followupError ? `; follow-up issue type update failed: ${followupError.message}` : ""}`,
+      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${attachmentError.message}${followupError ? `; follow-up operation failed: ${followupError.message}` : ""}`,
       attachmentError.code,
       [
         `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
@@ -32,18 +62,11 @@ export class AttachmentMutationError extends AxiError {
   }
 
   withFollowupError(error: unknown): AttachmentMutationError {
-    const followupError =
-      error instanceof AxiError
-        ? error
-        : new AxiError(
-            error instanceof Error ? error.message : String(error),
-            "UNKNOWN",
-          );
     return new AttachmentMutationError(
       this.stdout,
       this.mutationUrl,
       this.attachmentError,
-      followupError,
+      toAxiError(error),
     );
   }
 }

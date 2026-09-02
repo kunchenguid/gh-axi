@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { ATTACH_MIN_GH_VERSION } from "./attach.js";
 import { type RepoContext } from "./context.js";
 import {
   AttachmentMutationError,
@@ -98,6 +99,42 @@ export async function ghJson<T = unknown>(
     throw new AxiError(
       `Unexpected gh output: ${result.stdout.slice(0, 200)}`,
       "UNKNOWN",
+    );
+  }
+}
+
+function versionAtLeast(actual: number[], required: number[]): boolean {
+  for (let index = 0; index < required.length; index++) {
+    if ((actual[index] ?? 0) > required[index]) return true;
+    if ((actual[index] ?? 0) < required[index]) return false;
+  }
+  return true;
+}
+
+export async function ensureAttachmentSupport(): Promise<void> {
+  const result = await run(["--version"]);
+  if (result.stderr === "ENOENT") throw missingGhError();
+  if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
+
+  const installed = result.stdout.match(/gh version (\d+)\.(\d+)\.(\d+)/);
+  if (!installed) {
+    throw new AxiError(
+      `Could not determine installed gh version; --attach requires gh ${ATTACH_MIN_GH_VERSION}+`,
+      "VALIDATION_ERROR",
+    );
+  }
+
+  const actual = installed.slice(1).map(Number);
+  const required = ATTACH_MIN_GH_VERSION.split(".").map(Number);
+  const supported = versionAtLeast(actual, required);
+  if (!supported) {
+    throw new AxiError(
+      `--attach requires gh ${ATTACH_MIN_GH_VERSION}+; installed gh ${installed[1]}.${installed[2]}.${installed[3]}`,
+      "VALIDATION_ERROR",
+      [
+        `Upgrade gh to ${ATTACH_MIN_GH_VERSION} or newer`,
+        `Or point GH_BIN at a ${ATTACH_MIN_GH_VERSION}+ gh binary`,
+      ],
     );
   }
 }

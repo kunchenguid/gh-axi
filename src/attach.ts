@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { extname } from "node:path";
 import { getAllFlags, pushRepeated, takeAllFlags } from "./args.js";
-import { AxiError } from "./errors.js";
+import { AxiError, MutationFollowupError } from "./errors.js";
 import { field, renderList } from "./toon.js";
 
 /** gh --attach shipped in GitHub CLI 2.99.0. */
@@ -57,7 +57,10 @@ export function parseAttachSpec(raw: string): { file: string; alt: string } {
     if (pathExists(file)) return { file, alt: raw.slice(hash + 1) };
   }
 
-  return { file: raw, alt: "" };
+  const hash = raw.lastIndexOf("#");
+  return hash === -1
+    ? { file: raw, alt: "" }
+    : { file: raw.slice(0, hash), alt: raw.slice(hash + 1) };
 }
 
 export function attachmentKind(file: string): AttachKind {
@@ -151,21 +154,31 @@ export function pushAttachments(ghArgs: string[], specs: string[]): void {
   pushRepeated(ghArgs, ATTACH_FLAG, specs);
 }
 
-/**
- * Named uploaded files plus every user-attachments URL in the resulting body.
- * URLs are listed separately rather than zipped to files: on edit, the body may
- * already contain older assets, so index pairing would be a lie.
- */
+export async function preserveAttachMutation<T>(
+  mutationState: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    throw MutationFollowupError.from(mutationState, error);
+  }
+}
+
 export function renderAttachOutput(
   specs: string[],
   body: string | undefined,
+  baselineBody: string | undefined = "",
 ): string {
   if (specs.length === 0) return "";
   const files = specs.map((raw) => {
     const { file } = parseAttachSpec(raw);
     return { file, kind: attachmentKind(file) };
   });
-  const urls = extractAttachmentUrls(body ?? "").map((url) => ({ url }));
+  const baselineUrls = new Set(extractAttachmentUrls(baselineBody ?? ""));
+  const urls = extractAttachmentUrls(body ?? "")
+    .filter((url) => !baselineUrls.has(url))
+    .map((url) => ({ url }));
   const blocks = [
     renderList("attachments", files, [field("file"), field("kind")]),
   ];

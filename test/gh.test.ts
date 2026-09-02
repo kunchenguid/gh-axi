@@ -4,6 +4,7 @@ import {
   ghJson,
   ghExec,
   ghExecWithAttachmentState,
+  ensureAttachmentSupport,
   ghRaw,
   ghExecWithStdin,
   resolveGhBin,
@@ -193,6 +194,30 @@ describe("ghExec", () => {
       "--repo",
       "cli/cli",
     ]);
+  });
+});
+
+describe("ensureAttachmentSupport", () => {
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  it("accepts gh 2.99.0 and newer", async () => {
+    mockExecFileResult(null, "gh version 2.99.0 (2026-04-01)\n", "");
+
+    await expect(ensureAttachmentSupport()).resolves.toBeUndefined();
+    expect(mockedExecFile.mock.calls[0][1]).toEqual(["--version"]);
+  });
+
+  it("rejects older gh with installed and required versions", async () => {
+    mockExecFileResult(null, "gh version 2.98.0 (2026-03-18)\n", "");
+
+    await expect(ensureAttachmentSupport()).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "--attach requires gh 2.99.0+; installed gh 2.98.0",
+    });
+    expect(mockedExecFile).toHaveBeenCalledTimes(1);
+    expect(mockedExecFile.mock.calls[0][1]).toEqual(["--version"]);
   });
 });
 

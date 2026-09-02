@@ -125,7 +125,13 @@ describe("CLI entrypoint", () => {
       mockedExecFileSync.mockReturnValue("https://github.com/octo/repo.git\n");
       mockedExecFile.mockImplementation((_cmd, args, _opts, callback) => {
         const argv = args as string[];
-        if (argv[0] === "issue" && argv[1] === "create") {
+        if (argv[0] === "--version") {
+          (callback as ExecFileCallback)(
+            null,
+            "gh version 2.99.0 (2026-04-01)\n",
+            "",
+          );
+        } else if (argv[0] === "issue" && argv[1] === "create") {
           (callback as ExecFileCallback)(
             null,
             "https://github.com/octo/repo/issues/99\n",

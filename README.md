@@ -42,7 +42,7 @@ npx skills add kunchenguid/gh-axi --skill gh-axi -g
 
 That is the entire setup - no npm install needed.
 The skill is a minimal discovery stub that directs your agent to the always-current `npx -y gh-axi` dashboard and help output instead of duplicating command guidance.
-You still need [`gh`](https://cli.github.com/) installed and authenticated via `gh auth login` (Node 20+ required). `--attach` on issue and pull request create/edit/comment requires **gh >= 2.99.0**; older `gh` returns a structured error rather than silently dropping the flag. Set `GH_BIN` to point at a specific `gh` binary.
+You still need [`gh`](https://cli.github.com/) installed and authenticated via `gh auth login` (Node 20+ required). gh-axi adds no new minimum `gh` version for existing commands. Only `--attach` on issue and pull request create/edit/comment requires **gh >= 2.99.0**; older `gh` returns a structured error before any mutation runs. Set `GH_BIN` to point at a specific `gh` binary.
 Stacked PR commands also require GitHub's official extension: `gh extension install github/gh-stack`.
 For GitHub Enterprise or another custom host, authenticate `gh` for that host and either pass `--hostname <host>` after the command or set `GH_HOST`.
 
@@ -119,7 +119,7 @@ For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 fil
 For releases, `--body` and `--body-file` are aliases for release notes, alongside `--notes` and `--notes-file`.
 For multi-line variable values, pipe stdin to `gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
 
-`--attach <path>` is repeatable on `issue` and `pr` `create`, `edit`, and `comment` (not `pr review`). It uploads a local image or video through the same `gh --attach` mechanism (requires **gh >= 2.99.0**) and inlines it in the Markdown body. Alt text is `path#alt` for images; videos cannot take alt text. Supported types: PNG, JPEG, GIF, WebP, SVG, MP4, MOV, WebM. Size limits match GitHub's web upload: 10 MB for images and GIFs, 10 MB for video on Free, 100 MB for video on paid plans. GitHub Enterprise Server is not supported in this gh release. Successful output names each attached file and any `user-attachments` asset URLs in the resulting body. Override the wrapped `gh` binary with `GH_BIN`.
+`--attach <path>` is repeatable on `issue` and `pr` `create`, `edit`, and `comment` (not `pr review`). It uploads a local image or video through the same `gh --attach` mechanism (requires **gh >= 2.99.0**) and inlines it in the Markdown body. Alt text is `path#alt` for images; videos cannot take alt text. Supported types: PNG, JPEG, GIF, WebP, SVG, MP4, MOV, WebM. Size limits match GitHub's web upload: 10 MB for images and GIFs, 10 MB for video on Free, 100 MB for video on paid plans. GitHub Enterprise Server is not supported in this gh release. Successful output names each attached file and only the `user-attachments` asset URLs uploaded by that invocation. Override the wrapped `gh` binary with `GH_BIN`.
 
 The label, assignee, reviewer, and project flags of `issue create`/`edit` and `pr create`/`edit` are repeatable: pass the flag once per value and every value reaches `gh`.
 `issue list` and `pr list` accept repeated `--label` filters the same way.

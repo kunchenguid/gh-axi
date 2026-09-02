@@ -4,11 +4,13 @@ import {
   ghJson,
   ghExec,
   ghExecWithAttachmentState,
+  ensureAttachmentSupport,
   ghRaw,
 } from "../gh.js";
 import {
   AttachmentMutationError,
   AxiError,
+  MutationFollowupError,
   mapGhError,
 } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
@@ -28,6 +30,7 @@ import {
   attachBodyOptions,
   collectAttachments,
   pushAttachments,
+  preserveAttachMutation,
   renderAttachOutput,
 } from "../attach.js";
 import { takeBody, truncateBody } from "../body.js";
@@ -554,12 +557,14 @@ async function applyIssueType(
 
 async function preserveAttachmentState<T>(
   attachmentError: AttachmentMutationError | undefined,
+  mutationState: string | undefined,
   operation: () => Promise<T>,
 ): Promise<T> {
   try {
     return await operation();
   } catch (error) {
     if (attachmentError) throw attachmentError.withFollowupError(error);
+    if (mutationState) throw MutationFollowupError.from(mutationState, error);
     throw error;
   }
 }
@@ -569,6 +574,7 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
   const attachments = collectAttachments(args, "get");
+  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
@@ -616,18 +622,23 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
     attachments.length > 0
       ? "number,title,state,url,id,body"
       : "number,title,state,url,id";
-  const item = await preserveAttachmentState(attachmentError, () =>
-    ghJson<Record<string, unknown>>(
-      ["issue", "view", String(num), "--json", createJsonFields],
-      ctx,
-    ),
+  const item = await preserveAttachmentState(
+    attachmentError,
+    attachments.length > 0 ? url : undefined,
+    () =>
+      ghJson<Record<string, unknown>>(
+        ["issue", "view", String(num), "--json", createJsonFields],
+        ctx,
+      ),
   );
 
   if (resolvedType) {
     const issueNodeId = item.id;
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await preserveAttachmentState(attachmentError, () =>
-        applyIssueType(issueNodeId, resolvedType.id),
+      await preserveAttachmentState(
+        attachmentError,
+        attachments.length > 0 ? url : undefined,
+        () => applyIssueType(issueNodeId, resolvedType.id),
       );
     }
     item.issueType = { name: resolvedType.name };
@@ -642,6 +653,7 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const attachOut = renderAttachOutput(
     attachments,
     typeof item.body === "string" ? item.body : undefined,
+    body,
   );
   if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
@@ -660,6 +672,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const title = getFlag(args, "--title");
   const attachments = collectAttachments(args, "get");
+  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = getAllFlags(args, "--add-label");
   const removeLabels = getAllFlags(args, "--remove-label");
@@ -669,6 +682,14 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const clearType = takeBoolFlag(args, "--no-type");
   const typeName = getOptionalRequiredFlag(args, "--type");
   const clearTypeFlag = clearType;
+  let attachmentBaseline = body;
+  if (attachments.length > 0 && attachmentBaseline === undefined) {
+    const current = await ghJson<{ body?: string }>(
+      ["issue", "view", String(num), "--json", "body"],
+      ctx,
+    );
+    attachmentBaseline = current.body;
+  }
 
   // Resolve type up front so an invalid value fails before mutating the issue.
   let resolvedType: ResolvedIssueType | undefined;
@@ -712,18 +733,24 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
     attachments.length > 0
       ? "number,title,state,labels,assignees,id,body"
       : "number,title,state,labels,assignees,id";
-  const item = await preserveAttachmentState(attachmentError, () =>
-    ghJson<Record<string, unknown>>(
-      ["issue", "view", String(num), "--json", editJsonFields],
-      ctx,
-    ),
+  const item = await preserveAttachmentState(
+    attachmentError,
+    attachments.length > 0 ? `issue #${num}` : undefined,
+    () =>
+      ghJson<Record<string, unknown>>(
+        ["issue", "view", String(num), "--json", editJsonFields],
+        ctx,
+      ),
   );
 
   if (resolvedType || clearTypeFlag) {
     const issueNodeId = item.id;
     if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      await preserveAttachmentState(attachmentError, () =>
-        applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null),
+      await preserveAttachmentState(
+        attachmentError,
+        attachments.length > 0 ? `issue #${num}` : undefined,
+        () =>
+          applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null),
       );
     }
     item.issueType = resolvedType ? { name: resolvedType.name } : null;
@@ -739,6 +766,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const attachOut = renderAttachOutput(
     attachments,
     typeof item.body === "string" ? item.body : undefined,
+    attachmentBaseline,
   );
   if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
@@ -860,6 +888,7 @@ async function commentOnIssue(
 ): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
   const attachments = collectAttachments(args, "get");
+  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
   const ghArgs = ["issue", "comment", String(num)];
@@ -872,7 +901,9 @@ async function commentOnIssue(
 
   let createdComment: IssueComment | undefined;
   if (attachments.length > 0) {
-    createdComment = await fetchCreatedComment(commentOutput, ctx);
+    createdComment = await preserveAttachMutation(commentOutput.trim(), () =>
+      fetchCreatedComment(commentOutput, ctx),
+    );
   } else {
     const issue = await ghJson<{ comments: IssueComment[] }>(
       ["issue", "view", String(num), "--json", "comments"],
@@ -888,6 +919,7 @@ async function commentOnIssue(
   const attachOut = renderAttachOutput(
     attachments,
     typeof createdComment?.body === "string" ? createdComment.body : undefined,
+    body,
   );
   if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({

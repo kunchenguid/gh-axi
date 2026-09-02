@@ -4,6 +4,7 @@ import {
   ghJson,
   ghExec,
   ghExecWithAttachmentState,
+  ensureAttachmentSupport,
   ghRaw,
 } from "../gh.js";
 import { AxiError } from "../errors.js";
@@ -14,6 +15,7 @@ import {
   attachBodyOptions,
   collectAttachments,
   pushAttachments,
+  preserveAttachMutation,
   renderAttachOutput,
 } from "../attach.js";
 import { formatCountLine } from "../format.js";
@@ -539,6 +541,7 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
   const attachments = collectAttachments(args, "take");
+  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const base = takeFlag(args, "--base");
   const head = takeFlag(args, "--head");
@@ -577,11 +580,13 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
     ]),
   ];
   if (attachments.length > 0 && num !== undefined) {
-    const created = await ghJson<{ body?: string }>(
-      ["pr", "view", String(num), "--json", "body"],
-      ctx,
+    const created = await preserveAttachMutation(url, () =>
+      ghJson<{ body?: string }>(
+        ["pr", "view", String(num), "--json", "body"],
+        ctx,
+      ),
     );
-    const attachOut = renderAttachOutput(attachments, created.body);
+    const attachOut = renderAttachOutput(attachments, created.body, body);
     if (attachOut) blocks.push(attachOut);
   }
   blocks.push(
@@ -596,6 +601,7 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
   const title = takeFlag(args, "--title");
   const attachments = collectAttachments(args, "take");
+  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = takeAllFlags(args, "--add-label");
   const removeLabels = takeAllFlags(args, "--remove-label");
@@ -605,6 +611,14 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   const removeReviewers = takeAllFlags(args, "--remove-reviewer");
   const milestone = takeFlag(args, "--milestone");
   const base = takeFlag(args, "--base");
+  let attachmentBaseline = body;
+  if (attachments.length > 0 && attachmentBaseline === undefined) {
+    const current = await ghJson<{ body?: string }>(
+      ["pr", "view", String(num), "--json", "body"],
+      ctx,
+    );
+    attachmentBaseline = current.body;
+  }
 
   const ghArgs = ["pr", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
@@ -631,11 +645,17 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
     ]),
   ];
   if (attachments.length > 0) {
-    const edited = await ghJson<{ body?: string }>(
-      ["pr", "view", String(num), "--json", "body"],
-      ctx,
+    const edited = await preserveAttachMutation(`pull request #${num}`, () =>
+      ghJson<{ body?: string }>(
+        ["pr", "view", String(num), "--json", "body"],
+        ctx,
+      ),
     );
-    const attachOut = renderAttachOutput(attachments, edited.body);
+    const attachOut = renderAttachOutput(
+      attachments,
+      edited.body,
+      attachmentBaseline,
+    );
     if (attachOut) blocks.push(attachOut);
   }
   blocks.push(
@@ -975,6 +995,7 @@ async function prReopen(args: string[], ctx?: RepoContext): Promise<string> {
 async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
   const attachments = collectAttachments(args, "take");
+  if (attachments.length > 0) await ensureAttachmentSupport();
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
   const ghArgs = ["pr", "comment", String(num)];
@@ -992,8 +1013,15 @@ async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
     ]),
   ];
   if (attachments.length > 0) {
-    const createdComment = await fetchCreatedComment(commentOutput, ctx);
-    const attachOut = renderAttachOutput(attachments, createdComment.body);
+    const createdComment = await preserveAttachMutation(
+      commentOutput.trim(),
+      () => fetchCreatedComment(commentOutput, ctx),
+    );
+    const attachOut = renderAttachOutput(
+      attachments,
+      createdComment.body,
+      body,
+    );
     if (attachOut) blocks.push(attachOut);
   }
   blocks.push(

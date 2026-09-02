@@ -7,6 +7,7 @@ vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
   ghExecWithAttachmentState: vi.fn(),
+  ensureAttachmentSupport: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ import {
   ghJson,
   ghExec,
   ghExecWithAttachmentState,
+  ensureAttachmentSupport,
   ghRaw,
 } from "../../src/gh.js";
 import {
@@ -21,18 +23,14 @@ import {
   ISSUE_HELP,
   SUBISSUE_HELP,
 } from "../../src/commands/issue.js";
-import {
-  AttachmentMutationError,
-  AxiError,
-} from "../../src/errors.js";
+import { AttachmentMutationError, AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 import { withPng, withTempDir, TINY_PNG } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
-const mockedGhExecWithAttachmentState = vi.mocked(
-  ghExecWithAttachmentState,
-);
+const mockedGhExecWithAttachmentState = vi.mocked(ghExecWithAttachmentState);
+const mockedEnsureAttachmentSupport = vi.mocked(ensureAttachmentSupport);
 const mockedGhRaw = vi.mocked(ghRaw);
 
 function mockTypeQueryOnce(nodes: Array<{ id: string; name: string }>): void {
@@ -1655,6 +1653,23 @@ describe("issueCommand", () => {
       const argv = mockedGhExec.mock.calls[0][0] as string[];
       expect(argv).not.toContain("--attach");
       expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+      expect(mockedEnsureAttachmentSupport).not.toHaveBeenCalled();
+    });
+
+    it("rejects old gh before running an attach mutation", async () => {
+      await withPng(async (file) => {
+        mockedEnsureAttachmentSupport.mockRejectedValue(
+          new AxiError(
+            "--attach requires gh 2.99.0+; installed gh 2.98.0",
+            "VALIDATION_ERROR",
+          ),
+        );
+
+        await expect(
+          issueCommand(["create", "--title", "UI bug", "--attach", file], ctx),
+        ).rejects.toThrow("--attach requires gh 2.99.0+; installed gh 2.98.0");
+        expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+      });
     });
 
     it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
@@ -1693,6 +1708,22 @@ describe("issueCommand", () => {
         expect(result).toContain(file);
         expect(result).toContain("image");
         expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("preserves a successful create when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/issues/99";
+        mockedGhExecWithAttachmentState.mockResolvedValue(`${url}\n`);
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created issue", "UNKNOWN"),
+        );
+
+        await expect(
+          issueCommand(["create", "--title", "UI bug", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created issue`,
+        });
       });
     });
 
@@ -1735,17 +1766,21 @@ describe("issueCommand", () => {
       });
     });
 
-    it("forwards --attach on edit", async () => {
+    it("reports only newly uploaded asset URLs on edit", async () => {
       await withPng(async (file) => {
+        const oldUrl =
+          "https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000";
         mockedGhExecWithAttachmentState.mockResolvedValue("");
-        mockedGhJson.mockResolvedValue({
-          number: 10,
-          title: "T",
-          state: "OPEN",
-          labels: [],
-          assignees: [],
-          body: `see ${assetUrl}`,
-        });
+        mockedGhJson
+          .mockResolvedValueOnce({ body: `old ${oldUrl}` })
+          .mockResolvedValueOnce({
+            number: 10,
+            title: "T",
+            state: "OPEN",
+            labels: [],
+            assignees: [],
+            body: `old ${oldUrl}\nnew ${assetUrl}`,
+          });
 
         const result = await issueCommand(
           ["edit", "10", "--attach", file],
@@ -1758,6 +1793,7 @@ describe("issueCommand", () => {
         );
         expect(result).toContain(file);
         expect(result).toContain(assetUrl);
+        expect(result).not.toContain(oldUrl);
       });
     });
 
@@ -1810,15 +1846,7 @@ describe("issueCommand", () => {
 
         await expect(
           issueCommand(
-            [
-              "create",
-              "--title",
-              "UI bug",
-              "--type",
-              "Bug",
-              "--attach",
-              file,
-            ],
+            ["create", "--title", "UI bug", "--type", "Bug", "--attach", file],
             ctx,
           ),
         ).rejects.toThrow(/Mutation succeeded.*attachment upload failed/);
@@ -1852,10 +1880,7 @@ describe("issueCommand", () => {
         mockTypeMutationOnce();
 
         await expect(
-          issueCommand(
-            ["edit", "10", "--no-type", "--attach", file],
-            ctx,
-          ),
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
         ).rejects.toThrow(/Mutation succeeded.*attachment upload failed/);
 
         const mutationCall = mockedGhRaw.mock.calls.find((call) =>
@@ -1882,20 +1907,12 @@ describe("issueCommand", () => {
 
         await expect(
           issueCommand(
-            [
-              "create",
-              "--title",
-              "UI bug",
-              "--type",
-              "Bug",
-              "--attach",
-              file,
-            ],
+            ["create", "--title", "UI bug", "--type", "Bug", "--attach", file],
             ctx,
           ),
         ).rejects.toMatchObject({
           message: expect.stringMatching(
-            /Mutation succeeded at .*issues\/99.*attachment upload failed.*follow-up issue type update failed: Could not fetch the created issue/,
+            /Mutation succeeded at .*issues\/99.*attachment upload failed.*follow-up operation failed: Could not fetch the created issue/,
           ),
         });
       });
@@ -1923,13 +1940,10 @@ describe("issueCommand", () => {
         });
 
         await expect(
-          issueCommand(
-            ["edit", "10", "--no-type", "--attach", file],
-            ctx,
-          ),
+          issueCommand(["edit", "10", "--no-type", "--attach", file], ctx),
         ).rejects.toMatchObject({
           message: expect.stringMatching(
-            /Mutation succeeded at .*issues\/10.*attachment upload failed.*follow-up issue type update failed: Insufficient permissions/,
+            /Mutation succeeded at .*issues\/10.*attachment upload failed.*follow-up operation failed: Insufficient permissions/,
           ),
         });
       });
@@ -1989,13 +2003,15 @@ describe("issueCommand", () => {
       });
     });
 
-    it("rejects a missing file before calling gh", async () => {
+    it("uses the last hash fallback for a missing path with alt text", async () => {
       await expect(
         issueCommand(
-          ["create", "--title", "T", "--attach", "./no-such-file.png"],
+          ["create", "--title", "T", "--attach", "./no-such-file.png#alt"],
           ctx,
         ),
-      ).rejects.toThrow(/no such file or directory/);
+      ).rejects.toThrow(
+        /--attach \.\/no-such-file\.png: no such file or directory/,
+      );
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });

@@ -7,6 +7,7 @@ vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
   ghExecWithAttachmentState: vi.fn(),
+  ensureAttachmentSupport: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ import {
   ghJson,
   ghExec,
   ghExecWithAttachmentState,
+  ensureAttachmentSupport,
   ghRaw,
 } from "../../src/gh.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
@@ -23,9 +25,8 @@ import { withPng, withTempDir } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
-const mockedGhExecWithAttachmentState = vi.mocked(
-  ghExecWithAttachmentState,
-);
+const mockedGhExecWithAttachmentState = vi.mocked(ghExecWithAttachmentState);
+const mockedEnsureAttachmentSupport = vi.mocked(ensureAttachmentSupport);
 const mockedGhRaw = vi.mocked(ghRaw);
 
 const ctx: RepoContext = {
@@ -1180,6 +1181,7 @@ describe("prCommand", () => {
       const argv = mockedGhExec.mock.calls[0][0] as string[];
       expect(argv).not.toContain("--attach");
       expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+      expect(mockedEnsureAttachmentSupport).not.toHaveBeenCalled();
     });
 
     it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
@@ -1207,10 +1209,30 @@ describe("prCommand", () => {
       });
     });
 
-    it("forwards --attach on edit", async () => {
+    it("preserves a successful create when attachment readback fails", async () => {
       await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12";
+        mockedGhExecWithAttachmentState.mockResolvedValue(`${url}\n`);
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created pull request", "UNKNOWN"),
+        );
+
+        await expect(
+          prCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created pull request`,
+        });
+      });
+    });
+
+    it("reports only newly uploaded asset URLs on edit", async () => {
+      await withPng(async (file) => {
+        const oldUrl =
+          "https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000";
         mockedGhExecWithAttachmentState.mockResolvedValue("");
-        mockedGhJson.mockResolvedValue({ body: assetUrl });
+        mockedGhJson
+          .mockResolvedValueOnce({ body: oldUrl })
+          .mockResolvedValueOnce({ body: `${oldUrl}\n${assetUrl}` });
 
         const result = await prCommand(["edit", "12", "--attach", file], ctx);
 
@@ -1220,6 +1242,25 @@ describe("prCommand", () => {
         );
         expect(result).toContain(file);
         expect(result).toContain(assetUrl);
+        expect(result).not.toContain(oldUrl);
+      });
+    });
+
+    it("preserves a successful edit when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
+        mockedGhJson
+          .mockResolvedValueOnce({ body: "before" })
+          .mockRejectedValueOnce(
+            new AxiError("Could not fetch the edited pull request", "UNKNOWN"),
+          );
+
+        await expect(
+          prCommand(["edit", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message:
+            "Mutation succeeded at pull request #12, but follow-up operation failed: Could not fetch the edited pull request",
+        });
       });
     });
 
@@ -1249,6 +1290,22 @@ describe("prCommand", () => {
         ]);
         expect(result).toContain(file);
         expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("preserves a successful comment when attachment readback fails", async () => {
+      await withPng(async (file) => {
+        const url = "https://github.com/octo/repo/pull/12#issuecomment-67890";
+        mockedGhExecWithAttachmentState.mockResolvedValue(`${url}\n`);
+        mockedGhJson.mockRejectedValue(
+          new AxiError("Could not fetch the created comment", "UNKNOWN"),
+        );
+
+        await expect(
+          prCommand(["comment", "12", "--attach", file], ctx),
+        ).rejects.toMatchObject({
+          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created comment`,
+        });
       });
     });
 
