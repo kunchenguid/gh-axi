@@ -6,10 +6,16 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
+  ghExecWithAttachmentState: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ghRaw,
+} from "../../src/gh.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
@@ -17,6 +23,9 @@ import { withPng, withTempDir } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhExecWithAttachmentState = vi.mocked(
+  ghExecWithAttachmentState,
+);
 const mockedGhRaw = vi.mocked(ghRaw);
 
 const ctx: RepoContext = {
@@ -1170,11 +1179,12 @@ describe("prCommand", () => {
       await prCommand(["create", "--title", "T"], ctx);
       const argv = mockedGhExec.mock.calls[0][0] as string[];
       expect(argv).not.toContain("--attach");
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
     });
 
     it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue(
+        mockedGhExecWithAttachmentState.mockResolvedValue(
           "https://github.com/octo/repo/pull/12\n",
         );
         mockedGhJson.mockResolvedValue({
@@ -1187,7 +1197,7 @@ describe("prCommand", () => {
           ctx,
         );
 
-        expect(mockedGhExec).toHaveBeenCalledWith(
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
           ["pr", "create", "--title", "T", "--attach", spec, "--attach", file],
           ctx,
         );
@@ -1199,12 +1209,12 @@ describe("prCommand", () => {
 
     it("forwards --attach on edit", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue("");
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
         mockedGhJson.mockResolvedValue({ body: assetUrl });
 
         const result = await prCommand(["edit", "12", "--attach", file], ctx);
 
-        expect(mockedGhExec).toHaveBeenCalledWith(
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
           ["pr", "edit", "12", "--attach", file],
           ctx,
         );
@@ -1215,7 +1225,7 @@ describe("prCommand", () => {
 
     it("fetches the created attached comment by its emitted URL", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue(
+        mockedGhExecWithAttachmentState.mockResolvedValue(
           "https://github.com/octo/repo/pull/12#issuecomment-67890\n",
         );
         mockedGhJson.mockResolvedValue({
@@ -1229,7 +1239,7 @@ describe("prCommand", () => {
           ctx,
         );
 
-        expect(mockedGhExec).toHaveBeenCalledWith(
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
           ["pr", "comment", "12", "--attach", file],
           ctx,
         );

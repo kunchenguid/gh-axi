@@ -36,14 +36,28 @@ export function attachBodyOptions(required: boolean): {
   return { required, valueBoundaryFlags: [ATTACH_FLAG] };
 }
 
-/**
- * Split gh's `<file>#<image alt text>` form. The first `#` is the delimiter,
- * matching `gh` help (`--attach './login.png#The login error state'`).
- */
+function pathExists(path: string): boolean {
+  try {
+    statSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function parseAttachSpec(raw: string): { file: string; alt: string } {
-  const hash = raw.indexOf("#");
-  if (hash === -1) return { file: raw, alt: "" };
-  return { file: raw.slice(0, hash), alt: raw.slice(hash + 1) };
+  if (pathExists(raw)) return { file: raw, alt: "" };
+
+  for (
+    let hash = raw.lastIndexOf("#");
+    hash !== -1;
+    hash = raw.lastIndexOf("#", hash - 1)
+  ) {
+    const file = raw.slice(0, hash);
+    if (pathExists(file)) return { file, alt: raw.slice(hash + 1) };
+  }
+
+  return { file: raw, alt: "" };
 }
 
 export function attachmentKind(file: string): AttachKind {

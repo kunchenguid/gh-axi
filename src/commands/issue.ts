@@ -1,6 +1,11 @@
 import type { RepoContext } from "../context.js";
 import { resolveHost } from "../host.js";
-import { ghJson, ghExec, ghRaw } from "../gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ghRaw,
+} from "../gh.js";
 import { AxiError, mapGhError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
@@ -571,7 +576,10 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   // gh issue create outputs the URL; use --json to get structured data
   // Unfortunately gh issue create doesn't support --json, so we parse the URL
-  const output = await ghExec(ghArgs, ctx);
+  const output =
+    attachments.length > 0
+      ? await ghExecWithAttachmentState(ghArgs, ctx)
+      : await ghExec(ghArgs, ctx);
   const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/);
   const url = urlMatch ? urlMatch[0] : output.trim();
   const numMatch = url.match(/\/issues\/(\d+)/);
@@ -649,7 +657,11 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   // Only call `gh issue edit` if there is a non-type field to update; otherwise
   // calling with just the issue number errors out.
   if (ghArgs.length > 3) {
-    await ghExec(ghArgs, ctx);
+    if (attachments.length > 0) {
+      await ghExecWithAttachmentState(ghArgs, ctx);
+    } else {
+      await ghExec(ghArgs, ctx);
+    }
   }
 
   // Fetch updated issue (include id for type mutation)
@@ -804,7 +816,10 @@ async function commentOnIssue(
   const ghArgs = ["issue", "comment", String(num)];
   if (body !== undefined) ghArgs.push("--body", body);
   pushAttachments(ghArgs, attachments);
-  const commentOutput = await ghExec(ghArgs, ctx);
+  const commentOutput =
+    attachments.length > 0
+      ? await ghExecWithAttachmentState(ghArgs, ctx)
+      : await ghExec(ghArgs, ctx);
 
   let createdComment: IssueComment | undefined;
   if (attachments.length > 0) {

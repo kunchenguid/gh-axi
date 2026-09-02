@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import {
   ghJson,
   ghExec,
+  ghExecWithAttachmentState,
   ghRaw,
   ghExecWithStdin,
   resolveGhBin,
@@ -192,6 +193,43 @@ describe("ghExec", () => {
       "--repo",
       "cli/cli",
     ]);
+  });
+});
+
+describe("ghExecWithAttachmentState", () => {
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  it("surfaces the completed mutation URL on partial upload failure", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(
+      error,
+      "https://github.com/octo/repo/issues/42\n",
+      "large.png: images must be at most 10.0 MB",
+    );
+
+    await expect(
+      ghExecWithAttachmentState(["issue", "create", "--attach", "large.png"]),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message:
+        "Mutation succeeded at https://github.com/octo/repo/issues/42, but attachment upload failed: --attach large.png: images must be at most 10.0 MB",
+    });
+  });
+
+  it("keeps ordinary mapped errors when no mutation URL was emitted", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(error, "", "HTTP 403: Forbidden");
+
+    await expect(
+      ghExecWithAttachmentState(["issue", "create", "--attach", "a.png"]),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Insufficient permissions for this action",
+    });
   });
 });
 

@@ -6,10 +6,16 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
   ghExec: vi.fn(),
+  ghExecWithAttachmentState: vi.fn(),
   ghRaw: vi.fn(),
 }));
 
-import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ghRaw,
+} from "../../src/gh.js";
 import {
   issueCommand,
   ISSUE_HELP,
@@ -21,6 +27,9 @@ import { withPng, withTempDir, TINY_PNG } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
+const mockedGhExecWithAttachmentState = vi.mocked(
+  ghExecWithAttachmentState,
+);
 const mockedGhRaw = vi.mocked(ghRaw);
 
 function mockTypeQueryOnce(nodes: Array<{ id: string; name: string }>): void {
@@ -1631,11 +1640,12 @@ describe("issueCommand", () => {
 
       const argv = mockedGhExec.mock.calls[0][0] as string[];
       expect(argv).not.toContain("--attach");
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
     });
 
     it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue(
+        mockedGhExecWithAttachmentState.mockResolvedValue(
           "https://github.com/octo/repo/issues/99\n",
         );
         mockedGhJson.mockResolvedValue({
@@ -1652,7 +1662,7 @@ describe("issueCommand", () => {
           ctx,
         );
 
-        expect(mockedGhExec).toHaveBeenCalledWith(
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
           [
             "issue",
             "create",
@@ -1672,9 +1682,48 @@ describe("issueCommand", () => {
       });
     });
 
+    it("preserves hashes in filenames and splits alt text at the longest existing path", async () => {
+      await withTempDir(async (dir) => {
+        const file = join(dir, "screen#1.png");
+        writeFileSync(file, TINY_PNG);
+        const spec = `${file}#Login error`;
+        mockedGhExecWithAttachmentState.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "UI bug",
+          state: "OPEN",
+          url: "https://github.com/octo/repo/issues/99",
+          body: `![Login error](${assetUrl})`,
+        });
+
+        const result = await issueCommand(
+          ["create", "--title", "UI bug", "--attach", file, "--attach", spec],
+          ctx,
+        );
+
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
+          [
+            "issue",
+            "create",
+            "--title",
+            "UI bug",
+            "--attach",
+            file,
+            "--attach",
+            spec,
+          ],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
     it("forwards --attach on edit", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue("");
+        mockedGhExecWithAttachmentState.mockResolvedValue("");
         mockedGhJson.mockResolvedValue({
           number: 10,
           title: "T",
@@ -1689,7 +1738,7 @@ describe("issueCommand", () => {
           ctx,
         );
 
-        expect(mockedGhExec).toHaveBeenCalledWith(
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
           ["issue", "edit", "10", "--attach", file],
           ctx,
         );
@@ -1700,7 +1749,7 @@ describe("issueCommand", () => {
 
     it("fetches the created attached comment by its emitted URL", async () => {
       await withPng(async (file) => {
-        mockedGhExec.mockResolvedValue(
+        mockedGhExecWithAttachmentState.mockResolvedValue(
           "https://github.com/octo/repo/issues/99#issuecomment-12345\n",
         );
         mockedGhJson.mockResolvedValue({
@@ -1714,7 +1763,7 @@ describe("issueCommand", () => {
           ctx,
         );
 
-        expect(mockedGhExec).toHaveBeenCalledWith(
+        expect(mockedGhExecWithAttachmentState).toHaveBeenCalledWith(
           ["issue", "comment", "99", "--attach", file],
           ctx,
         );

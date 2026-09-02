@@ -1,6 +1,11 @@
 import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
-import { ghJson, ghExec, ghRaw } from "../gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghExecWithAttachmentState,
+  ghRaw,
+} from "../gh.js";
 import { AxiError } from "../errors.js";
 import { takeBody, truncateBody } from "../body.js";
 import { fetchCreatedComment } from "../comment.js";
@@ -556,7 +561,10 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   if (milestone) ghArgs.push("--milestone", milestone);
   pushRepeated(ghArgs, "--project", projects);
 
-  const stdout = await ghExec(ghArgs, ctx);
+  const stdout =
+    attachments.length > 0
+      ? await ghExecWithAttachmentState(ghArgs, ctx)
+      : await ghExec(ghArgs, ctx);
   // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
   const urlMatch = stdout.match(/\/pull\/(\d+)/);
   const num = urlMatch ? Number(urlMatch[1]) : undefined;
@@ -611,7 +619,11 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   if (milestone) ghArgs.push("--milestone", milestone);
   if (base) ghArgs.push("--base", base);
 
-  await ghExec(ghArgs, ctx);
+  if (attachments.length > 0) {
+    await ghExecWithAttachmentState(ghArgs, ctx);
+  } else {
+    await ghExec(ghArgs, ctx);
+  }
   const blocks = [
     renderDetail("edited", { number: num, status: "ok" }, [
       field("number"),
@@ -968,7 +980,10 @@ async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "comment", String(num)];
   if (body !== undefined) ghArgs.push("--body", body);
   pushAttachments(ghArgs, attachments);
-  const commentOutput = await ghExec(ghArgs, ctx);
+  const commentOutput =
+    attachments.length > 0
+      ? await ghExecWithAttachmentState(ghArgs, ctx)
+      : await ghExec(ghArgs, ctx);
 
   const blocks = [
     renderDetail("commented", { number: num, status: "ok" }, [

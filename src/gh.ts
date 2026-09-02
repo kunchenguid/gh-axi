@@ -108,6 +108,28 @@ export async function ghExec(
   return result.stdout;
 }
 
+export async function ghExecWithAttachmentState(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const result = await run(buildArgs(args, ctx));
+  if (result.stderr === "ENOENT") throw missingGhError();
+  if (result.exitCode !== 0) {
+    const error = mapGhError(result.stderr, result.exitCode);
+    const mutationUrl = result.stdout.match(/https?:\/\/[^\s]+/)?.[0];
+    if (!mutationUrl) throw error;
+    throw new AxiError(
+      `Mutation succeeded at ${mutationUrl}, but attachment upload failed: ${error.message}`,
+      error.code,
+      [
+        `Do not retry the mutation; inspect ${mutationUrl} before uploading missing attachments`,
+        ...error.suggestions,
+      ],
+    );
+  }
+  return result.stdout;
+}
+
 /** Execute gh, returning stdout + stderr without throwing on non-zero exit. */
 export async function ghRaw(
   args: string[],
