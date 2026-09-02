@@ -3,6 +3,13 @@ import type { RepoContext } from "../context.js";
 import { ghJson, ghExec, ghRaw } from "../gh.js";
 import { AxiError } from "../errors.js";
 import { takeBody, truncateBody } from "../body.js";
+import {
+  ATTACH_BODY_OPTIONS,
+  attachBodyOptions,
+  collectAttachments,
+  pushAttachments,
+  renderAttachOutput,
+} from "../attach.js";
 import { formatCountLine } from "../format.js";
 import { fetchListTotal, type ListFilter } from "../totals.js";
 import { getSuggestions } from "../suggestions.js";
@@ -268,6 +275,7 @@ const PR_FLAGS: Record<string, readonly string[]> = {
     "--title",
     "--body",
     "--body-file",
+    "--attach",
     "--base",
     "--head",
     "--draft",
@@ -281,6 +289,7 @@ const PR_FLAGS: Record<string, readonly string[]> = {
     "--title",
     "--body",
     "--body-file",
+    "--attach",
     "--add-label",
     "--remove-label",
     "--add-assignee",
@@ -314,7 +323,7 @@ const PR_FLAGS: Record<string, readonly string[]> = {
   checkout: [],
   ready: [],
   reopen: [],
-  comment: ["--body", "--body-file"],
+  comment: ["--body", "--body-file", "--attach"],
   "update-branch": [],
   revert: [],
 };
@@ -327,15 +336,15 @@ flags{list}:
 flags{view}:
   --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path>, --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
+  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
 flags{edit}:
-  --title <text>, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
+  --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
 flags{merge}:
   --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{comment}:
-  --body <text> or --body-file <path> (required)
+  --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{checks}:
   (none)
 flags{diff}:
@@ -344,7 +353,9 @@ examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
   gh-axi pr view 42 --reviews
+  gh-axi pr create --title "Fix login" --attach './before.png#Before'
   gh-axi pr comment 42 --body-file review.md
+  gh-axi pr comment 42 --attach ./after.png
   gh-axi pr merge 42 --squash --delete-branch`;
 
 // ---------------------------------------------------------------------------
@@ -521,7 +532,8 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
 async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
-  const body = takeBody(args);
+  const attachments = collectAttachments(args, "take");
+  const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const base = takeFlag(args, "--base");
   const head = takeFlag(args, "--head");
   const draft = takeBoolFlag(args, "--draft");
@@ -533,6 +545,7 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghArgs = ["pr", "create", "--title", title];
   if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
   if (base) ghArgs.push("--base", base);
   if (head) ghArgs.push("--head", head);
   if (draft) ghArgs.push("--draft");
@@ -548,21 +561,33 @@ async function prCreate(args: string[], ctx?: RepoContext): Promise<string> {
   const num = urlMatch ? Number(urlMatch[1]) : undefined;
   const url = stdout.trim().split("\n").pop()?.trim() ?? "";
 
-  return renderOutput([
+  const blocks = [
     renderDetail("created", { number: num ?? url, url }, [
       field("number"),
       field("url"),
     ]),
+  ];
+  if (attachments.length > 0 && num !== undefined) {
+    const created = await ghJson<{ body?: string }>(
+      ["pr", "view", String(num), "--json", "body"],
+      ctx,
+    );
+    const attachOut = renderAttachOutput(attachments, created.body);
+    if (attachOut) blocks.push(attachOut);
+  }
+  blocks.push(
     renderHelp(
       getSuggestions({ domain: "pr", action: "create", id: num, repo: ctx }),
     ),
-  ]);
+  );
+  return renderOutput(blocks);
 }
 
 async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
   const title = takeFlag(args, "--title");
-  const body = takeBody(args);
+  const attachments = collectAttachments(args, "take");
+  const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = takeAllFlags(args, "--add-label");
   const removeLabels = takeAllFlags(args, "--remove-label");
   const addAssignees = takeAllFlags(args, "--add-assignee");
@@ -575,6 +600,7 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
   if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
   pushRepeated(ghArgs, "--add-label", addLabels);
   pushRepeated(ghArgs, "--remove-label", removeLabels);
   pushRepeated(ghArgs, "--add-assignee", addAssignees);
@@ -585,15 +611,26 @@ async function prEdit(args: string[], ctx?: RepoContext): Promise<string> {
   if (base) ghArgs.push("--base", base);
 
   await ghExec(ghArgs, ctx);
-  return renderOutput([
+  const blocks = [
     renderDetail("edited", { number: num, status: "ok" }, [
       field("number"),
       field("status"),
     ]),
+  ];
+  if (attachments.length > 0) {
+    const edited = await ghJson<{ body?: string }>(
+      ["pr", "view", String(num), "--json", "body"],
+      ctx,
+    );
+    const attachOut = renderAttachOutput(attachments, edited.body);
+    if (attachOut) blocks.push(attachOut);
+  }
+  blocks.push(
     renderHelp(
       getSuggestions({ domain: "pr", action: "edit", id: num, repo: ctx }),
     ),
-  ]);
+  );
+  return renderOutput(blocks);
 }
 
 async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
@@ -924,18 +961,35 @@ async function prReopen(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function prComment(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
-  const body = takeBody(args, { required: true });
+  const attachments = collectAttachments(args, "take");
+  const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
-  await ghExec(["pr", "comment", String(num), "--body", body], ctx);
-  return renderOutput([
+  const ghArgs = ["pr", "comment", String(num)];
+  if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
+  await ghExec(ghArgs, ctx);
+
+  const blocks = [
     renderDetail("commented", { number: num, status: "ok" }, [
       field("number"),
       field("status"),
     ]),
+  ];
+  if (attachments.length > 0) {
+    const pr = await ghJson<{ comments?: PrComment[] }>(
+      ["pr", "view", String(num), "--json", "comments"],
+      ctx,
+    );
+    const last = pr.comments?.[pr.comments.length - 1];
+    const attachOut = renderAttachOutput(attachments, last?.body);
+    if (attachOut) blocks.push(attachOut);
+  }
+  blocks.push(
     renderHelp(
       getSuggestions({ domain: "pr", action: "comment", id: num, repo: ctx }),
     ),
-  ]);
+  );
+  return renderOutput(blocks);
 }
 
 async function prUpdateBranch(

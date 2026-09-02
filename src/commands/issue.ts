@@ -14,6 +14,13 @@ import {
   takeBoolFlag,
   rejectUnknownFlags,
 } from "../args.js";
+import {
+  ATTACH_BODY_OPTIONS,
+  attachBodyOptions,
+  collectAttachments,
+  pushAttachments,
+  renderAttachOutput,
+} from "../attach.js";
 import { takeBody, truncateBody } from "../body.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import { formatCountLine } from "../format.js";
@@ -71,13 +78,13 @@ flags{list}:
 flags{view}:
   --comments, --full (show the complete issue body and comment bodies without truncation)
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path>, --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
+  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
 flags{edit}:
-  --title, --body <text> or --body-file <path>, --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
+  --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
 flags{close}:
   --reason <completed|not_planned>, --comment <text>
 flags{comment}:
-  --body <text> or --body-file <path> (required)
+  --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{transfer}:
   --to-repo <owner/name> (required)
 subissue:
@@ -86,7 +93,9 @@ examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
+  gh-axi issue create --title "UI bug" --attach './repro.png#Login error'
   gh-axi issue comment 42 --body-file comment.md
+  gh-axi issue comment 42 --attach ./before.png --attach ./after.png
   gh-axi issue close 42 --reason completed
   gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
   gh-axi issue subissue add 16 20 101 125
@@ -124,6 +133,7 @@ const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--title",
     "--body",
     "--body-file",
+    "--attach",
     "--assignee",
     "--label",
     "--milestone",
@@ -134,6 +144,7 @@ const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--title",
     "--body",
     "--body-file",
+    "--attach",
     "--add-label",
     "--remove-label",
     "--add-assignee",
@@ -144,7 +155,7 @@ const ISSUE_FLAGS: Record<string, readonly string[]> = {
   ],
   close: ["--reason", "--comment"],
   reopen: [],
-  comment: ["--body", "--body-file"],
+  comment: ["--body", "--body-file", "--attach"],
   delete: [],
   lock: [],
   unlock: [],
@@ -535,7 +546,8 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const title = getFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
-  const body = takeBody(args);
+  const attachments = collectAttachments(args, "get");
+  const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
   const milestone = getFlag(args, "--milestone");
@@ -550,6 +562,7 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghArgs = ["issue", "create", "--title", title];
   if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
   pushRepeated(ghArgs, "--assignee", assignees);
   pushRepeated(ghArgs, "--label", labels);
   if (milestone) ghArgs.push("--milestone", milestone);
@@ -564,8 +577,12 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = numMatch ? parseInt(numMatch[1], 10) : 0;
 
   // Fetch the created issue for structured output; include id for type mutation
+  const createJsonFields =
+    attachments.length > 0
+      ? "number,title,state,url,id,body"
+      : "number,title,state,url,id";
   const item = await ghJson<Record<string, unknown>>(
-    ["issue", "view", String(num), "--json", "number,title,state,url,id"],
+    ["issue", "view", String(num), "--json", createJsonFields],
     ctx,
   );
 
@@ -581,6 +598,11 @@ async function createIssue(args: string[], ctx?: RepoContext): Promise<string> {
     ? [...createResultSchema, issueTypeField]
     : createResultSchema;
   const blocks: string[] = [renderDetail("issue", item, schema)];
+  const attachOut = renderAttachOutput(
+    attachments,
+    typeof item.body === "string" ? item.body : undefined,
+  );
+  if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
     domain: "issue",
     action: "create",
@@ -596,7 +618,8 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
 
   const title = getFlag(args, "--title");
-  const body = takeBody(args);
+  const attachments = collectAttachments(args, "get");
+  const body = takeBody(args, ATTACH_BODY_OPTIONS);
   const addLabels = getAllFlags(args, "--add-label");
   const removeLabels = getAllFlags(args, "--remove-label");
   const addAssignees = getAllFlags(args, "--add-assignee");
@@ -615,6 +638,7 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["issue", "edit", String(num)];
   if (title) ghArgs.push("--title", title);
   if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
   pushRepeated(ghArgs, "--add-label", addLabels);
   pushRepeated(ghArgs, "--remove-label", removeLabels);
   pushRepeated(ghArgs, "--add-assignee", addAssignees);
@@ -628,14 +652,12 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   // Fetch updated issue (include id for type mutation)
+  const editJsonFields =
+    attachments.length > 0
+      ? "number,title,state,labels,assignees,id,body"
+      : "number,title,state,labels,assignees,id";
   const item = await ghJson<Record<string, unknown>>(
-    [
-      "issue",
-      "view",
-      String(num),
-      "--json",
-      "number,title,state,labels,assignees,id",
-    ],
+    ["issue", "view", String(num), "--json", editJsonFields],
     ctx,
   );
 
@@ -652,6 +674,11 @@ async function editIssue(args: string[], ctx?: RepoContext): Promise<string> {
       ? [...editResultSchema, issueTypeField]
       : editResultSchema;
   const blocks: string[] = [renderDetail("issue", item, schema)];
+  const attachOut = renderAttachOutput(
+    attachments,
+    typeof item.body === "string" ? item.body : undefined,
+  );
+  if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
     domain: "issue",
     action: "edit",
@@ -770,9 +797,13 @@ async function commentOnIssue(
   ctx?: RepoContext,
 ): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
-  const body = takeBody(args, { required: true });
+  const attachments = collectAttachments(args, "get");
+  const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
-  await ghExec(["issue", "comment", String(num), "--body", body], ctx);
+  const ghArgs = ["issue", "comment", String(num)];
+  if (body !== undefined) ghArgs.push("--body", body);
+  pushAttachments(ghArgs, attachments);
+  await ghExec(ghArgs, ctx);
 
   // Fetch the latest comment
   const issue = await ghJson<{ comments: IssueComment[] }>(
@@ -785,6 +816,11 @@ async function commentOnIssue(
   const blocks: string[] = [
     renderDetail("comment", commentItem, commentResultSchema),
   ];
+  const attachOut = renderAttachOutput(
+    attachments,
+    typeof lastComment?.body === "string" ? lastComment.body : undefined,
+  );
+  if (attachOut) blocks.push(attachOut);
   const help = getSuggestions({
     domain: "issue",
     action: "comment",

@@ -13,6 +13,7 @@ import { ghJson, ghExec, ghRaw } from "../../src/gh.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
+import { withPng, withTempDir } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
@@ -1150,6 +1151,117 @@ describe("prCommand", () => {
 
       expect(result).not.toContain("truncated:");
       expect(result).not.toContain("original_length");
+    });
+  });
+
+  describe("--attach", () => {
+    const assetUrl =
+      "https://github.com/user-attachments/assets/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+    it("documents --attach and the gh >= 2.99.0 requirement in help", async () => {
+      const result = await prCommand(["--help"]);
+      expect(result).toContain("--attach <path[#alt]>");
+      expect(result).toContain("gh >= 2.99.0");
+      expect(result).toContain("(repeatable");
+    });
+
+    it("does not pass --attach when the flag is absent", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/12\n");
+      await prCommand(["create", "--title", "T"], ctx);
+      const argv = mockedGhExec.mock.calls[0][0] as string[];
+      expect(argv).not.toContain("--attach");
+    });
+
+    it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
+      await withPng(async (file) => {
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/pull/12\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          body: `![repro](${assetUrl})`,
+        });
+
+        const spec = `${file}#Before`;
+        const result = await prCommand(
+          ["create", "--title", "T", "--attach", spec, "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "create", "--title", "T", "--attach", spec, "--attach", file],
+          ctx,
+        );
+        expect(result).toContain("attachments");
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("forwards --attach on edit", async () => {
+      await withPng(async (file) => {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValue({ body: assetUrl });
+
+        const result = await prCommand(["edit", "12", "--attach", file], ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "edit", "12", "--attach", file],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("allows comment with --attach and no --body", async () => {
+      await withPng(async (file) => {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValue({
+          comments: [{ body: `![repro](${assetUrl})` }],
+        });
+
+        const result = await prCommand(
+          ["comment", "12", "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["pr", "comment", "12", "--attach", file],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("still requires a body on comment when --attach is absent", async () => {
+      await expect(prCommand(["comment", "12"], ctx)).rejects.toThrow(
+        /--body or --body-file is required/,
+      );
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unsupported type before calling gh", async () => {
+      await withTempDir(async (dir) => {
+        const file = join(dir, "note.txt");
+        writeFileSync(file, "nope");
+        await expect(
+          prCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toThrow(/not a supported file type/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
+    });
+
+    it("does not add --attach to pr review", async () => {
+      await withPng(async (file) => {
+        await expect(
+          prCommand(
+            ["review", "12", "--comment", "--body", "ok", "--attach", file],
+            ctx,
+          ),
+        ).rejects.toThrow(/unknown flag for gh-axi pr review: --attach/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
     });
   });
 });

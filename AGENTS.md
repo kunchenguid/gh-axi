@@ -91,6 +91,10 @@ Stack commands are cwd-bound. `cli.ts#withLocalRepoContext` rejects explicit rep
 Successful extension status is commonly written to stderr, and exits 2-10 represent actionable stack state. Preserve both streams and the exact `StackError.exitCode`, which reaches the shell only through `cli.ts`'s `formatError` hook; do not replace `ghRaw` with `ghExec` or generic `mapGhError`.
 Never expose an interactive path. Force `view --json`, `submit --auto`, and `merge --yes`; require arguments for commands that otherwise prompt. Keep `modify`, `switch`, `alias`, and `feedback` out unless upstream gains a useful headless interface.
 
+## Repeatable `--attach` (`src/attach.ts`)
+
+`--attach <path[#alt]>` is repeatable on `issue`/`pr` `create`, `edit`, and `comment` (gh itself does not offer it on `pr review`). Values are validated locally then forwarded to `gh`; the wrapped binary is `GH_BIN` or `gh` on PATH, and `--attach` requires gh >= 2.99.0. Tests resolve that binary from `GH_BIN`, then a worktree `.tools/gh-2.99.0/**/bin/gh`, then PATH. Live upload tests also need `GH_AXI_TEST_REPO` set to a captain-owned test repo, never a product repo.
+
 ## Raising PRs to upstream
 
 Human-authored PRs targeting `main` must be raised through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes) (`no-mistakes init --fork-url git@github.com:<you>/gh-axi.git`, then `git push no-mistakes`): the `Require no-mistakes` workflow fails any PR whose body lacks the pipeline's deterministic signature, and maintainer triage treats hand-raised PRs as blocked. Do not push a PR branch straight to `origin`. See CONTRIBUTING.md.

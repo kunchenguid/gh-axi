@@ -207,6 +207,31 @@ describe("mapGhError", () => {
     expect(err.code).toBe("UNKNOWN");
     expect(err.message).toBe("first line");
   });
+
+  it("maps unknown flag --attach to a gh >= 2.99.0 upgrade error", () => {
+    const err = mapGhError("unknown flag: --attach", 1);
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("gh >= 2.99.0");
+    expect(err.message).toContain("GH_BIN");
+    expect(err.suggestions.some((s) => s.includes("2.99.0"))).toBe(true);
+  });
+
+  it("maps gh attach type and size stderr to VALIDATION_ERROR", () => {
+    const typeErr = mapGhError(
+      "./note.txt is not a supported file type (supported: png, jpg, jpeg, gif, webp, svg, mp4, mov, webm)",
+      1,
+    );
+    expect(typeErr.code).toBe("VALIDATION_ERROR");
+    expect(typeErr.message).toContain("not a supported file type");
+
+    const sizeErr = mapGhError("./big.png: images must be at most 10.0 MB", 1);
+    expect(sizeErr.code).toBe("VALIDATION_ERROR");
+    expect(sizeErr.message).toContain("images must be at most");
+
+    const videoErr = mapGhError("cannot set alt text on video", 1);
+    expect(videoErr.code).toBe("VALIDATION_ERROR");
+    expect(videoErr.message).toContain("cannot set alt text on video");
+  });
 });
 
 describe("ghNotInstalledError", () => {

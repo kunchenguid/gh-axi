@@ -19,6 +19,23 @@ function buildArgs(args: string[], ctx?: RepoContext): string[] {
 
 const MAX_BUFFER_BYTES = 10 * 1024 * 1024; // 10 MB
 
+/** Override the wrapped `gh` binary. Unset or blank keeps PATH lookup (`gh`). */
+export function resolveGhBin(): string {
+  const fromEnv = process.env["GH_BIN"]?.trim();
+  return fromEnv && fromEnv.length > 0 ? fromEnv : "gh";
+}
+
+function missingGhError(): AxiError {
+  const overridden = process.env["GH_BIN"]?.trim();
+  if (overridden) {
+    return new AxiError(
+      `GH_BIN is not an executable gh binary: ${overridden}`,
+      "GH_NOT_INSTALLED",
+    );
+  }
+  return ghNotInstalledError();
+}
+
 function toExecResult(
   resolve: (result: ExecResult) => void,
 ): (error: Error | null, stdout: string, stderr: string) => void {
@@ -41,7 +58,7 @@ function toExecResult(
 function run(args: string[]): Promise<ExecResult> {
   return new Promise((resolve) => {
     execFile(
-      "gh",
+      resolveGhBin(),
       args,
       { maxBuffer: MAX_BUFFER_BYTES },
       toExecResult(resolve),
@@ -53,7 +70,7 @@ function run(args: string[]): Promise<ExecResult> {
 function runWithStdin(args: string[], input: string): Promise<ExecResult> {
   return new Promise((resolve) => {
     const child = execFile(
-      "gh",
+      resolveGhBin(),
       args,
       { maxBuffer: MAX_BUFFER_BYTES },
       toExecResult(resolve),
@@ -68,7 +85,7 @@ export async function ghJson<T = unknown>(
   ctx?: RepoContext,
 ): Promise<T> {
   const result = await run(buildArgs(args, ctx));
-  if (result.stderr === "ENOENT") throw ghNotInstalledError();
+  if (result.stderr === "ENOENT") throw missingGhError();
   if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
   try {
     return JSON.parse(result.stdout);
@@ -86,7 +103,7 @@ export async function ghExec(
   ctx?: RepoContext,
 ): Promise<string> {
   const result = await run(buildArgs(args, ctx));
-  if (result.stderr === "ENOENT") throw ghNotInstalledError();
+  if (result.stderr === "ENOENT") throw missingGhError();
   if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
   return result.stdout;
 }
@@ -97,7 +114,7 @@ export async function ghRaw(
   ctx?: RepoContext,
 ): Promise<ExecResult> {
   const result = await run(buildArgs(args, ctx));
-  if (result.stderr === "ENOENT") throw ghNotInstalledError();
+  if (result.stderr === "ENOENT") throw missingGhError();
   return result;
 }
 
@@ -111,7 +128,7 @@ export async function ghExecWithStdin(
   ctx?: RepoContext,
 ): Promise<string> {
   const result = await runWithStdin(buildArgs(args, ctx), input);
-  if (result.stderr === "ENOENT") throw ghNotInstalledError();
+  if (result.stderr === "ENOENT") throw missingGhError();
   if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
   return result.stdout;
 }

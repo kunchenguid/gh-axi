@@ -1,6 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFile } from "node:child_process";
-import { ghJson, ghExec, ghRaw, ghExecWithStdin } from "../src/gh.js";
+import {
+  ghJson,
+  ghExec,
+  ghRaw,
+  ghExecWithStdin,
+  resolveGhBin,
+} from "../src/gh.js";
 import type { RepoContext } from "../src/context.js";
 import { AxiError } from "../src/errors.js";
 
@@ -234,6 +240,41 @@ describe("ghRaw", () => {
     const callArgs = mockedExecFile.mock.calls[0][1] as string[];
     expect(callArgs).toContain("--repo");
     expect(callArgs).toContain("o/r");
+  });
+});
+
+describe("resolveGhBin", () => {
+  const previous = process.env["GH_BIN"];
+
+  beforeEach(() => {
+    mockedExecFile.mockReset();
+  });
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env["GH_BIN"];
+    else process.env["GH_BIN"] = previous;
+  });
+
+  it("defaults to gh when GH_BIN is unset", () => {
+    delete process.env["GH_BIN"];
+    expect(resolveGhBin()).toBe("gh");
+  });
+
+  it("uses GH_BIN when set", () => {
+    process.env["GH_BIN"] = "/tmp/custom-gh";
+    expect(resolveGhBin()).toBe("/tmp/custom-gh");
+  });
+
+  it("treats a blank GH_BIN as unset", () => {
+    process.env["GH_BIN"] = "   ";
+    expect(resolveGhBin()).toBe("gh");
+  });
+
+  it("passes GH_BIN to execFile", async () => {
+    process.env["GH_BIN"] = "/tmp/custom-gh";
+    mockExecFileResult(null, "[]", "");
+    await ghJson(["issue", "list"]);
+    expect(mockedExecFile.mock.calls[0][0]).toBe("/tmp/custom-gh");
   });
 });
 

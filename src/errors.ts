@@ -133,6 +133,56 @@ const patterns: ErrorPattern[] = [
     message: () => "An issue cannot be a sub-issue of itself",
   },
   {
+    // gh 2.98 and older reject --attach as an unknown flag. Must sit ahead of
+    // any broader unknown-flag pattern so the upgrade hint is not swallowed.
+    pattern: /unknown flag: --attach/,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "--attach requires gh >= 2.99.0. Upgrade gh, or set GH_BIN to a 2.99.0+ binary",
+    suggestions: () => [
+      "Install GitHub CLI 2.99.0 or newer from https://github.com/cli/cli/releases",
+      "Or point GH_BIN at a 2.99.0+ gh binary",
+    ],
+  },
+  {
+    pattern: /`--attach` accepts at most 50 values per command/,
+    code: "VALIDATION_ERROR",
+    message: () => "--attach accepts at most 50 values per command",
+  },
+  {
+    pattern: /`--attach` is not supported when using (`--\S+`)/,
+    code: "VALIDATION_ERROR",
+    message: (m) => `--attach cannot be combined with ${m[1]}`,
+  },
+  {
+    pattern: /cannot set alt text on video/,
+    code: "VALIDATION_ERROR",
+    message: () => "--attach: cannot set alt text on video",
+  },
+  {
+    pattern: /(\S+) is not a supported file type \(supported: ([^)]+)\)/,
+    code: "VALIDATION_ERROR",
+    message: (m) =>
+      `--attach ${m[1]} is not a supported file type (supported: ${m[2]})`,
+  },
+  {
+    pattern: /(\S+): images must be at most ([^\n]+)/,
+    code: "VALIDATION_ERROR",
+    message: (m) => `--attach ${m[1]}: images must be at most ${m[2].trim()}`,
+  },
+  {
+    pattern: /(\S+): videos must be at most ([^\n]+)/,
+    code: "VALIDATION_ERROR",
+    message: (m) => `--attach ${m[1]}: videos must be at most ${m[2].trim()}`,
+  },
+  {
+    pattern:
+      /attach(?:ment)? uploads? (?:are|is) not (?:supported|available).*(?:Enterprise Server|GHES)/i,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "--attach is not supported on GitHub Enterprise Server in this gh release",
+  },
+  {
     pattern: /HTTP 403/,
     code: "FORBIDDEN",
     message: () => "Insufficient permissions for this action",

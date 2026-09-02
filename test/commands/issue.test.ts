@@ -17,6 +17,7 @@ import {
 } from "../../src/commands/issue.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
+import { withPng, withTempDir, TINY_PNG } from "../helpers/media.js";
 
 const mockedGhJson = vi.mocked(ghJson);
 const mockedGhExec = vi.mocked(ghExec);
@@ -1601,6 +1602,191 @@ describe("issueCommand", () => {
           AxiError,
         );
       });
+    });
+  });
+
+  describe("--attach", () => {
+    const assetUrl =
+      "https://github.com/user-attachments/assets/11111111-2222-3333-4444-555555555555";
+
+    it("documents --attach and the gh >= 2.99.0 requirement in help", async () => {
+      const result = await issueCommand(["--help"], ctx);
+      expect(result).toContain("--attach <path[#alt]>");
+      expect(result).toContain("gh >= 2.99.0");
+      expect(result).toContain("(repeatable");
+    });
+
+    it("does not pass --attach when the flag is absent", async () => {
+      mockedGhExec.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "New issue",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+      });
+
+      await issueCommand(["create", "--title", "New issue"], ctx);
+
+      const argv = mockedGhExec.mock.calls[0][0] as string[];
+      expect(argv).not.toContain("--attach");
+    });
+
+    it("forwards repeated --attach on create and names uploaded asset URLs", async () => {
+      await withPng(async (file) => {
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/issues/99\n",
+        );
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "UI bug",
+          state: "OPEN",
+          url: "https://github.com/octo/repo/issues/99",
+          body: `![repro](${assetUrl})`,
+        });
+
+        const spec = `${file}#Login error`;
+        const result = await issueCommand(
+          ["create", "--title", "UI bug", "--attach", spec, "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          [
+            "issue",
+            "create",
+            "--title",
+            "UI bug",
+            "--attach",
+            spec,
+            "--attach",
+            file,
+          ],
+          ctx,
+        );
+        expect(result).toContain("attachments");
+        expect(result).toContain(file);
+        expect(result).toContain("image");
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("forwards --attach on edit", async () => {
+      await withPng(async (file) => {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValue({
+          number: 10,
+          title: "T",
+          state: "OPEN",
+          labels: [],
+          assignees: [],
+          body: `see ${assetUrl}`,
+        });
+
+        const result = await issueCommand(
+          ["edit", "10", "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["issue", "edit", "10", "--attach", file],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("allows comment with --attach and no --body", async () => {
+      await withPng(async (file) => {
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValue({
+          comments: [
+            {
+              author: { login: "alice" },
+              body: `![repro](${assetUrl})`,
+              createdAt: "2026-01-01T00:00:00Z",
+            },
+          ],
+        });
+
+        const result = await issueCommand(
+          ["comment", "99", "--attach", file],
+          ctx,
+        );
+
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          ["issue", "comment", "99", "--attach", file],
+          ctx,
+        );
+        expect(result).toContain(file);
+        expect(result).toContain(assetUrl);
+      });
+    });
+
+    it("still requires a body on comment when --attach is absent", async () => {
+      await expect(issueCommand(["comment", "99"], ctx)).rejects.toThrow(
+        /--body or --body-file is required/,
+      );
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects an unsupported type before calling gh", async () => {
+      await withTempDir(async (dir) => {
+        const file = join(dir, "note.txt");
+        writeFileSync(file, "not an image");
+        await expect(
+          issueCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toThrow(/not a supported file type/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
+    });
+
+    it("rejects an oversized image before calling gh", async () => {
+      await withTempDir(async (dir) => {
+        const file = join(dir, "huge.png");
+        writeFileSync(file, Buffer.alloc(10 * 1024 * 1024 + 1));
+        await expect(
+          issueCommand(["create", "--title", "T", "--attach", file], ctx),
+        ).rejects.toThrow(/images must be at most 10 MB/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
+    });
+
+    it("rejects alt text on a video before calling gh", async () => {
+      await withTempDir(async (dir) => {
+        const file = join(dir, "clip.mp4");
+        writeFileSync(file, TINY_PNG);
+        await expect(
+          issueCommand(
+            ["create", "--title", "T", "--attach", `${file}#nope`],
+            ctx,
+          ),
+        ).rejects.toThrow(/cannot set alt text on video/);
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
+    });
+
+    it("rejects more than 50 attachments before calling gh", async () => {
+      await withPng(async (file) => {
+        const args = ["create", "--title", "T"];
+        for (let i = 0; i < 51; i++) args.push("--attach", file);
+        await expect(issueCommand(args, ctx)).rejects.toThrow(
+          /at most 50 values/,
+        );
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      });
+    });
+
+    it("rejects a missing file before calling gh", async () => {
+      await expect(
+        issueCommand(
+          ["create", "--title", "T", "--attach", "./no-such-file.png"],
+          ctx,
+        ),
+      ).rejects.toThrow(/no such file or directory/);
+      expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
 });
