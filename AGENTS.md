@@ -72,6 +72,16 @@ Both collectors reject a dangling (`--label` with nothing after it) or blank (`-
 Pick the collector that matches the surrounding file: `issue.ts` reads args non-destructively (`getAllFlags`), `pr.ts` consumes them (`takeAllFlags`).
 When a flag becomes repeatable, mark it `(repeatable)` in that command's `*_HELP` string.
 
+## Local guards on pass-through flags (`src/commands/pr.ts`)
+
+gh rejects some flag combinations at parse time (`--merge`/`--squash`/`--rebase`, and `--auto`/`--disable-auto`/`--admin`), and gh-axi mirrors those conflicts locally as a `VALIDATION_ERROR` before any gh call.
+The mirror is not redundant: several commands run an idempotency `gh ... view` first, so a locally caught conflict saves an API round trip and yields a mapped error instead of gh's raw flag usage dump.
+Verify the real conflict against the installed gh (`gh pr merge 999999 --admin --auto -R <repo>` surfaces a flag error without touching a PR) rather than inferring it from the help text.
+
+`takeBoolFlag` in `src/args.ts` matches whole tokens only, while `rejectUnknownFlags` compares the flag name with any `=value` stripped, so a known boolean written as `--flag=value` clears the guard and is then dropped without a word.
+`prMerge` closes that gap for its own on/off switches with `rejectValuedMergeSwitches`, which throws a `VALIDATION_ERROR` naming the offending token before any gh call; a command adding its own boolean flag needs the same guard until the shared helper learns the `=value` form.
+Run such a guard over the raw argv as the first statement of the handler: once a value-taking option has parsed, `--body --admin=true` has already been consumed as body text and there is no token left to reject.
+
 ## gh stderr classification (`src/errors.ts`)
 
 `mapGhError` walks `patterns` in order and returns on the first regex hit, so **order is the contract**: a narrow, specific pattern must sit ahead of any broader one it would otherwise be swallowed by.

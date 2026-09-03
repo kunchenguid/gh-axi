@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ISSUE_HELP } from "../src/commands/issue.js";
-import { PR_HELP } from "../src/commands/pr.js";
+import { PR_HELP, prCommand } from "../src/commands/pr.js";
 import { RUN_HELP } from "../src/commands/run.js";
 import { WORKFLOW_HELP } from "../src/commands/workflow.js";
 import { RELEASE_HELP } from "../src/commands/release.js";
@@ -101,5 +101,18 @@ describe("secret --env discoverability", () => {
 
   it("shows an env-scoped example in secret help", () => {
     expect(SECRET_HELP).toContain("--env production");
+  });
+});
+
+describe("pr merge --admin discoverability", () => {
+  it("documents --admin and the privileges it uses in pr help", async () => {
+    const lines = (await prCommand(["--help"])).split("\n");
+    const headerIdx = lines.findIndex((l) => l.startsWith("flags{merge}:"));
+    expect(headerIdx).toBeGreaterThan(-1);
+    const mergeFlags = lines[headerIdx + 1];
+    expect(mergeFlags).toContain("--admin");
+    expect(mergeFlags).toContain(
+      "use administrator privileges to bypass merge requirements",
+    );
   });
 });

@@ -896,6 +896,175 @@ describe("prCommand", () => {
         ctx,
       );
     });
+
+    it("forwards --admin to gh and records the bypass", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      const result = await prCommand(["merge", "10", "--admin"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--admin"],
+        ctx,
+      );
+      expect(result).toContain("admin: yes");
+    });
+
+    it("reports admin: no when the flag is absent", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      const result = await prCommand(["merge", "10", "--squash"], ctx);
+
+      expect(result).toContain("admin: no");
+    });
+
+    it("composes --admin with a merge method, --delete-branch and commit text", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        [
+          "merge",
+          "10",
+          "--squash",
+          "--admin",
+          "--delete-branch",
+          "--subject",
+          "ship it",
+          "--body",
+          "why",
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        [
+          "pr",
+          "merge",
+          "10",
+          "--squash",
+          "--admin",
+          "--delete-branch",
+          "--body",
+          "why",
+          "--subject",
+          "ship it",
+        ],
+        ctx,
+      );
+    });
+
+    it("still rejects an unknown merge flag", async () => {
+      await expect(prCommand(["merge", "10", "--bogus"], ctx)).rejects.toThrow(
+        /unknown flag for gh-axi pr merge: --bogus/,
+      );
+    });
+
+    it("rejects --admin combined with --auto, matching gh", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+
+      await expect(
+        prCommand(["merge", "10", "--auto", "--admin"], ctx),
+      ).rejects.toThrow(/Choose either --auto or --admin/);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("never enables --admin on its own when gh refuses the merge", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockRejectedValue(
+        new AxiError("Pull request is not mergeable", "CONFLICT"),
+      );
+
+      await expect(prCommand(["merge", "10"], ctx)).rejects.toThrow(
+        "Pull request is not mergeable",
+      );
+      expect(mockedGhExec).toHaveBeenCalledTimes(1);
+      expect(mockedGhExec).toHaveBeenCalledWith(["pr", "merge", "10"], ctx);
+    });
+
+    it("forwards a bare --auto to gh", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(["merge", "10", "--auto"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--auto"],
+        ctx,
+      );
+    });
+
+    it.each([
+      "--admin=true",
+      "--auto=true",
+      "--squash=true",
+      "--merge=true",
+      "--rebase=true",
+      "--delete-branch=false",
+    ])("rejects the %s form instead of dropping it", async (token) => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      const flag = token.split("=")[0];
+      await expect(prCommand(["merge", "10", token], ctx)).rejects.toThrow(
+        `${token} is not supported: ${flag} is an on/off flag`,
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects --admin=true even when another switch would merge", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await expect(
+        prCommand(["merge", "10", "--squash", "--admin=true"], ctx),
+      ).rejects.toThrow("--admin=true is not supported");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["--body", "--admin=true"],
+      ["--subject", "--admin=true"],
+      ["--subject", "--auto=true"],
+    ])(
+      "rejects %s %s instead of using the switch as text",
+      async (option, token) => {
+        mockedGhJson.mockResolvedValue({ state: "OPEN" });
+        mockedGhExec.mockResolvedValue("");
+
+        await expect(
+          prCommand(["merge", "10", option, token], ctx),
+        ).rejects.toThrow(`${token} is not supported`);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
+    it("keeps value-taking merge flags working in the --flag=value form", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        ["merge", "10", "--method=squash", "--body=why", "--subject=ship it"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        [
+          "pr",
+          "merge",
+          "10",
+          "--squash",
+          "--body",
+          "why",
+          "--subject",
+          "ship it",
+        ],
+        ctx,
+      );
+    });
   });
 
   describe("--body-file", () => {
