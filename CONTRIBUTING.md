@@ -27,9 +27,6 @@ The release and dependency bots are exempt so their automation keeps working, bu
 
 6. Run `no-mistakes` to attach to the pipeline, watch findings, and auto-fix or review as needed.
 7. Once the pipeline passes, it pushes the branch to your fork and opens the PR against this repo for you.
-8. If you have no merged commit in this repo yet, GitHub holds the PR's workflow runs for a maintainer to approve.
-   Until that approval they report as `action_required` instead of passing or failing, which is GitHub's fork policy for first-time contributors rather than a problem with your branch.
-   Wait for the approval instead of pushing again to retrigger them.
 
 The required pipeline attestation and fork routing require no-mistakes **v1.46.0** or newer.
 Run `no-mistakes update` before `git push no-mistakes` if your installed version is older.
