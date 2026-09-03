@@ -316,6 +316,7 @@ const PR_FLAGS: Record<string, readonly string[]> = {
     "--squash",
     "--rebase",
     "--auto",
+    "--admin",
     "--delete-branch",
     "--body",
     "--body-file",
@@ -350,7 +351,7 @@ flags{create}:
 flags{edit}:
   --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
 flags{merge}:
-  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --delete-branch, --body <text> or --body-file <path>, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{comment}:
@@ -777,6 +778,13 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
   const auto = takeBoolFlag(args, "--auto");
+  const admin = takeBoolFlag(args, "--admin");
+  if (auto && admin) {
+    throw new AxiError(
+      "Choose either --auto or --admin, not both: --auto waits for merge requirements, --admin bypasses them",
+      "VALIDATION_ERROR",
+    );
+  }
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
@@ -812,6 +820,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "merge", String(num)];
   if (method) ghArgs.push("--" + method);
   if (auto) ghArgs.push("--auto");
+  if (admin) ghArgs.push("--admin");
   if (deleteBranch) ghArgs.push("--delete-branch");
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
@@ -821,8 +830,8 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   return renderOutput([
     renderDetail(
       "merged",
-      { number: num, status: "ok", method: method ?? "default" },
-      [field("number"), field("status"), field("method")],
+      { number: num, status: "ok", method: method ?? "default", admin },
+      [field("number"), field("status"), field("method"), boolYesNo("admin")],
     ),
     renderHelp(
       getSuggestions({ domain: "pr", action: "merge", id: num, repo: ctx }),

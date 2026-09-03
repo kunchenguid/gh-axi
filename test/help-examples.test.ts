@@ -103,3 +103,16 @@ describe("secret --env discoverability", () => {
     expect(SECRET_HELP).toContain("--env production");
   });
 });
+
+describe("pr merge --admin discoverability", () => {
+  it("documents --admin and the privileges it uses in pr help", () => {
+    const lines = PR_HELP.split("\n");
+    const headerIdx = lines.findIndex((l) => l.startsWith("flags{merge}:"));
+    expect(headerIdx).toBeGreaterThan(-1);
+    const mergeFlags = lines[headerIdx + 1];
+    expect(mergeFlags).toContain("--admin");
+    expect(mergeFlags).toContain(
+      "use administrator privileges to bypass merge requirements",
+    );
+  });
+});
