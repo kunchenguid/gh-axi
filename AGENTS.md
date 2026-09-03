@@ -72,7 +72,7 @@ Both collectors reject a dangling (`--label` with nothing after it) or blank (`-
 Pick the collector that matches the surrounding file: `issue.ts` reads args non-destructively (`getAllFlags`), `pr.ts` consumes them (`takeAllFlags`).
 When a flag becomes repeatable, mark it `(repeatable)` in that command's `*_HELP` string.
 
-## Mutually exclusive pass-through flags (`src/commands/pr.ts`)
+## Local guards on pass-through flags (`src/commands/pr.ts`)
 
 gh rejects some flag combinations at parse time (`--merge`/`--squash`/`--rebase`, and `--auto`/`--disable-auto`/`--admin`), and gh-axi mirrors those conflicts locally as a `VALIDATION_ERROR` before any gh call.
 The mirror is not redundant: several commands run an idempotency `gh ... view` first, so a locally caught conflict saves an API round trip and yields a mapped error instead of gh's raw flag usage dump.
