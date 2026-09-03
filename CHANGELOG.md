@@ -18,6 +18,20 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.36](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.35...gh-axi-v0.1.36) (2026-09-03)
+
+
+### Features
+
+* **commands:** support issue and PR attachment uploads ([#139](https://github.com/kunchenguid/gh-axi/issues/139)) ([10551ab](https://github.com/kunchenguid/gh-axi/commit/10551aba21f70e490bf1292dd13e6b621f2d1144))
+* **pr:** add --admin flag to pr merge ([#140](https://github.com/kunchenguid/gh-axi/issues/140)) ([d0a789c](https://github.com/kunchenguid/gh-axi/commit/d0a789c9b1a6580adc2efc668a723ad3e9206351))
+* **repo:** support local-source create with --source, --push, and --remote ([#135](https://github.com/kunchenguid/gh-axi/issues/135)) ([236010e](https://github.com/kunchenguid/gh-axi/commit/236010e2108868904016d83f04a6e70bbae31089))
+
+
+### Bug Fixes
+
+* **repo:** report real owner/name and harden name handling in repo create ([#137](https://github.com/kunchenguid/gh-axi/issues/137)) ([18b7cd2](https://github.com/kunchenguid/gh-axi/commit/18b7cd2a594a1a662afec31ec69838a461d238d5))
+
 ## [0.1.35](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.34...gh-axi-v0.1.35) (2026-08-30)
 
 
