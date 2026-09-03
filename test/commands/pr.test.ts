@@ -982,6 +982,71 @@ describe("prCommand", () => {
       expect(mockedGhExec).toHaveBeenCalledTimes(1);
       expect(mockedGhExec).toHaveBeenCalledWith(["pr", "merge", "10"], ctx);
     });
+
+    it("forwards a bare --auto to gh", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(["merge", "10", "--auto"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "merge", "10", "--auto"],
+        ctx,
+      );
+    });
+
+    it.each([
+      "--admin=true",
+      "--auto=true",
+      "--squash=true",
+      "--merge=true",
+      "--rebase=true",
+      "--delete-branch=false",
+    ])("rejects the %s form instead of dropping it", async (token) => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      const flag = token.split("=")[0];
+      await expect(prCommand(["merge", "10", token], ctx)).rejects.toThrow(
+        `${token} is not supported: ${flag} is an on/off flag`,
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects --admin=true even when another switch would merge", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await expect(
+        prCommand(["merge", "10", "--squash", "--admin=true"], ctx),
+      ).rejects.toThrow("--admin=true is not supported");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("keeps value-taking merge flags working in the --flag=value form", async () => {
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        ["merge", "10", "--method=squash", "--body=why", "--subject=ship it"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        [
+          "pr",
+          "merge",
+          "10",
+          "--squash",
+          "--body",
+          "why",
+          "--subject",
+          "ship it",
+        ],
+        ctx,
+      );
+    });
   });
 
   describe("--body-file", () => {

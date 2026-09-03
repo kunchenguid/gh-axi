@@ -748,6 +748,32 @@ async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
+const MERGE_BOOL_FLAGS = [
+  "--merge",
+  "--squash",
+  "--rebase",
+  "--auto",
+  "--admin",
+  "--delete-branch",
+] as const;
+
+/**
+ * Reject the `--flag=value` form of a pr merge on/off switch.
+ *
+ * These flags are matched as whole tokens, so `--admin=true` would otherwise
+ * read as absent and be dropped, merging on terms the caller did not ask for.
+ */
+function rejectValuedMergeSwitches(args: string[]): void {
+  for (const arg of args) {
+    const flag = MERGE_BOOL_FLAGS.find((known) => arg.startsWith(`${known}=`));
+    if (!flag) continue;
+    throw new AxiError(
+      `${arg} is not supported: ${flag} is an on/off flag, so pass ${flag} on its own to turn it on, or omit it to leave it off`,
+      "VALIDATION_ERROR",
+    );
+  }
+}
+
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
   const explicitMethod = takeFlag(args, "--method");
@@ -788,6 +814,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
+  rejectValuedMergeSwitches(args);
 
   // Idempotent: check if already merged
   const pr = await ghJson<Pick<PrItem, "state" | "mergedBy" | "mergedAt">>(

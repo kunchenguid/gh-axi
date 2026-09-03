@@ -78,6 +78,9 @@ gh rejects some flag combinations at parse time (`--merge`/`--squash`/`--rebase`
 The mirror is not redundant: several commands run an idempotency `gh ... view` first, so a locally caught conflict saves an API round trip and yields a mapped error instead of gh's raw flag usage dump.
 Verify the real conflict against the installed gh (`gh pr merge 999999 --admin --auto -R <repo>` surfaces a flag error without touching a PR) rather than inferring it from the help text.
 
+`takeBoolFlag` in `src/args.ts` matches whole tokens only, while `rejectUnknownFlags` compares the flag name with any `=value` stripped, so a known boolean written as `--flag=value` clears the guard and is then dropped without a word.
+`prMerge` closes that gap for its own on/off switches with `rejectValuedMergeSwitches`, which throws a `VALIDATION_ERROR` naming the offending token before any gh call; a command adding its own boolean flag needs the same guard until the shared helper learns the `=value` form.
+
 ## gh stderr classification (`src/errors.ts`)
 
 `mapGhError` walks `patterns` in order and returns on the first regex hit, so **order is the contract**: a narrow, specific pattern must sit ahead of any broader one it would otherwise be swallowed by.
