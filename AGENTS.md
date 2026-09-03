@@ -80,6 +80,7 @@ Verify the real conflict against the installed gh (`gh pr merge 999999 --admin -
 
 `takeBoolFlag` in `src/args.ts` matches whole tokens only, while `rejectUnknownFlags` compares the flag name with any `=value` stripped, so a known boolean written as `--flag=value` clears the guard and is then dropped without a word.
 `prMerge` closes that gap for its own on/off switches with `rejectValuedMergeSwitches`, which throws a `VALIDATION_ERROR` naming the offending token before any gh call; a command adding its own boolean flag needs the same guard until the shared helper learns the `=value` form.
+Run such a guard over the raw argv as the first statement of the handler: once a value-taking option has parsed, `--body --admin=true` has already been consumed as body text and there is no token left to reject.
 
 ## gh stderr classification (`src/errors.ts`)
 

@@ -762,6 +762,8 @@ const MERGE_BOOL_FLAGS = [
  *
  * These flags are matched as whole tokens, so `--admin=true` would otherwise
  * read as absent and be dropped, merging on terms the caller did not ask for.
+ * Runs over the raw argv before anything is parsed, because a value-taking
+ * option would otherwise swallow the token (`--body --admin=true`) and hide it.
  */
 function rejectValuedMergeSwitches(args: string[]): void {
   for (const arg of args) {
@@ -775,6 +777,7 @@ function rejectValuedMergeSwitches(args: string[]): void {
 }
 
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
+  rejectValuedMergeSwitches(args);
   const num = takeNumber(args, "PR");
   const explicitMethod = takeFlag(args, "--method");
   const shorthandMethods = ["merge", "squash", "rebase"].filter((candidate) =>
@@ -814,7 +817,6 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
-  rejectValuedMergeSwitches(args);
 
   // Idempotent: check if already merged
   const pr = await ghJson<Pick<PrItem, "state" | "mergedBy" | "mergedAt">>(

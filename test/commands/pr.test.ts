@@ -1024,6 +1024,20 @@ describe("prCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
+    it.each(["--body", "--subject"])(
+      "rejects --admin=true after %s instead of using it as text",
+      async (option) => {
+        mockedGhJson.mockResolvedValue({ state: "OPEN" });
+        mockedGhExec.mockResolvedValue("");
+
+        await expect(
+          prCommand(["merge", "10", option, "--admin=true"], ctx),
+        ).rejects.toThrow("--admin=true is not supported");
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
     it("keeps value-taking merge flags working in the --flag=value form", async () => {
       mockedGhJson.mockResolvedValue({ state: "OPEN" });
       mockedGhExec.mockResolvedValue("");
