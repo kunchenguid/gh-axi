@@ -64,6 +64,14 @@ Instead, `resolveOwner()` defaults `--owner` to the current repo's owner (`ctx?.
 Since Projects v2 items carry per-project custom fields (Status, Priority, ...) with no fixed schema, `item-list`/`field-list` render through bespoke functions (`renderProjectItems`/`renderProjectFields`) that flatten any unknown scalar top-level key into its own column, rather than a fixed `FieldDef` schema.
 Requires the `project` (or `read:project`) OAuth scope on the `gh` token; `src/errors.ts` matches gh's literal `"authentication token is missing required scopes [...]"` stderr (verified against a live token missing the scope) and maps it to `FORBIDDEN` with a `gh auth refresh -s <scope>` suggestion — this pattern is generic, not project-specific, so it also covers other gh features gated by OAuth scopes.
 
+## Help text is the flag contract (`test/help-examples.test.ts`)
+
+Agents read `--help` as the complete list of flags a subcommand accepts, so every entry in a family's `*_FLAGS` table must appear in the matching `flags{<sub>}:` section of its `*_HELP` string.
+`test/help-examples.test.ts` enforces that direction (FLAGS subset of HELP) by importing the tables themselves — which is the only reason `ISSUE_FLAGS`, `PR_FLAGS`, `RUN_FLAGS`, `WORKFLOW_FLAGS`, `RELEASE_FLAGS`, `REPO_FLAGS`, `LABEL_FLAGS`, `PROJECT_FLAGS`, `VARIABLE_FLAGS` and `SEARCH_FLAGS` are exported.
+The parser reads a `flags{<sub>}:` header naming exactly one subcommand plus its two-space-indented continuation lines; matching is whole-token, so `--log-failed` does not stand in for `--log`.
+`issue list --search` and `pr list --search` are exempt via `UNDOCUMENTED_ON_PURPOSE` because they exist only to be rejected with a hint pointing at `gh-axi search`; add an exemption only for a flag that always fails, never to silence a real gap.
+`api`, `gist`, `secret` and `stack` declare their accepted flags differently and are not covered.
+
 ## Repeatable flags (`src/args.ts`)
 
 `gh` accepts `--label`, `--assignee`, `--reviewer`, `--project`, and the `--add-*`/`--remove-*` variants once per value, so gh-axi must collect _every_ occurrence.
