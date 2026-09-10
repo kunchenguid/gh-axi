@@ -121,26 +121,33 @@ describe("pr merge --admin discoverability", () => {
  * Parse a HELP constant's `flags{<sub>}:` sections into the text documenting
  * each subcommand.
  *
- * A section header may carry its flags on the same line or on the indented
- * lines that follow it (`repo`'s `create` spans three lines), and every
+ * A section header names one subcommand and carries its flags on the indented
+ * lines that follow it (`repo`'s `create` spans three lines); every
  * continuation line is indented by two spaces, so an unindented line ends the
- * section. One header can name several subcommands (`flags{list,view}:`).
+ * section.
  */
 function parseFlagSections(help: string): Map<string, string> {
   const sections = new Map<string, string>();
   const lines = help.split("\n");
   for (let i = 0; i < lines.length; i++) {
-    const header = lines[i].match(/^flags\{([^}]+)\}:(.*)$/);
+    const header = lines[i].match(/^flags\{([^}]+)\}:$/);
     if (!header) continue;
-    let text = header[2];
+    let text = "";
     for (let j = i + 1; j < lines.length && lines[j].startsWith("  "); j++) {
       text += " " + lines[j];
     }
-    for (const sub of header[1].split(",")) {
-      sections.set(sub.trim(), text);
-    }
+    sections.set(header[1], text);
   }
   return sections;
+}
+
+/**
+ * Whether `flag` appears in help text as a whole token, so that `--log-failed`
+ * does not stand in for `--log`, nor `--body-file` for `--body`.
+ */
+function documents(help: string, flag: string): boolean {
+  const escaped = flag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^\\w-])${escaped}($|[^\\w-])`).test(help);
 }
 
 /**
@@ -193,9 +200,8 @@ describe("every accepted flag is documented in its family's help", () => {
       it(`${family} ${sub}`, () => {
         const documented = (sections.get(sub) ?? "") + " " + shared;
         expect(documented.trim()).not.toBe("");
-        for (const flag of expected) {
-          expect(documented).toContain(flag);
-        }
+        const missing = expected.filter((f) => !documents(documented, f));
+        expect(missing, `undocumented in flags{${sub}}`).toEqual([]);
       });
     }
   }
