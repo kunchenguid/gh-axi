@@ -267,7 +267,7 @@ const VIEW_JSON_FIELDS =
 // --search is intentionally listed: prList rejects it with a dedicated hint
 // pointing at `gh-axi search`, so rejectUnknownFlags lets it through to that
 // handler instead of shadowing the targeted error.
-const PR_FLAGS: Record<string, readonly string[]> = {
+export const PR_FLAGS: Record<string, readonly string[]> = {
   list: [
     "--fields",
     "--state",
@@ -349,7 +349,9 @@ flags{view}:
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
 flags{edit}:
-  --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone
+  --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone, --base <branch> (retarget the PR)
+flags{close}:
+  --comment <text>
 flags{merge}:
   --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject
 flags{review}:

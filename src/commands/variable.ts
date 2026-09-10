@@ -15,7 +15,7 @@ import {
 import { getSuggestions } from "../suggestions.js";
 import { resolveValue } from "../secretValue.js";
 
-const VARIABLE_FLAGS: Record<string, readonly string[]> = {
+export const VARIABLE_FLAGS: Record<string, readonly string[]> = {
   list: [],
   set: ["--body", "-b"],
   delete: [],

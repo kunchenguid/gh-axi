@@ -34,7 +34,7 @@ const SEARCH_VALUE_FLAGS = new Set([
   "--stars",
 ]);
 
-const SEARCH_FLAGS: Record<string, readonly string[]> = {
+export const SEARCH_FLAGS: Record<string, readonly string[]> = {
   issues: [
     "--repo", "--owner", "--state", "--label", "--assignee", "--author",
     "--sort", "--limit",
@@ -57,6 +57,8 @@ flags{prs}:
   --draft, --review
 flags{repos}:
   --language, --stars (e.g. ">100")
+flags{code}:
+  --language
 examples:
   gh-axi search issues "login bug" --repo octo/repo --state open
   gh-axi search prs "feat" --author alice --sort updated

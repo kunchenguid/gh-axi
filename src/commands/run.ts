@@ -21,7 +21,7 @@ import {
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
 
-const RUN_FLAGS: Record<string, readonly string[]> = {
+export const RUN_FLAGS: Record<string, readonly string[]> = {
   list: [
     "--fields", "--limit", "--workflow", "--branch", "--status",
     "--event", "--user", "--commit",
@@ -42,7 +42,7 @@ note:
 flags{list}:
   --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c>
 flags{view}:
-  --job <job-id>, --log, --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
+  --job <job-id>, --log (or --verbose), --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
   long --log/--log-failed output keeps the tail and may include full_log for grep searches
 flags{rerun}:
   --failed, --debug, --job

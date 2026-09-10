@@ -16,7 +16,7 @@ import {
 import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
-const WORKFLOW_FLAGS: Record<string, readonly string[]> = {
+export const WORKFLOW_FLAGS: Record<string, readonly string[]> = {
   list: ['--limit', '--all'],
   view: [],
   run: ['--ref', '--field'],

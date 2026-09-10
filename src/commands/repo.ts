@@ -20,7 +20,7 @@ import {
 import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
-const REPO_FLAGS: Record<string, readonly string[]> = {
+export const REPO_FLAGS: Record<string, readonly string[]> = {
   view: [],
   create: [
     '--public', '--private', '--internal', '--description', '--clone',

@@ -25,7 +25,7 @@ import {
 } from "../toon.js";
 import { getSuggestions } from "../suggestions.js";
 
-const RELEASE_FLAGS: Record<string, readonly string[]> = {
+export const RELEASE_FLAGS: Record<string, readonly string[]> = {
   list: ["--limit", "--exclude-drafts", "--exclude-pre-releases"],
   view: ["--full"],
   create: [

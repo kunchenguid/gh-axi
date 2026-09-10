@@ -132,7 +132,7 @@ examples:
 // --search is intentionally listed: listIssues/prList reject it with a
 // dedicated hint pointing at `gh-axi search`, so rejectUnknownFlags lets it
 // through to that handler instead of shadowing the targeted error.
-const ISSUE_FLAGS: Record<string, readonly string[]> = {
+export const ISSUE_FLAGS: Record<string, readonly string[]> = {
   list: [
     "--fields",
     "--state",

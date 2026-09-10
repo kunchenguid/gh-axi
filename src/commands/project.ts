@@ -56,7 +56,7 @@ interface ProjectFieldListResult {
 // Help
 // ---------------------------------------------------------------------------
 
-const PROJECT_FLAGS: Record<string, readonly string[]> = {
+export const PROJECT_FLAGS: Record<string, readonly string[]> = {
   list: ["--owner", "--closed", "--limit"],
   view: ["--owner"],
   "item-list": ["--owner", "--query", "--limit"],

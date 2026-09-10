@@ -14,7 +14,7 @@ import {
 import { formatCountLine } from '../format.js';
 import { getSuggestions } from '../suggestions.js';
 
-const LABEL_FLAGS: Record<string, readonly string[]> = {
+export const LABEL_FLAGS: Record<string, readonly string[]> = {
   list: ['--limit'],
   create: ['--name', '--color', '--description'],
   edit: ['--name', '--color', '--description'],
