@@ -86,6 +86,8 @@ interface PrItem {
   isDraft: boolean;
   reviewDecision: string;
   mergedAt?: string;
+  /** CLEAN | DIRTY | BEHIND | BLOCKED | UNSTABLE | HAS_HOOKS | DRAFT | UNKNOWN */
+  mergeStateStatus?: string;
   statusCheckRollup?: StatusCheck[];
   body?: string;
   comments?: PrComment[];
@@ -258,7 +260,38 @@ const viewSchemaFull: FieldDef[] = viewSchema.map((f) =>
 );
 
 const VIEW_JSON_FIELDS =
-  "number,title,state,author,isDraft,mergedAt,statusCheckRollup,body,comments,reviews";
+  "number,title,state,author,isDraft,mergedAt,mergeStateStatus,statusCheckRollup,body,comments,reviews";
+
+/**
+ * Hints for `mergeStateStatus` values that need action. CLEAN, HAS_HOOKS and
+ * DRAFT read clearly on their own.
+ */
+const MERGE_STATE_HINTS: Record<string, string> = {
+  DIRTY: "merge conflicts with the base branch",
+  BEHIND:
+    "head branch is behind the base branch; gh-axi pr update-branch brings it up to date",
+  BLOCKED: "blocked by required reviews or status checks",
+  UNSTABLE: "mergeable, but some non-required checks are failing",
+  UNKNOWN: "GitHub is still computing mergeability; retry shortly",
+};
+
+const mergeStateField = custom("merge_state", (item: PrItem) => {
+  const status = (item.mergeStateStatus ?? "UNKNOWN").toUpperCase();
+  const hint = MERGE_STATE_HINTS[status];
+  const label = status.toLowerCase();
+  return hint ? `${label} — ${hint}` : label;
+});
+
+/**
+ * Place `merge_state` after `checks` for open PRs. GitHub reports UNKNOWN for
+ * merged and closed PRs, so they omit the field rather than show a stale value.
+ */
+function withMergeState(schema: FieldDef[], pr: PrItem): FieldDef[] {
+  if ((pr.state ?? "").toUpperCase() !== "OPEN") return [...schema];
+  return schema.flatMap((f) =>
+    "as" in f && f.as === "checks" ? [f, mergeStateField] : [f],
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Help
@@ -463,7 +496,7 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "view", String(num), "--json", VIEW_JSON_FIELDS];
   const pr = await ghJson<PrItem>(ghArgs, ctx);
 
-  const schema = [...(full ? viewSchemaFull : viewSchema)];
+  const schema = withMergeState(full ? viewSchemaFull : viewSchema, pr);
   if (includeComments && Array.isArray(pr.comments)) {
     schema.push(
       custom("comments", (item: PrItem) =>

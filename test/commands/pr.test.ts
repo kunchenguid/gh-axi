@@ -362,6 +362,84 @@ describe("prCommand", () => {
       expect(result).not.toMatch(/^help\[/m);
     });
 
+    describe("merge_state", () => {
+      const openPr = {
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [],
+        body: "desc",
+        comments: [],
+      };
+
+      it("requests mergeStateStatus and shows it after checks for an open PR", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          mergeStateStatus: "CLEAN",
+        });
+
+        const result = await prCommand(["view", "42"], ctx);
+
+        const jsonFields = mockedGhJson.mock.calls[0][0][4];
+        expect(jsonFields.split(",")).toContain("mergeStateStatus");
+        expect(result).toContain("merge_state: clean");
+        expect(result.indexOf("checks:")).toBeLessThan(
+          result.indexOf("merge_state:"),
+        );
+        expect(result.indexOf("merge_state:")).toBeLessThan(
+          result.indexOf("body:"),
+        );
+      });
+
+      it("explains a state that blocks merging", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          mergeStateStatus: "DIRTY",
+        });
+
+        const result = await prCommand(["view", "42"], ctx);
+
+        expect(result).toContain(
+          "dirty — merge conflicts with the base branch",
+        );
+      });
+
+      it("reports unknown with a retry hint while GitHub is computing", async () => {
+        mockedGhJson.mockResolvedValue(openPr);
+
+        const result = await prCommand(["view", "42"], ctx);
+
+        expect(result).toContain("unknown — GitHub is still computing");
+      });
+
+      it("keeps merge_state in --full output", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          mergeStateStatus: "BLOCKED",
+        });
+
+        const result = await prCommand(["view", "42", "--full"], ctx);
+
+        expect(result).toContain("blocked — blocked by required reviews");
+      });
+
+      it("omits merge_state for a merged PR", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          state: "MERGED",
+          mergedAt: "2026-09-01T00:00:00Z",
+          mergeStateStatus: "UNKNOWN",
+        });
+
+        const result = await prCommand(["view", "42"], ctx);
+
+        expect(result).not.toContain("merge_state");
+      });
+    });
+
     it("shows review_count summary when --reviews is not passed", async () => {
       mockedGhJson.mockResolvedValue({
         number: 42,
