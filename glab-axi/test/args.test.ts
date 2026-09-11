@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   getFlag,
-  takeFlag,
   takeBoolFlag,
   takeRequiredFlag,
   getAllFlags,
@@ -29,24 +28,7 @@ describe("getFlag", () => {
   });
 });
 
-describe("takeFlag", () => {
-  it("removes the flag and its value", () => {
-    const args = ["list", "--state", "opened", "--limit", "5"];
-    expect(takeFlag(args, "--state")).toBe("opened");
-    expect(args).toEqual(["list", "--limit", "5"]);
-  });
-
-  it("removes an = form flag", () => {
-    const args = ["list", "--state=opened"];
-    expect(takeFlag(args, "--state")).toBe("opened");
-    expect(args).toEqual(["list"]);
-  });
-});
-
 describe("takeBoolFlag", () => {
-  it("detects presence", () => {
-  });
-
   it("takeBoolFlag removes the flag", () => {
     const args = ["view", "1", "--full"];
     expect(takeBoolFlag(args, "--full")).toBe(true);
@@ -55,6 +37,12 @@ describe("takeBoolFlag", () => {
 
   it("takeBoolFlag matches whole tokens only", () => {
     expect(takeBoolFlag(["--fullest"], "--full")).toBe(false);
+  });
+
+  it("rejects a valued spelling instead of dropping it", () => {
+    expect(() => takeBoolFlag(["view", "1", "--full=true"], "--full")).toThrow(
+      /--full=true/,
+    );
   });
 });
 
@@ -77,6 +65,16 @@ describe("takeRequiredFlag", () => {
     expect(() =>
       takeRequiredFlag(["--description", "--title", "x"], "--description"),
     ).toThrow(AxiError);
+  });
+
+  it("takes a dash-leading value that is not flag-shaped", () => {
+    const bullet = ["--description", "- fixes the login redirect"];
+    expect(takeRequiredFlag(bullet, "--description")).toBe(
+      "- fixes the login redirect",
+    );
+    expect(takeRequiredFlag(["--title", "-1 regression"], "--title")).toBe(
+      "-1 regression",
+    );
   });
 });
 

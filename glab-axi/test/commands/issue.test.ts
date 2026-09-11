@@ -176,6 +176,13 @@ describe("issue view", () => {
     expect(result).toContain("glab-axi issue list --state closed -R group/project");
   });
 
+  it("rejects --full=true instead of silently truncating", async () => {
+    await expect(
+      issueCommand(["view", "42", "--full=true"], ctx),
+    ).rejects.toThrow(/--full=true/);
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("truncates by default and --full keeps everything", async () =>{
     mockedGlabJson.mockResolvedValueOnce({
       ...OPEN_ISSUE,

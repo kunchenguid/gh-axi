@@ -20,31 +20,31 @@ export function getFlag(args: string[], name: string): string | undefined {
   return undefined;
 }
 
-/** Get a flag's value from --flag value or --flag=value and remove it from args. */
-export function takeFlag(args: string[], flag: string): string | undefined {
-  const equalsPrefix = flagEqualsPrefix(flag);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === flag) {
-      const val = args[i + 1];
-      args.splice(i, 2);
-      return val;
-    }
-    if (arg.startsWith(equalsPrefix)) {
-      const val = arg.slice(equalsPrefix.length);
-      args.splice(i, 1);
-      return val;
-    }
-  }
-  return undefined;
-}
-
-/** Check if a boolean flag is present and remove it from args. */
+/**
+ * Check if a boolean flag is present and remove it from args.
+ *
+ * A `--flag=value` spelling is rejected rather than ignored: matching whole
+ * tokens only would drop it without a word, and rejectUnknownFlags compares
+ * the flag name with any `=value` stripped, so nothing else would catch it.
+ */
 export function takeBoolFlag(args: string[], flag: string): boolean {
+  const equalsPrefix = flagEqualsPrefix(flag);
+  const valued = args.find((arg) => arg.startsWith(equalsPrefix));
+  if (valued !== undefined) {
+    throw new AxiError(
+      `${valued}: use ${flag} alone (boolean flags do not take a value)`,
+      "VALIDATION_ERROR",
+    );
+  }
   const idx = args.indexOf(flag);
   if (idx === -1) return false;
   args.splice(idx, 1);
   return true;
+}
+
+/** A token that reads as another option (`-R`, `--title`), not as a value. */
+function isFlagShaped(token: string): boolean {
+  return /^--?[A-Za-z]/.test(token);
 }
 
 function requireFlagValue(value: string, flag: string): string {
@@ -54,10 +54,14 @@ function requireFlagValue(value: string, flag: string): string {
 }
 
 /**
- * Like takeFlag, but throws VALIDATION_ERROR when the flag is present with a
- * missing or blank value, rather than silently returning undefined for it.
- * A following option token (`--source --push`) is treated as a missing value,
- * not consumed as one; use `--flag=value` for a dash-leading value.
+ * Read a flag's value from --flag value or --flag=value, remove it from args,
+ * and throw VALIDATION_ERROR when the flag is present with a missing or blank
+ * value rather than silently returning undefined for it.
+ *
+ * A following flag-shaped token (`--source --push`) is treated as a missing
+ * value, not consumed as one. Only flag-shaped tokens count: a bulleted
+ * markdown body ("- fixes the redirect") or a value like "-1 regression" is
+ * ordinary text and is taken as the value.
  */
 export function takeRequiredFlag(
   args: string[],
@@ -68,7 +72,7 @@ export function takeRequiredFlag(
     const arg = args[i];
     if (arg === flag) {
       const val = args[i + 1];
-      if (val === undefined || val.startsWith("-"))
+      if (val === undefined || isFlagShaped(val))
         throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
       args.splice(i, 2);
       return requireFlagValue(val, flag);
@@ -176,7 +180,7 @@ export function rejectUnknownFlags(
   for (let i = 0; i < args.length; i++) {
     const tok = args[i];
     if (tok === "--") break;
-    if (!tok.startsWith("-")) continue;
+    if (!isFlagShaped(tok)) continue;
     const name = tok.split("=", 1)[0];
     if (name === "--help" || name === "-h") continue;
     if (knownSet.has(name)) continue;

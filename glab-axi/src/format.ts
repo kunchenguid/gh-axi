@@ -16,7 +16,7 @@ const DEFAULT_LIMIT = 30;
  * --limit would make a truncated page look complete. Clamp it ourselves and
  * report the clamped value, so formatCountLine marks the page as truncated.
  */
-export const MAX_LIMIT = 100;
+const MAX_LIMIT = 100;
 
 export function resolveLimit(raw: string | undefined): number {
   if (raw === undefined) return DEFAULT_LIMIT;

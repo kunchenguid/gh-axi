@@ -204,6 +204,13 @@ describe("mr view", () => {
     expect(merged).not.toContain("help[");
   });
 
+  it("rejects --full=true instead of silently truncating", async () => {
+    await expect(mrCommand(["view", "42", "--full=true"], ctx)).rejects.toThrow(
+      /--full=true/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("truncates a long description by default", async () => {
     mockedGlabJson.mockResolvedValueOnce({
       ...OPEN_MR,
@@ -307,6 +314,21 @@ describe("mr create", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("keeps a bulleted markdown --description as the body", async () => {
+    mockedGlabExec.mockResolvedValueOnce(
+      "https://gitlab.com/group/project/-/merge_requests/42",
+    );
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
+    await mrCommand(
+      ["create", "--title", "Fix login", "--description", "- fixes the login redirect"],
+      ctx,
+    );
+    const args = mockedGlabExec.mock.calls[0]?.[0] as string[];
+    expect(args[args.indexOf("--description") + 1]).toBe(
+      "- fixes the login redirect",
+    );
   });
 
   it("forwards branch, assignee, label, and milestone flags", async () => {
@@ -468,6 +490,13 @@ describe("mr merge", () => {
     expect(args[args.indexOf("--message") + 1]).toBe("Merge!");
     expect(args).toContain("--sha");
     expect(args[args.indexOf("--sha") + 1]).toBe("abc123");
+  });
+
+  it("keeps a dash-leading --message as text", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
+    await mrCommand(["merge", "42", "--message", "- see thread"], ctx);
+    const args = mockedGlabExec.mock.calls[0]?.[0] as string[];
+    expect(args[args.indexOf("--message") + 1]).toBe("- see thread");
   });
 
   it("refuses a blank or value-less --sha instead of merging without it", async () => {

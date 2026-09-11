@@ -9,7 +9,6 @@ interface SuggestionContext {
   /** The entity number for substitution */
   id?: string | number;
   repo?: ProjectContext;
-  host?: HostContext;
 }
 
 type SuggestionEntry = {
@@ -43,16 +42,16 @@ export async function withSuggestionHost<T>(
   }
 }
 
-function hostnameFlag(ctx: SuggestionContext): string {
-  const host = ctx.host ?? ctx.repo?.host ?? activeHost;
+function hostnameFlag(): string {
+  const host = activeHost;
   if (!host || host.source !== "flag" || host.value === DEFAULT_HOST) {
     return "";
   }
   return ` --hostname ${host.value}`;
 }
 
-function appendHostnameFlag(line: string, ctx: SuggestionContext): string {
-  const flag = hostnameFlag(ctx);
+function appendHostnameFlag(line: string): string {
+  const flag = hostnameFlag();
   if (!flag) {
     return line;
   }
@@ -220,7 +219,7 @@ export function getSuggestions(ctx: SuggestionContext): string[] {
       return entry
         .lines(ctx)
         .map(normalizeRepoFlagLine)
-        .map((line) => appendHostnameFlag(line, ctx));
+        .map((line) => appendHostnameFlag(line));
     }
   }
   return [];

@@ -175,7 +175,7 @@ function projectFromPathSegment(
   if (segment === ":fullpath" || segment === ":id") return ctx;
   const fullPath = segment.replace(/%2f/gi, "/");
   if (!/^[\w.-]+(?:\/[\w.-]+)+$/.test(fullPath)) return undefined;
-  return { fullPath, source: "flag", host: ctx?.host };
+  return { fullPath, source: "flag" };
 }
 
 /** Maximum length for raw (non-JSON) API output before truncation. */
@@ -282,12 +282,7 @@ export async function apiCommand(
 }
 
 /** Fields from raw GitLab API responses that are noisy/useless for agents */
-const NOISY_KEYS = new Set([
-  "_links",
-  "avatar_url",
-  "import_url",
-  "container_registry_image_prefix",
-]);
+const NOISY_KEYS = new Set(["_links", "container_registry_image_prefix"]);
 
 /**
  * Fields carrying a credential. These are dropped from every response, --full

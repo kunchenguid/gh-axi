@@ -16,6 +16,21 @@ describe("takeDescription", () => {
     expect(takeDescription(["--description=Inline"])).toBe("Inline");
   });
 
+  it("reads a bulleted markdown body as text, not as a missing value", () => {
+    const args = ["--description", "- fixes the login redirect", "--label", "bug"];
+    expect(takeDescription(args)).toBe("- fixes the login redirect");
+    expect(args).toEqual(["--label", "bug"]);
+  });
+
+  it("still refuses the editor sentinel in both spellings", () => {
+    expect(() => takeDescription(["--description", "-"])).toThrow(
+      /interactive editor/,
+    );
+    expect(() => takeDescription(["--description=-"])).toThrow(
+      /interactive editor/,
+    );
+  });
+
   it("reads --description-file content", async () => {
     const dir = mkdtempSync(join(tmpdir(), "glab-axi-body-"));
     try {

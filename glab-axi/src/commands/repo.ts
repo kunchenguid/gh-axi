@@ -75,7 +75,7 @@ async function viewProject(
         // Suggestions must target the project that was displayed, which is the
         // positional when one is given, not the checkout glab-axi runs in.
         repo: repoArg
-          ? { fullPath: repoArg, source: "flag", host: ctx?.host }
+          ? { fullPath: repoArg, source: "flag" }
           : ctx,
       }),
     ),

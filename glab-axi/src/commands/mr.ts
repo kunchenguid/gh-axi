@@ -331,34 +331,7 @@ async function createMr(args: string[], ctx?: ProjectContext): Promise<string> {
   return renderOutput(blocks);
 }
 
-/**
- * gh rejects some flag combinations at parse time and glab-axi mirrors the
- * same shape of guard locally: takeBoolFlag matches whole tokens only, while
- * rejectUnknownFlags compares the flag name with any `=value` stripped, so a
- * known boolean written as `--squash=false` would clear both guards and then
- * be dropped without a word. Reject valued switches up front instead.
- */
-function rejectValuedMergeSwitches(args: string[]): void {
-  const switches = [
-    "--squash",
-    "--rebase",
-    "--auto",
-    "--remove-source-branch",
-  ];
-  for (const arg of args) {
-    for (const flag of switches) {
-      if (arg.startsWith(`${flag}=`)) {
-        throw new AxiError(
-          `${arg}: use ${flag} alone (boolean flags do not take a value)`,
-          "VALIDATION_ERROR",
-        );
-      }
-    }
-  }
-}
-
 async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
-  rejectValuedMergeSwitches(args);
   // glab mr merge exposes only --squash and --rebase; with neither, GitLab
   // applies the project's configured merge method, reported as "default".
   const methods = ["squash", "rebase"].filter((candidate) =>
