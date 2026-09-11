@@ -108,10 +108,7 @@ function parseArgs(args: string[]): ParsedApiArgs {
     let value: string;
     if (name === arg) {
       const next = args[i + 1];
-      if (
-        next === undefined ||
-        (name === "--input" && SUPPORTED_FLAGS.includes(flagName(next)))
-      )
+      if (next === undefined || SUPPORTED_FLAGS.includes(flagName(next)))
         throw new AxiError(`${name} requires a value`, "VALIDATION_ERROR");
       value = next;
       i++;

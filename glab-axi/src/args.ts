@@ -96,7 +96,10 @@ function collectAllFlags(
   while (i < args.length) {
     const arg = args[i];
     if (arg === flag) {
-      result.push(requireFlagValue(args[i + 1] ?? "", flag));
+      const val = args[i + 1];
+      if (val === undefined || isFlagShaped(val))
+        throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
+      result.push(requireFlagValue(val, flag));
       if (consume) args.splice(i, 2);
       else i += 2;
     } else if (arg.startsWith(equalsPrefix)) {
@@ -113,7 +116,8 @@ function collectAllFlags(
 /**
  * Collect all values for a repeatable flag in --flag value or --flag=value form
  * without modifying args. Throws VALIDATION_ERROR if any occurrence has a
- * missing or blank value, rather than silently dropping it.
+ * missing or blank value, rather than silently dropping it; a following
+ * flag-shaped token is a missing value, not the flag's value.
  */
 export function getAllFlags(args: string[], flag: string): string[] {
   return collectAllFlags(args, flag, false);

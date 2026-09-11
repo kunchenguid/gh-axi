@@ -96,6 +96,16 @@ describe("getAllFlags / takeAllFlags", () => {
     expect(() => getAllFlags(["--label="], "--label")).toThrow(AxiError);
   });
 
+  it("treats a following option token as a missing value", () => {
+    expect(() =>
+      getAllFlags(["list", "--label", "--state", "closed"], "--label"),
+    ).toThrow(/--label requires a value/);
+    const args = ["create", "--assignee", "--label", "bug"];
+    expect(() => takeAllFlags(args, "--assignee")).toThrow(
+      /--assignee requires a value/,
+    );
+  });
+
   it("returns [] when absent", () => {
     expect(getAllFlags(["a"], "--label")).toEqual([]);
   });

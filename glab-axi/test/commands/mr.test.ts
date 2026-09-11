@@ -316,6 +316,16 @@ describe("mr create", () => {
     }
   });
 
+  it("refuses a dangling --assignee instead of swallowing the next flag", async () => {
+    await expect(
+      mrCommand(
+        ["create", "--title", "T", "--assignee", "--label", "bug"],
+        ctx,
+      ),
+    ).rejects.toThrow(/--assignee requires a value/);
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
   it("keeps a bulleted markdown --description as the body", async () => {
     mockedGlabExec.mockResolvedValueOnce(
       "https://gitlab.com/group/project/-/merge_requests/42",

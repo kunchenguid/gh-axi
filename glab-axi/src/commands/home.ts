@@ -12,8 +12,6 @@ import {
 import { getSuggestions } from "../suggestions.js";
 import { encode } from "@toon-format/toon";
 
-export const HOME_HELP = "";
-
 const issueSchema: FieldDef[] = [
   field("iid"),
   field("title"),

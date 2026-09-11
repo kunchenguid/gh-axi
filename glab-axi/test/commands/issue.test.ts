@@ -137,6 +137,13 @@ describe("issue list", () => {
     expect(result).toContain("https://gitlab.com/group/project/-/issues/42");
   });
 
+  it("refuses a dangling --label instead of filtering by the next flag", async () => {
+    await expect(
+      issueCommand(["list", "--label", "--state", "closed"], ctx),
+    ).rejects.toThrow(/--label requires a value/);
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown --fields entries", async () => {
     await expect(
       issueCommand(["list", "--fields", "nope"], ctx),

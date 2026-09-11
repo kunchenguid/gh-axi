@@ -187,6 +187,17 @@ describe("apiCommand passthrough", () => {
     expect(result).toContain("path_with_namespace: g/p");
   });
 
+  it("refuses a dangling value flag instead of eating the next flag", async () => {
+    for (const argv of [
+      ["projects/g%2Fp/issues", "--field", "--paginate"],
+      ["projects/g%2Fp/issues", "--header", "--full"],
+      ["projects/g%2Fp/issues", "-X", "--paginate"],
+    ]) {
+      await expect(apiCommand(argv, ctx)).rejects.toThrow(/requires a value/);
+    }
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
   it("strips the runner registration token with --full too", async () => {
     mockedGlabExec.mockResolvedValueOnce(
       '{"id": 3, "runners_token": "GR1348941secret", "path_with_namespace": "g/p"}',
