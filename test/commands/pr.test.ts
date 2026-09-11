@@ -11,6 +11,12 @@ vi.mock("../../src/gh.js", () => ({
   ghRaw: vi.fn(),
 }));
 
+vi.mock("../../src/stdin.js", () => ({
+  readStdin: vi.fn(),
+  readStdinSync: vi.fn(),
+  isStdinTTY: vi.fn(),
+}));
+
 import {
   ghJson,
   ghExec,
@@ -18,6 +24,7 @@ import {
   ensureAttachmentSupport,
   ghRaw,
 } from "../../src/gh.js";
+import { isStdinTTY, readStdinSync } from "../../src/stdin.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
 import { AttachmentMutationError, AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
@@ -1154,6 +1161,29 @@ describe("prCommand", () => {
         ).rejects.toThrow(/Use only one body source/);
         expect(mockedGhExec).not.toHaveBeenCalled();
       });
+    });
+
+    it("reads piped stdin for --body-file - through the router", async () => {
+      vi.mocked(isStdinTTY).mockReturnValue(false);
+      vi.mocked(readStdinSync).mockReturnValue(markdownBody);
+      mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/123\n");
+
+      await prCommand(["create", "--title", "New PR", "--body-file", "-"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "create", "--title", "New PR", "--body", markdownBody],
+        ctx,
+      );
+    });
+
+    it("refuses --body-file - on an interactive TTY before calling gh", async () => {
+      vi.mocked(isStdinTTY).mockReturnValue(true);
+
+      await expect(
+        prCommand(["comment", "123", "--body-file", "-"], ctx),
+      ).rejects.toThrow("--body-file - requires content piped via stdin");
+      expect(vi.mocked(readStdinSync)).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
 

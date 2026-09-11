@@ -1,9 +1,20 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
+
+vi.mock("../src/stdin.js", () => ({
+  readStdin: vi.fn(),
+  readStdinSync: vi.fn(),
+  isStdinTTY: vi.fn(),
+}));
+
+import { isStdinTTY, readStdinSync } from "../src/stdin.js";
 import { cleanBody, takeBody, truncateBody } from "../src/body.js";
 import { AxiError } from "../src/errors.js";
+
+const mockedIsStdinTTY = vi.mocked(isStdinTTY);
+const mockedReadStdinSync = vi.mocked(readStdinSync);
 
 function withTempDir<T>(fn: (dir: string) => T): T {
   const dir = mkdtempSync(join(tmpdir(), "gh-axi-body-"));
@@ -110,6 +121,79 @@ describe("takeBody", () => {
         "--body-file must point to a readable UTF-8 file",
       );
     }));
+
+  describe("--body-file - (stdin)", () => {
+    beforeEach(() => {
+      vi.resetAllMocks();
+    });
+
+    it("reads piped stdin and removes the flag", () => {
+      const body = "line 1\n```ts\nconst ok = true;\n```\n";
+      mockedIsStdinTTY.mockReturnValue(false);
+      mockedReadStdinSync.mockReturnValue(body);
+      const args = ["--body-file", "-", "--label", "bug"];
+
+      expect(takeBody(args)).toBe(body);
+      expect(args).toEqual(["--label", "bug"]);
+      expect(mockedReadStdinSync).toHaveBeenCalledTimes(1);
+    });
+
+    it("supports the equals form --body-file=-", () => {
+      mockedIsStdinTTY.mockReturnValue(false);
+      mockedReadStdinSync.mockReturnValue("from pipe");
+
+      expect(takeBody(["--body-file=-"])).toBe("from pipe");
+    });
+
+    it("applies to custom file flags such as --notes-file", () => {
+      mockedIsStdinTTY.mockReturnValue(false);
+      mockedReadStdinSync.mockReturnValue("notes from pipe");
+
+      expect(
+        takeBody(["--notes-file", "-"], {
+          inlineFlags: ["--notes"],
+          fileFlags: ["--notes-file"],
+        }),
+      ).toBe("notes from pipe");
+    });
+
+    it("refuses an interactive TTY instead of blocking on stdin", () => {
+      mockedIsStdinTTY.mockReturnValue(true);
+
+      expect(() => takeBody(["--body-file", "-"])).toThrow(AxiError);
+      expect(() => takeBody(["--body-file", "-"])).toThrow(
+        "--body-file - requires content piped via stdin",
+      );
+      expect(mockedReadStdinSync).not.toHaveBeenCalled();
+    });
+
+    it("rejects empty piped stdin", () => {
+      mockedIsStdinTTY.mockReturnValue(false);
+      mockedReadStdinSync.mockReturnValue("");
+
+      expect(() => takeBody(["--body-file", "-"])).toThrow(
+        "no content received on stdin",
+      );
+    });
+
+    it("maps a stdin read failure to a validation error", () => {
+      mockedIsStdinTTY.mockReturnValue(false);
+      mockedReadStdinSync.mockImplementation(() => {
+        throw Object.assign(new Error("resource busy"), { code: "EAGAIN" });
+      });
+
+      expect(() => takeBody(["--body-file", "-"])).toThrow(
+        "Could not read --body-file - from stdin (EAGAIN)",
+      );
+    });
+
+    it("still rejects combining --body with --body-file -", () => {
+      expect(() => takeBody(["--body", "inline", "--body-file", "-"])).toThrow(
+        /Use only one body source/,
+      );
+      expect(mockedReadStdinSync).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("cleanBody", () => {

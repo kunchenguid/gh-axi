@@ -1,3 +1,13 @@
+import { readFileSync } from "node:fs";
+
+/**
+ * Read all of this process's piped stdin synchronously as a UTF-8 string.
+ * Callers must check `isStdinTTY()` first so an interactive shell never blocks.
+ */
+export function readStdinSync(): string {
+  return readFileSync(0, "utf8");
+}
+
 /** Read all of this process's stdin as a UTF-8 string. */
 export function readStdin(): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -410,5 +410,16 @@ describe("requireNumber", () => {
         rejectUnknownFlags(["--", "--not-a-flag"], [], "repo", "view"),
       ).not.toThrow();
     });
+
+    it("treats a bare - as the stdin sentinel positional, not a flag", () => {
+      expect(() =>
+        rejectUnknownFlags(
+          ["42", "--body-file", "-"],
+          ["--body-file"],
+          "pr",
+          "comment",
+        ),
+      ).not.toThrow();
+    });
   });
 });

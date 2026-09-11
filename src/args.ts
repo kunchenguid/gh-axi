@@ -181,7 +181,9 @@ export function rejectUnknownFlags(
   for (let i = 0; i < args.length; i++) {
     const tok = args[i];
     if (tok === "--") break;
-    if (!tok.startsWith("-")) continue;
+    // A bare `-` is gh's stdin sentinel (`--body-file -`), a positional value
+    // rather than a flag.
+    if (tok === "-" || !tok.startsWith("-")) continue;
     const name = tok.split("=", 1)[0];
     if (name === "--help" || name === "-h") continue;
     if (knownSet.has(name)) continue;
