@@ -57,9 +57,11 @@ function parseRemoteUrl(url: string): ProjectContext | undefined {
   // (git@<host>:group/sub/project.git) and HTTPS
   // (https://<host>/group/sub/project.git) differ only in the separator, and
   // the project path may nest arbitrarily, so capture everything up to .git.
+  // A self-hosted remote may carry a non-default port (ssh://git@host:2222/...,
+  // https://host:8443/...); that is not the first path segment, so skip it.
   const host = escapeRegExp(resolveHost());
   const match = url.match(
-    new RegExp(`(?:^|@|/)${host}[:/]([^/].+?)(?:\\.git)?$`),
+    new RegExp(`(?:^|@|/)${host}(?::\\d+)?[:/]([^/].+?)(?:\\.git)?$`),
   );
   return match ? { fullPath: match[1], source: "git" } : undefined;
 }

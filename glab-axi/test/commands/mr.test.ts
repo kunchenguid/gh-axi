@@ -463,6 +463,18 @@ describe("mr merge", () => {
     expect(args[args.indexOf("--sha") + 1]).toBe("abc123");
   });
 
+  it("takes the MR number from the positional, not an all-digit flag value", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
+    await mrCommand(["merge", "--sha", "1234567", "42"], ctx);
+    expect(mockedGlabJson).toHaveBeenCalledWith(
+      ["mr", "view", "42", "-F", "json"],
+      ctx,
+    );
+    const args = mockedGlabExec.mock.calls[0]?.[0] as string[];
+    expect(args.slice(0, 3)).toEqual(["mr", "merge", "42"]);
+    expect(args[args.indexOf("--sha") + 1]).toBe("1234567");
+  });
+
   it("renders the merged confirmation block", async () => {
     mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
     const result = await mrCommand(["merge", "42", "--squash"], ctx);

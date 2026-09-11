@@ -6,7 +6,7 @@ import { getSuggestions } from "../suggestions.js";
 import { renderHelp, renderOutput } from "../toon.js";
 
 export const API_HELP = `usage: glab-axi api [<method>] <path>
-description: Make an authenticated GitLab API request (passthrough to glab api). Method defaults to GET, or POST when --field/--raw-field/--form is given (glab's own default).
+description: Make an authenticated GitLab API request (passthrough to glab api). Method defaults to GET, or POST when --field/--raw-field is given (glab's own default).
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
 flags[7]:
@@ -154,6 +154,27 @@ function parseArgs(args: string[]): ParsedApiArgs {
   return parsed;
 }
 
+/**
+ * A raw API path that a structured glab-axi command already wraps, so the
+ * output can point at the cheaper command for the same resource.
+ */
+const WRAPPED_RESOURCE =
+  /^\/?projects\/([^/]+)\/(merge_requests|issues)(?:\/(\d+))?\/?$/;
+
+/**
+ * Resolve the project a raw API path names. `:fullpath` (glab's placeholder)
+ * and a numeric project id both mean "the current project", so they keep the
+ * caller's context; an explicit path targets that project instead.
+ */
+function projectFromPathSegment(
+  segment: string,
+  ctx?: ProjectContext,
+): ProjectContext | undefined {
+  const fullPath = segment.replace(/%2f/gi, "/");
+  if (!/^[\w.-]+(?:\/[\w.-]+)+$/.test(fullPath)) return ctx;
+  return { fullPath, source: "flag", host: ctx?.host };
+}
+
 /** Maximum length for raw (non-JSON) API output before truncation. */
 const RAW_OUTPUT_TRUNCATION_LIMIT = 4000;
 
@@ -215,8 +236,18 @@ export async function apiCommand(
   }
   if (paginate) glabArgs.push("--paginate");
 
+  const wrapped = path.split("?")[0].match(WRAPPED_RESOURCE);
   const help = renderHelp(
-    getSuggestions({ domain: "api", action: method ?? "GET", repo: ctx }),
+    getSuggestions({
+      domain: "api",
+      action: wrapped
+        ? wrapped[2] === "merge_requests"
+          ? "mr"
+          : "issue"
+        : "raw",
+      id: wrapped?.[3],
+      repo: wrapped ? projectFromPathSegment(wrapped[1], ctx) : ctx,
+    }),
   );
 
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
@@ -250,8 +281,13 @@ const NOISY_KEYS = new Set([
   "avatar_url",
   "import_url",
   "container_registry_image_prefix",
-  "runners_token",
 ]);
+
+/**
+ * Fields carrying a credential. These are dropped from every response, --full
+ * included: --full widens truncation, it is not consent to print a secret.
+ */
+const SECRET_KEYS = new Set(["runners_token"]);
 
 /** Keys ending in _url that are template URLs agents never use */
 function isTemplateUrlKey(key: string): boolean {
@@ -274,7 +310,8 @@ function truncateString(value: string): string {
 }
 
 /**
- * Walk a decoded API response, bounding every string value.
+ * Walk a decoded API response, dropping secret keys and bounding every string
+ * value.
  *
  * With `stripNoisyKeys` the noisy keys are dropped as well. With
  * `truncateValues` false (--full), string values pass through untouched.
@@ -295,6 +332,7 @@ function shapeOutput(
     const record = obj as Record<string, unknown>;
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
+      if (SECRET_KEYS.has(key)) continue;
       if (!stripNoisyKeys) {
         result[key] = shapeOutput(
           value,

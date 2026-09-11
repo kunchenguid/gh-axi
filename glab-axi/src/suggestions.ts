@@ -191,7 +191,23 @@ const table: SuggestionEntry[] = [
     ],
   },
 
-  // API
+  // API — point a raw response at the structured command for the same resource
+  {
+    match: (c) =>
+      c.domain === "api" &&
+      (c.action === "mr" || c.action === "issue") &&
+      c.id !== undefined,
+    lines: (c) => [
+      `Run \`glab-axi${repoFlag(c)} ${c.action} view ${c.id}\` for the same ${c.action === "mr" ? "merge request" : "issue"} as structured output`,
+    ],
+  },
+  {
+    match: (c) =>
+      c.domain === "api" && (c.action === "mr" || c.action === "issue"),
+    lines: (c) => [
+      `Run \`glab-axi${repoFlag(c)} ${c.action} list\` for the same ${c.action === "mr" ? "merge requests" : "issues"} as structured output`,
+    ],
+  },
   {
     match: (c) => c.domain === "api",
     lines: () => [],

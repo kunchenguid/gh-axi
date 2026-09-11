@@ -398,7 +398,6 @@ function rejectValuedMergeSwitches(args: string[]): void {
 
 async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
   rejectValuedMergeSwitches(args);
-  const num = takeNumber(args, "merge request");
   // glab mr merge exposes only --squash and --rebase; with neither, GitLab
   // applies the project's configured merge method, reported as "default".
   const methods = ["squash", "rebase"].filter((candidate) =>
@@ -415,6 +414,9 @@ async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
   const removeSourceBranch = takeBoolFlag(args, "--remove-source-branch");
   const message = takeFlag(args, "--message");
   const sha = takeFlag(args, "--sha");
+  // Only now is every flag value consumed, so the remaining numeric token is
+  // the merge request: an all-digit --sha must never be read as the number.
+  const num = takeNumber(args, "merge request");
 
   // Idempotent: check current state with an exact match only.
   const current = await glabJson<Record<string, unknown>>(

@@ -68,7 +68,17 @@ async function viewProject(
 
   return renderOutput([
     renderDetail("project", project, viewSchema),
-    renderHelp(getSuggestions({ domain: "repo", action: "view", repo: ctx })),
+    renderHelp(
+      getSuggestions({
+        domain: "repo",
+        action: "view",
+        // Suggestions must target the project that was displayed, which is the
+        // positional when one is given, not the checkout glab-axi runs in.
+        repo: repoArg
+          ? { fullPath: repoArg, source: "flag", host: ctx?.host }
+          : ctx,
+      }),
+    ),
   ]);
 }
 

@@ -90,6 +90,15 @@ describe("repoCommand", () => {
     expect(result).toContain("glab-axi mr list -R group/project");
   });
 
+  it("suggests lists for the positional project, not the checkout", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...PROJECT });
+    const gitCtx: ProjectContext = { fullPath: "myteam/myapp", source: "git" };
+    const result = await repoCommand(["view", "gitlab-org/cli"], gitCtx);
+    expect(result).toContain("glab-axi issue list -R gitlab-org/cli");
+    expect(result).toContain("glab-axi mr list -R gitlab-org/cli");
+    expect(result).not.toContain("myteam/myapp");
+  });
+
   it("rejects extra positionals", async () => {
     await expect(
       repoCommand(["view", "a/b", "c/d"]),

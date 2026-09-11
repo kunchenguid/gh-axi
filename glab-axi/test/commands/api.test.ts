@@ -187,6 +187,40 @@ describe("apiCommand passthrough", () => {
     expect(result).toContain("path_with_namespace: g/p");
   });
 
+  it("strips the runner registration token with --full too", async () => {
+    mockedGlabExec.mockResolvedValueOnce(
+      '{"id": 3, "runners_token": "GR1348941secret", "path_with_namespace": "g/p"}',
+    );
+    const result = await apiCommand(["projects/g%2Fp", "--full"], ctx);
+    expect(result).not.toContain("GR1348941secret");
+    expect(result).not.toContain("runners_token");
+    expect(result).toContain("path_with_namespace: g/p");
+  });
+
+  it("points a merge request response at the structured mr view", async () => {
+    mockedGlabExec.mockResolvedValueOnce('{"iid": 7}');
+    const result = await apiCommand(["projects/group%2Fproject/merge_requests/7"]);
+    expect(result).toContain("glab-axi mr view 7 -R group/project");
+  });
+
+  it("points an issue collection at the structured issue list", async () => {
+    mockedGlabExec.mockResolvedValueOnce("[]");
+    const result = await apiCommand(["projects/group%2Fsub%2Fproject/issues"]);
+    expect(result).toContain("glab-axi issue list -R group/sub/project");
+  });
+
+  it("keeps the caller's project when the path does not name one", async () => {
+    mockedGlabExec.mockResolvedValueOnce('{"iid": 7}');
+    const result = await apiCommand(["projects/:fullpath/issues/7"], ctx);
+    expect(result).toContain("glab-axi issue view 7 -R group/project");
+  });
+
+  it("suggests nothing for a path no glab-axi command wraps", async () => {
+    mockedGlabExec.mockResolvedValueOnce('{"version": "17.0"}');
+    const result = await apiCommand(["version"], ctx);
+    expect(result).not.toContain("help[");
+  });
+
   it("clamps very long string values unless --full", async () => {
     mockedGlabExec.mockResolvedValueOnce('{"description": "' + "x".repeat(3000) + '"}');
     const truncated = await apiCommand(["projects/g%2Fp"], ctx);

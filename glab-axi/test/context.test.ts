@@ -81,6 +81,26 @@ describe("resolveProject", () => {
     });
   });
 
+  it("ignores a non-default port in an SSH remote", () => {
+    process.env["GITLAB_HOST"] = "git.example.com";
+    mockGitRemote("ssh://git@git.example.com:2222/group/sub/project.git");
+    expect(resolveProject()).toEqual({
+      fullPath: "group/sub/project",
+      source: "git",
+    });
+    delete process.env["GITLAB_HOST"];
+  });
+
+  it("ignores a non-default port in an HTTPS remote", () => {
+    process.env["GITLAB_HOST"] = "git.example.com";
+    mockGitRemote("https://git.example.com:8443/group/project.git");
+    expect(resolveProject()).toEqual({
+      fullPath: "group/project",
+      source: "git",
+    });
+    delete process.env["GITLAB_HOST"];
+  });
+
   it("matches a self-hosted host from GITLAB_HOST", () => {
     process.env["GITLAB_HOST"] = "git.example.com";
     mockGitRemote("git@git.example.com:group/project.git");
