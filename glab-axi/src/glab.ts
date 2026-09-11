@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { type ProjectContext } from "./context.js";
 import { AxiError, glabNotInstalledError, mapGlabError } from "./errors.js";
 
-export interface ExecResult {
+interface ExecResult {
   stdout: string;
   stderr: string;
   exitCode: number;
@@ -103,14 +103,4 @@ export async function glabExec(
   if (result.stderr === "ENOENT") throw missingGlabError();
   if (result.exitCode !== 0) throw mapGlabError(result.stderr, result.exitCode);
   return result.stdout;
-}
-
-/** Execute glab, returning stdout + stderr without throwing on non-zero exit. */
-export async function glabRaw(
-  args: string[],
-  ctx?: ProjectContext,
-): Promise<ExecResult> {
-  const result = await run(buildArgs(args, ctx));
-  if (result.stderr === "ENOENT") throw missingGlabError();
-  return result;
 }

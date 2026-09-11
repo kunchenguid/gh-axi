@@ -3,7 +3,6 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/glab.js", () => ({
   glabJson: vi.fn(),
   glabExec: vi.fn(),
-  glabRaw: vi.fn(),
 }));
 
 import { glabJson, glabExec } from "../../src/glab.js";
@@ -148,7 +147,19 @@ describe("issue view", () => {
     expect(result).toContain("labels: bug");
   });
 
-  it("truncates by default and --full keeps everything", async () => {
+  it("suggests closing an open issue", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_ISSUE });
+    const result = await issueCommand(["view", "42"], ctx);
+    expect(result).toContain("glab-axi issue close 42 -R group/project");
+  });
+
+  it("suggests the closed list for a closed issue", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_ISSUE, state: "closed" });
+    const result = await issueCommand(["view", "42"], ctx);
+    expect(result).toContain("glab-axi issue list --state closed -R group/project");
+  });
+
+  it("truncates by default and --full keeps everything", async () =>{
     mockedGlabJson.mockResolvedValueOnce({
       ...OPEN_ISSUE,
       description: "z".repeat(600),

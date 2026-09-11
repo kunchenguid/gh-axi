@@ -3,7 +3,6 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/glab.js", () => ({
   glabJson: vi.fn(),
   glabExec: vi.fn(),
-  glabRaw: vi.fn(),
 }));
 
 import { glabJson } from "../../src/glab.js";

@@ -3,7 +3,6 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/glab.js", () => ({
   glabJson: vi.fn(),
   glabExec: vi.fn(),
-  glabRaw: vi.fn(),
 }));
 
 import { glabJson } from "../../src/glab.js";
@@ -71,6 +70,24 @@ describe("repoCommand", () => {
     await expect(
       repoCommand(["view", "other/project"], ctx),
     ).rejects.toThrow(/Unsupported positional argument for repo view with --repo/);
+  });
+
+  it("rejects a positional combined with a GITLAB_REPO selector", async () => {
+    const envCtx: ProjectContext = { fullPath: "group/project", source: "env" };
+    await expect(
+      repoCommand(["view", "other/project"], envCtx),
+    ).rejects.toThrow(
+      /Unsupported positional argument for repo view with GITLAB_REPO/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
+  it("suggests the project's issue and MR lists", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...PROJECT });
+    const result = await repoCommand(["view"], ctx);
+    expect(result).toContain("help[2]:");
+    expect(result).toContain("glab-axi issue list -R group/project");
+    expect(result).toContain("glab-axi mr list -R group/project");
   });
 
   it("rejects extra positionals", async () => {

@@ -53,32 +53,13 @@ function parsePath(
 
 function parseRemoteUrl(url: string): ProjectContext | undefined {
   // Match against the configured host (defaults to gitlab.com), so remotes on
-  // a self-hosted instance such as git.example.com resolve too. The project
-  // path may nest arbitrarily, so capture everything between host and .git.
+  // a self-hosted instance such as git.example.com resolve too. SSH
+  // (git@<host>:group/sub/project.git) and HTTPS
+  // (https://<host>/group/sub/project.git) differ only in the separator, and
+  // the project path may nest arbitrarily, so capture everything up to .git.
   const host = escapeRegExp(resolveHost());
-  // SSH: git@<host>:group/sub/project.git
-  const sshMatch = url.match(
+  const match = url.match(
     new RegExp(`(?:^|@|/)${host}[:/]([^/].+?)(?:\\.git)?$`),
   );
-  if (sshMatch) {
-    return { fullPath: sshMatch[1], source: "git" };
-  }
-  // HTTPS: https://<host>/group/sub/project.git
-  const httpsMatch = url.match(
-    new RegExp(`(?:^|@|/)${host}/([^/].+?)(?:\\.git)?$`),
-  );
-  if (httpsMatch) {
-    return { fullPath: httpsMatch[1], source: "git" };
-  }
-  return undefined;
-}
-
-/** Build a web URL for a project-scoped item from (host, fullPath, ...). */
-export function projectUrl(
-  ctx: ProjectContext | undefined,
-  suffix: string,
-): string {
-  const host = resolveHost();
-  const path = ctx ? ctx.fullPath : "<project>";
-  return `https://${host}/${path}${suffix}`;
+  return match ? { fullPath: match[1], source: "git" } : undefined;
 }

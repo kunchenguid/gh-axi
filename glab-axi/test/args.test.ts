@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   getFlag,
   takeFlag,
-  hasFlag,
   takeBoolFlag,
   takeRequiredFlag,
   getAllFlags,
@@ -44,10 +43,8 @@ describe("takeFlag", () => {
   });
 });
 
-describe("hasFlag / takeBoolFlag", () => {
+describe("takeBoolFlag", () => {
   it("detects presence", () => {
-    expect(hasFlag(["--full"], "--full")).toBe(true);
-    expect(hasFlag([], "--full")).toBe(false);
   });
 
   it("takeBoolFlag removes the flag", () => {

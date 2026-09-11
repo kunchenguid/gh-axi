@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   field,
   pluck,
-  joinArray,
   joinStrings,
   relativeTime,
   boolYesNo,
@@ -43,20 +42,6 @@ describe("extract", () => {
     expect(extract({}, [pluck("author", "username", "author")])).toEqual({
       author: null,
     });
-  });
-
-  it("joinArray joins object-array members by subkey", () => {
-    expect(
-      extract({ assignees: [{ username: "a" }, { username: "b" }] }, [
-        joinArray("assignees", "username", "assignees"),
-      ]),
-    ).toEqual({ assignees: "a,b" });
-  });
-
-  it("joinArray uses the empty marker for a missing array", () => {
-    expect(extract({}, [joinArray("assignees", "username", "assignees")])).toEqual(
-      { assignees: "none" },
-    );
   });
 
   it("joinStrings joins a plain string array (GitLab labels)", () => {

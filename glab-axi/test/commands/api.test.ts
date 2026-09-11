@@ -3,7 +3,6 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/glab.js", () => ({
   glabJson: vi.fn(),
   glabExec: vi.fn(),
-  glabRaw: vi.fn(),
 }));
 
 import { glabExec } from "../../src/glab.js";
@@ -19,6 +18,47 @@ describe("apiCommand help", () => {
     expect(await apiCommand(["--help"])).toBe(API_HELP);
     expect(await apiCommand([])).toBe(API_HELP);
   });
+});
+
+/** Split a documented example into argv, honouring single and double quotes. */
+function tokenize(line: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: string | undefined;
+  for (const ch of line) {
+    if (quote) {
+      if (ch === quote) quote = undefined;
+      else current += ch;
+    } else if (ch === "'" || ch === '"') {
+      quote = ch;
+    } else if (ch === " ") {
+      if (current !== "") tokens.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current !== "") tokens.push(current);
+  return tokens;
+}
+
+describe("every documented api example is accepted", () => {
+  const examples = API_HELP.slice(API_HELP.indexOf("examples:"))
+    .split("\n")
+    .filter((line) => line.trim().startsWith("glab-axi api "))
+    .map((line) => tokenize(line.trim()).slice(2));
+
+  it("finds the examples to run", () => {
+    expect(examples.length).toBeGreaterThanOrEqual(2);
+  });
+
+  for (const argv of examples) {
+    it(`glab-axi api ${argv.join(" ")}`, async () => {
+      vi.resetAllMocks();
+      mockedGlabExec.mockResolvedValueOnce("{}");
+      await expect(apiCommand(argv)).resolves.toBeTypeOf("string");
+    });
+  }
 });
 
 describe("apiCommand argument validation", () => {
@@ -135,6 +175,16 @@ describe("apiCommand passthrough", () => {
     expect(result).not.toContain("_links");
     expect(result).toContain("author: alice");
     expect(result).not.toContain("id: 1");
+  });
+
+  it("strips the project's runner registration token from the output", async () => {
+    mockedGlabExec.mockResolvedValueOnce(
+      '{"id": 3, "runners_token": "GR1348941secret", "path_with_namespace": "g/p"}',
+    );
+    const result = await apiCommand(["projects/g%2Fp"], ctx);
+    expect(result).not.toContain("GR1348941secret");
+    expect(result).not.toContain("runners_token");
+    expect(result).toContain("path_with_namespace: g/p");
   });
 
   it("clamps very long string values unless --full", async () => {

@@ -39,11 +39,6 @@ export function takeFlag(args: string[], flag: string): string | undefined {
   return undefined;
 }
 
-/** Check if a boolean flag is present. */
-export function hasFlag(args: string[], flag: string): boolean {
-  return args.includes(flag);
-}
-
 /** Check if a boolean flag is present and remove it from args. */
 export function takeBoolFlag(args: string[], flag: string): boolean {
   const idx = args.indexOf(flag);

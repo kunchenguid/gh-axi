@@ -2,11 +2,13 @@ import type { ProjectContext } from "../context.js";
 import { glabJson } from "../glab.js";
 import { AxiError } from "../errors.js";
 import { rejectUnknownFlags } from "../args.js";
+import { getSuggestions } from "../suggestions.js";
 import {
   field,
   lower,
   renderDetail,
   renderError,
+  renderHelp,
   renderOutput,
   type FieldDef,
 } from "../toon.js";
@@ -42,9 +44,10 @@ async function viewProject(
   const positionals = args.filter((a) => !a.startsWith("-"));
   const repoArg = positionals[1];
   const extraArg = positionals[2];
-  if (repoArg && ctx?.source === "flag") {
+  if (repoArg && ctx && ctx.source !== "git") {
+    const selector = ctx.source === "flag" ? "--repo" : "GITLAB_REPO";
     throw new AxiError(
-      `Unsupported positional argument for repo view with --repo: ${repoArg}. Use --repo <full/path> to select a project.`,
+      `Unsupported positional argument for repo view with ${selector}: ${repoArg}. Use one project selector, not both.`,
       "VALIDATION_ERROR",
     );
   }
@@ -63,7 +66,10 @@ async function viewProject(
   // glab detect the project itself.
   const project = await glabJson<Record<string, unknown>>(glabArgs, ctx);
 
-  return renderOutput([renderDetail("project", project, viewSchema)]);
+  return renderOutput([
+    renderDetail("project", project, viewSchema),
+    renderHelp(getSuggestions({ domain: "repo", action: "view", repo: ctx })),
+  ]);
 }
 
 export async function repoCommand(

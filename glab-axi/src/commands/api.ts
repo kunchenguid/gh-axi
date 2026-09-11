@@ -2,6 +2,8 @@ import { encode } from "@toon-format/toon";
 import type { ProjectContext } from "../context.js";
 import { glabExec } from "../glab.js";
 import { AxiError } from "../errors.js";
+import { getSuggestions } from "../suggestions.js";
+import { renderHelp, renderOutput } from "../toon.js";
 
 export const API_HELP = `usage: glab-axi api [<method>] <path>
 description: Make an authenticated GitLab API request (passthrough to glab api). Method defaults to GET, or POST when --field/--raw-field/--form is given (glab's own default).
@@ -15,7 +17,7 @@ examples:
   glab-axi api POST projects/group%2Fproject/issues --field title="Bug report"
   glab-axi api -X POST projects/group%2Fproject/issues --field title="Bug report"
   glab-axi api projects/group%2Fproject/merge_requests --paginate
-  glab-axi api graphql -f query='{ project(fullPath: "group/project") { issues { nodes { iid title } } } }'`;
+  glab-axi api graphql --raw-field query='{ project(fullPath: "group/project") { issues { nodes { iid title } } } }'`;
 
 const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
 
@@ -213,11 +215,15 @@ export async function apiCommand(
   }
   if (paginate) glabArgs.push("--paginate");
 
+  const help = renderHelp(
+    getSuggestions({ domain: "api", action: method ?? "GET", repo: ctx }),
+  );
+
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
   const raw = await glabExec(glabArgs, ctx);
   try {
     const data = JSON.parse(raw);
-    return encode(shapeOutput(data, !full, !full));
+    return renderOutput([encode(shapeOutput(data, !full, !full)), help]);
   } catch {
     // Not JSON — wrap in TOON envelope with truncation metadata
     const trimmed = raw.trim();
@@ -234,7 +240,7 @@ export async function apiCommand(
       (result.api_response as Record<string, unknown>).original_length =
         trimmed.length;
     }
-    return encode(result);
+    return renderOutput([encode(result), help]);
   }
 }
 
@@ -244,7 +250,7 @@ const NOISY_KEYS = new Set([
   "avatar_url",
   "import_url",
   "container_registry_image_prefix",
-  "runner_token",
+  "runners_token",
 ]);
 
 /** Keys ending in _url that are template URLs agents never use */

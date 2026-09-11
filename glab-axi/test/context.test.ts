@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { execFileSync } from "node:child_process";
-import { resolveProject, projectUrl } from "../src/context.js";
+import { resolveProject } from "../src/context.js";
 
 vi.mock("node:child_process", () => ({
   execFileSync: vi.fn(),
@@ -98,24 +98,5 @@ describe("resolveProject", () => {
 
   it("returns undefined outside a git checkout with no env", () => {
     expect(resolveProject()).toBeUndefined();
-  });
-});
-
-describe("projectUrl", () => {
-  it("rebuilds a URL from (host, fullPath, suffix)", () => {
-    expect(
-      projectUrl(
-        { fullPath: "group/project", source: "flag" },
-        "/-/merge_requests/9",
-      ),
-    ).toBe("https://gitlab.com/group/project/-/merge_requests/9");
-  });
-
-  it("uses the resolved host, not a constant", () => {
-    process.env["GITLAB_HOST"] = "git.example.com";
-    expect(projectUrl(undefined, "/-/issues/3")).toBe(
-      "https://git.example.com/<project>/-/issues/3",
-    );
-    delete process.env["GITLAB_HOST"];
   });
 });

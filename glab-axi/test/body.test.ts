@@ -54,6 +54,25 @@ describe("takeDescription", () => {
   it("returns undefined when no description flag is present", () => {
     expect(takeDescription(["--label", "bug"])).toBeUndefined();
   });
+
+  it('rejects --description=- instead of letting glab open an editor', () => {
+    expect(() => takeDescription(["--description=-"])).toThrow(
+      /interactive editor/,
+    );
+  });
+
+  it('rejects a --description-file whose whole content is "-"', () => {
+    const dir = mkdtempSync(join(tmpdir(), "glab-axi-body-"));
+    try {
+      const file = join(dir, "body.md");
+      writeFileSync(file, "-", "utf8");
+      expect(() => takeDescription(["--description-file", file])).toThrow(
+        /interactive editor/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("truncateBody", () => {

@@ -3,7 +3,6 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("../../src/glab.js", () => ({
   glabJson: vi.fn(),
   glabExec: vi.fn(),
-  glabRaw: vi.fn(),
 }));
 
 import { glabJson, glabExec } from "../../src/glab.js";
@@ -186,6 +185,23 @@ describe("mr view", () => {
     expect(result).toContain("target_branch: main");
     expect(result).toContain("merged: no");
     expect(result).toContain("bug");
+  });
+
+  it("suggests the next action for an open MR", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
+    const result = await mrCommand(["view", "42"], ctx);
+    expect(result).toContain("glab-axi mr merge 42 -R group/project");
+    expect(result).toContain("glab-axi mr close 42 -R group/project");
+  });
+
+  it("suggests reopening a closed MR and nothing for a merged one", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR, state: "closed" });
+    const closed = await mrCommand(["view", "42"], ctx);
+    expect(closed).toContain("glab-axi mr reopen 42 -R group/project");
+
+    mockedGlabJson.mockResolvedValueOnce(mergedMr());
+    const merged = await mrCommand(["view", "42"], ctx);
+    expect(merged).not.toContain("help[");
   });
 
   it("truncates a long description by default", async () => {
@@ -380,11 +396,12 @@ describe("mr merge", () => {
     expect(args).not.toContain("--rebase");
   });
 
-  it("forwards the rebase method via --method", async () => {
+  it("forwards the rebase method", async () => {
     mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
-    await mrCommand(["merge", "42", "--method", "rebase"], ctx);
+    await mrCommand(["merge", "42", "--rebase"], ctx);
     const args = mockedGlabExec.mock.calls[0]?.[0] as string[];
     expect(args).toContain("--rebase");
+    expect(args).not.toContain("--squash");
   });
 
   it("rejects two merge methods", async () => {
@@ -394,18 +411,22 @@ describe("mr merge", () => {
     ).rejects.toThrow(/Choose only one merge method/);
   });
 
-  it("rejects a --method that contradicts a shorthand", async () => {
-    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
-    await expect(
-      mrCommand(["merge", "42", "--method", "rebase", "--squash"], ctx),
-    ).rejects.toThrow(/not both/);
+  it("rejects the strategy spellings glab mr merge does not have", async () => {
+    for (const flag of ["--merge", "--method"]) {
+      await expect(
+        mrCommand(["merge", "42", flag], ctx),
+      ).rejects.toThrow(new RegExp(`unknown flag.*\\${flag}`));
+    }
+    expect(mockedGlabExec).not.toHaveBeenCalled();
   });
 
-  it("rejects an unknown --method value", async () => {
+  it("reports method: default when no strategy flag is given", async () => {
     mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
-    await expect(
-      mrCommand(["merge", "42", "--method", "fast-forward"], ctx),
-    ).rejects.toThrow(/merge, squash, rebase/);
+    const result = await mrCommand(["merge", "42"], ctx);
+    const args = mockedGlabExec.mock.calls[0]?.[0] as string[];
+    expect(args).not.toContain("--squash");
+    expect(args).not.toContain("--rebase");
+    expect(result).toContain("method: default");
   });
 
   it("rejects valued boolean switches before any glab call", async () => {

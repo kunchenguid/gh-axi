@@ -265,7 +265,18 @@ async function viewIssue(
     ctx,
   );
   const schema = full ? viewSchemaFull : viewSchema;
-  return renderOutput([renderDetail("issue", item, schema)]);
+  return renderOutput([
+    renderDetail("issue", item, schema),
+    renderHelp(
+      getSuggestions({
+        domain: "issue",
+        action: "view",
+        state: exactState(item),
+        id: num,
+        repo: ctx,
+      }),
+    ),
+  ]);
 }
 
 async function createIssue(

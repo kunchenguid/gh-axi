@@ -31,8 +31,24 @@ export function takeDescription(
       "VALIDATION_ERROR",
     );
   }
-  if (file !== undefined) return readBodyFile(fileFlag, file);
-  return inline;
+  if (file !== undefined)
+    return rejectEditorSentinel(readBodyFile(fileFlag, file), fileFlag);
+  if (inline !== undefined) return rejectEditorSentinel(inline, inlineFlag);
+  return undefined;
+}
+
+/**
+ * glab reads a description of exactly "-" as "open an editor". Forwarding it
+ * would hang the agent on an interactive prompt, so refuse it outright.
+ */
+function rejectEditorSentinel(value: string, flag: string): string {
+  if (value === "-") {
+    throw new AxiError(
+      `${flag} value "-" tells glab to open an interactive editor; pass literal text instead`,
+      "VALIDATION_ERROR",
+    );
+  }
+  return value;
 }
 
 function readBodyFile(flag: string, path: string): string {

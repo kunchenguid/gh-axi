@@ -3,7 +3,6 @@ import { execFile } from "node:child_process";
 import {
   glabJson,
   glabExec,
-  glabRaw,
   resolveGlabBin,
 } from "../src/glab.js";
 import { AxiError } from "../src/errors.js";
@@ -156,7 +155,7 @@ describe("glabJson", () => {
   });
 });
 
-describe("glabExec / glabRaw", () => {
+describe("glabExec", () => {
   beforeEach(() => {
     mockedExecFile.mockReset();
   });
@@ -171,11 +170,5 @@ describe("glabExec / glabRaw", () => {
     await expect(glabExec(["mr", "merge", "1"])).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
-  });
-
-  it("glabRaw returns both streams without throwing", async () => {
-    mockExecFileResult(exitError(1), "partial", "warning text");
-    const result = await glabRaw(["mr", "merge", "1"]);
-    expect(result).toEqual({ stdout: "partial", stderr: "warning text", exitCode: 1 });
   });
 });

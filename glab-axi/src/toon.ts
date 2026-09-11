@@ -6,7 +6,6 @@ import { encode } from "@toon-format/toon";
 export type FieldDef =
   | { type: "field"; key: string; as?: string }
   | { type: "pluck"; key: string; subkey: string; as?: string }
-  | { type: "joinArray"; key: string; subkey: string; as?: string; empty?: string }
   | { type: "joinStrings"; key: string; as?: string; empty?: string }
   | { type: "relativeTime"; key: string; as?: string }
   | { type: "boolYesNo"; key: string; as?: string }
@@ -19,9 +18,6 @@ export function field(key: string, as?: string): FieldDef {
 }
 export function pluck(key: string, subkey: string, as?: string): FieldDef {
   return { type: "pluck", key, subkey, as };
-}
-export function joinArray(key: string, subkey: string, as?: string, empty = "none"): FieldDef {
-  return { type: "joinArray", key, subkey, as, empty };
 }
 /**
  * Join a plain array of strings (GitLab's `labels` is string[], unlike
@@ -56,15 +52,6 @@ export function extract(item: Record<string, any>, schema: FieldDef[]): Record<s
       case "pluck":
         result[outputKey] = (item[def.key] as Record<string, unknown> | undefined)?.[def.subkey] ?? null;
         break;
-      case "joinArray": {
-        const arr = item[def.key];
-        if (Array.isArray(arr) && arr.length > 0) {
-          result[outputKey] = arr.map((x: unknown) => (typeof x === "string" ? x : (x as Record<string, unknown>)[def.subkey])).join(",");
-        } else {
-          result[outputKey] = def.empty ?? "none";
-        }
-        break;
-      }
       case "joinStrings": {
         const arr = item[def.key];
         if (Array.isArray(arr) && arr.length > 0) {

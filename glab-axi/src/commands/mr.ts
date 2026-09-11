@@ -62,7 +62,7 @@ flags{view}:
 flags{create}:
   --title <text> (required), --description <text> or --description-file <path>, --source-branch <name>, --target-branch <name>, --assignee <username> (repeatable), --label <name> (repeatable), --milestone <id>
 flags{merge}:
-  --squash, --rebase, --merge (choose at most one; the project's merge method applies when none is given), --method <merge|squash|rebase> (alias for the shorthands; give one or the other), --auto (wait for pipeline instead of merging immediately), --remove-source-branch, --message <text>, --sha <sha>
+  --squash, --rebase (choose at most one; the project's configured merge method applies when neither is given), --auto (wait for pipeline instead of merging immediately), --remove-source-branch, --message <text>, --sha <sha>
 flags{close}:
   (none)
 flags{reopen}:
@@ -105,8 +105,6 @@ export const MR_FLAGS: Record<string, readonly string[]> = {
   merge: [
     "--squash",
     "--rebase",
-    "--merge",
-    "--method",
     "--auto",
     "--remove-source-branch",
     "--message",
@@ -298,7 +296,18 @@ async function viewMr(args: string[], ctx?: ProjectContext): Promise<string> {
     ctx,
   );
   const schema = full ? viewSchemaFull : viewSchema;
-  return renderOutput([renderDetail("mr", item, schema)]);
+  return renderOutput([
+    renderDetail("mr", item, schema),
+    renderHelp(
+      getSuggestions({
+        domain: "mr",
+        action: "view",
+        state: exactState(item),
+        id: num,
+        repo: ctx,
+      }),
+    ),
+  ]);
 }
 
 async function createMr(args: string[], ctx?: ProjectContext): Promise<string> {
@@ -370,7 +379,6 @@ async function createMr(args: string[], ctx?: ProjectContext): Promise<string> {
  */
 function rejectValuedMergeSwitches(args: string[]): void {
   const switches = [
-    "--merge",
     "--squash",
     "--rebase",
     "--auto",
@@ -391,33 +399,18 @@ function rejectValuedMergeSwitches(args: string[]): void {
 async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
   rejectValuedMergeSwitches(args);
   const num = takeNumber(args, "merge request");
-  const explicitMethod = takeFlag(args, "--method");
-  const shorthandMethods = ["merge", "squash", "rebase"].filter((candidate) =>
+  // glab mr merge exposes only --squash and --rebase; with neither, GitLab
+  // applies the project's configured merge method, reported as "default".
+  const methods = ["squash", "rebase"].filter((candidate) =>
     takeBoolFlag(args, `--${candidate}`),
   );
-  if (shorthandMethods.length > 1) {
+  if (methods.length > 1) {
     throw new AxiError(
-      "Choose only one merge method: --merge, --squash, or --rebase",
+      "Choose only one merge method: --squash or --rebase",
       "VALIDATION_ERROR",
     );
   }
-  if (
-    explicitMethod &&
-    shorthandMethods.length === 1 &&
-    explicitMethod !== shorthandMethods[0]
-  ) {
-    throw new AxiError(
-      "Choose either --method or a matching merge method shorthand, not both",
-      "VALIDATION_ERROR",
-    );
-  }
-  const method = explicitMethod ?? shorthandMethods[0];
-  if (method && !["merge", "squash", "rebase"].includes(method)) {
-    throw new AxiError(
-      "--method must be one of: merge, squash, rebase",
-      "VALIDATION_ERROR",
-    );
-  }
+  const method = methods[0];
   const auto = takeBoolFlag(args, "--auto");
   const removeSourceBranch = takeBoolFlag(args, "--remove-source-branch");
   const message = takeFlag(args, "--message");
@@ -458,8 +451,7 @@ async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
   // glab enables auto-merge by default whenever a pipeline is running. The axi
   // contract is deterministic mutations: merge now unless --auto is explicit.
   glabArgs.push(auto ? "--auto-merge=true" : "--auto-merge=false");
-  if (method === "squash") glabArgs.push("--squash");
-  else if (method === "rebase") glabArgs.push("--rebase");
+  if (method) glabArgs.push(`--${method}`);
   if (removeSourceBranch) glabArgs.push("--remove-source-branch");
   if (message) glabArgs.push("--message", message);
   if (sha) glabArgs.push("--sha", sha);
