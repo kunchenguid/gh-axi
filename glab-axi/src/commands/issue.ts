@@ -13,7 +13,8 @@ import {
   rejectUnknownFlags,
 } from "../args.js";
 import { takeDescription, truncateBody } from "../body.js";
-import { formatCountLine } from "../format.js";
+import { collectExtraFields, exactState } from "../fields.js";
+import { formatCountLine, resolveLimit } from "../format.js";
 import {
   field,
   pluck,
@@ -50,7 +51,7 @@ export const ISSUE_HELP = `usage: glab-axi issue <subcommand> [flags]
 subcommands[4]:
   list, view <number>, create, close <number>
 flags{list}:
-  --state <opened|closed|all>, --label <name> (repeatable), --assignee <username> (repeatable), --author <username>, --limit <n> (default 30), --fields <a,b,c>
+  --state <opened|closed|all>, --label <name> (repeatable), --assignee <username>, --author <username>, --limit <n> (default 30, max 100), --fields <a,b,c>
 flags{view}:
   --full (show the complete description without truncation)
 flags{create}:
@@ -150,19 +151,6 @@ const stateResultSchema: FieldDef[] = [field("iid"), lower("state")];
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Exact state value from glab JSON, or undefined when absent or of an
- * unexpected shape. State matching accepts exact values only (e.g. exactly
- * `closed`), never a substring, so an output-format change degrades to
- * silence, not a false positive.
- */
-function exactState(item: unknown): string | undefined {
-  const state = (item as { state?: unknown } | null | undefined)?.state;
-  return typeof state === "string" && state.trim() !== ""
-    ? state.trim().toLowerCase()
-    : undefined;
-}
-
 function pushIssueStateFilter(
   glabArgs: string[],
   state: string | undefined,
@@ -186,27 +174,6 @@ function pushIssueStateFilter(
   }
 }
 
-function collectExtraFields(
-  fieldsArg: string | undefined,
-  extras: Record<string, { jsonKey: string; def: FieldDef }>,
-): FieldDef[] {
-  if (!fieldsArg) return [];
-  const extraDefs: FieldDef[] = [];
-  for (const raw of fieldsArg.split(",")) {
-    const name = raw.trim();
-    if (name === "") continue;
-    const spec = extras[name];
-    if (!spec) {
-      throw new AxiError(
-        `Unknown --fields entry: ${name}. Available: ${Object.keys(extras).join(", ")}`,
-        "VALIDATION_ERROR",
-      );
-    }
-    extraDefs.push(spec.def);
-  }
-  return extraDefs;
-}
-
 // ---------------------------------------------------------------------------
 // Subcommand handlers
 // ---------------------------------------------------------------------------
@@ -219,17 +186,24 @@ async function listIssues(
   // Validate the state even before fetching so a typo fails fast.
   pushIssueStateFilter([], state);
   const labels = getAllFlags(args, "--label");
+  // Unlike `glab mr list`, `glab issue list` filters by a single assignee and
+  // silently keeps the last one, so a second value would return a wrong set.
   const assignees = getAllFlags(args, "--assignee");
+  if (assignees.length > 1) {
+    throw new AxiError(
+      "--assignee may only be given once for glab-axi issue list: glab issue list filters by a single assignee",
+      "VALIDATION_ERROR",
+    );
+  }
   const author = getFlag(args, "--author");
-  const limitRaw = getFlag(args, "--limit");
-  const limit = limitRaw ? parseInt(limitRaw, 10) : 30;
+  const limit = resolveLimit(getFlag(args, "--limit"));
   const extraDefs = collectExtraFields(getFlag(args, "--fields"), ISSUE_LIST_EXTRA_FIELDS);
 
   // glab issue list's -F means details|ids|urls; JSON output is -O json.
   const glabArgs = ["issue", "list", "-O", "json", "--per-page", String(limit)];
   pushIssueStateFilter(glabArgs, state);
   pushRepeated(glabArgs, "--label", labels);
-  pushRepeated(glabArgs, "--assignee", assignees);
+  if (assignees[0]) glabArgs.push("--assignee", assignees[0]);
   if (author) glabArgs.push("--author", author);
 
   const items = await glabJson<IssueListItem[]>(glabArgs, ctx);
@@ -291,7 +265,7 @@ async function createIssue(
   const description = takeDescription(args) ?? "";
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
-  const milestone = getFlag(args, "--milestone");
+  const milestone = takeRequiredFlag(args, "--milestone");
 
   const glabArgs = [
     "issue",

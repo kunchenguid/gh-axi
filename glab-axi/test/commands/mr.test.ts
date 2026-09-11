@@ -344,6 +344,13 @@ describe("mr create", () => {
     );
   });
 
+  it("refuses a blank --source-branch instead of opening from the current branch", async () => {
+    await expect(
+      mrCommand(["create", "--title", "Fix login", "--source-branch", ""], ctx),
+    ).rejects.toThrow(/--source-branch requires a value/);
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
   it("raises MutationFollowupError when the read-back fails", async () => {
     mockedGlabExec.mockResolvedValueOnce(
       "https://gitlab.com/group/project/-/merge_requests/42",
@@ -461,6 +468,16 @@ describe("mr merge", () => {
     expect(args[args.indexOf("--message") + 1]).toBe("Merge!");
     expect(args).toContain("--sha");
     expect(args[args.indexOf("--sha") + 1]).toBe("abc123");
+  });
+
+  it("refuses a blank or value-less --sha instead of merging without it", async () => {
+    await expect(mrCommand(["merge", "42", "--sha", ""], ctx)).rejects.toThrow(
+      /--sha requires a value/,
+    );
+    await expect(mrCommand(["merge", "42", "--sha"], ctx)).rejects.toThrow(
+      /--sha requires a value/,
+    );
+    expect(mockedGlabExec).not.toHaveBeenCalled();
   });
 
   it("takes the MR number from the positional, not an all-digit flag value", async () => {

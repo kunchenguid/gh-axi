@@ -8,7 +8,6 @@ import {
   pushRepeated,
   getPositional,
   requireNumber,
-  takeFlag,
   takeBoolFlag,
   takeNumber,
   takeAllFlags,
@@ -16,7 +15,8 @@ import {
   rejectUnknownFlags,
 } from "../args.js";
 import { takeDescription, truncateBody } from "../body.js";
-import { formatCountLine } from "../format.js";
+import { collectExtraFields, exactState } from "../fields.js";
+import { formatCountLine, resolveLimit } from "../format.js";
 import {
   field,
   pluck,
@@ -56,7 +56,7 @@ export const MR_HELP = `usage: glab-axi mr <subcommand> [flags]
 subcommands[6]:
   list, view <number>, create, merge <number>, close <number>, reopen <number>
 flags{list}:
-  --state <opened|closed|merged|all>, --label <name> (repeatable), --assignee <username> (repeatable), --author <username>, --source-branch <name>, --target-branch <name>, --limit <n> (default 30), --fields <a,b,c>
+  --state <opened|closed|merged|all>, --label <name> (repeatable), --assignee <username> (repeatable), --author <username>, --source-branch <name>, --target-branch <name>, --limit <n> (default 30, max 100), --fields <a,b,c>
 flags{view}:
   --full (show the complete description without truncation)
 flags{create}:
@@ -179,19 +179,6 @@ const stateResultSchema: FieldDef[] = [field("iid"), lower("state")];
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Exact state value from glab JSON, or undefined when absent or of an
- * unexpected shape. State matching accepts exact values only (e.g. exactly
- * `merged`), never a substring, so an output-format change degrades to
- * silence, not a false positive.
- */
-function exactState(item: unknown): string | undefined {
-  const state = (item as { state?: unknown } | null | undefined)?.state;
-  return typeof state === "string" && state.trim() !== ""
-    ? state.trim().toLowerCase()
-    : undefined;
-}
-
 /** Translate a `--state` filter into glab mr list flags (opened is the default). */
 function pushStateFilter(glabArgs: string[], state: string | undefined): void {
   if (!state) return;
@@ -216,31 +203,6 @@ function pushStateFilter(glabArgs: string[], state: string | undefined): void {
   }
 }
 
-/**
- * Resolve --fields extra columns. glab has no field selector — the JSON comes
- * back complete — so extras only extend the output schema.
- */
-function collectExtraFields(
-  fieldsArg: string | undefined,
-  extras: Record<string, { jsonKey: string; def: FieldDef }>,
-): FieldDef[] {
-  if (!fieldsArg) return [];
-  const extraDefs: FieldDef[] = [];
-  for (const raw of fieldsArg.split(",")) {
-    const name = raw.trim();
-    if (name === "") continue;
-    const spec = extras[name];
-    if (!spec) {
-      throw new AxiError(
-        `Unknown --fields entry: ${name}. Available: ${Object.keys(extras).join(", ")}`,
-        "VALIDATION_ERROR",
-      );
-    }
-    extraDefs.push(spec.def);
-  }
-  return extraDefs;
-}
-
 // ---------------------------------------------------------------------------
 // Subcommand handlers
 // ---------------------------------------------------------------------------
@@ -254,8 +216,7 @@ async function listMrs(args: string[], ctx?: ProjectContext): Promise<string> {
   const author = getFlag(args, "--author");
   const sourceBranch = getFlag(args, "--source-branch");
   const targetBranch = getFlag(args, "--target-branch");
-  const limitRaw = getFlag(args, "--limit");
-  const limit = limitRaw ? parseInt(limitRaw, 10) : 30;
+  const limit = resolveLimit(getFlag(args, "--limit"));
   const extraDefs = collectExtraFields(getFlag(args, "--fields"), MR_LIST_EXTRA_FIELDS);
 
   const glabArgs = ["mr", "list", "-F", "json", "--per-page", String(limit)];
@@ -317,11 +278,11 @@ async function createMr(args: string[], ctx?: ProjectContext): Promise<string> {
   // Resolve the description ourselves (inline or file) so the child glab
   // always receives a concrete value and never opens an interactive editor.
   const description = takeDescription(args) ?? "";
-  const sourceBranch = takeFlag(args, "--source-branch");
-  const targetBranch = takeFlag(args, "--target-branch");
+  const sourceBranch = takeRequiredFlag(args, "--source-branch");
+  const targetBranch = takeRequiredFlag(args, "--target-branch");
   const assignees = takeAllFlags(args, "--assignee");
   const labels = takeAllFlags(args, "--label");
-  const milestone = takeFlag(args, "--milestone");
+  const milestone = takeRequiredFlag(args, "--milestone");
 
   const glabArgs = [
     "mr",
@@ -412,8 +373,8 @@ async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
   const method = methods[0];
   const auto = takeBoolFlag(args, "--auto");
   const removeSourceBranch = takeBoolFlag(args, "--remove-source-branch");
-  const message = takeFlag(args, "--message");
-  const sha = takeFlag(args, "--sha");
+  const message = takeRequiredFlag(args, "--message");
+  const sha = takeRequiredFlag(args, "--sha");
   // Only now is every flag value consumed, so the remaining numeric token is
   // the merge request: an all-digit --sha must never be read as the number.
   const num = takeNumber(args, "merge request");

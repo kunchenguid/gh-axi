@@ -215,6 +215,16 @@ describe("apiCommand passthrough", () => {
     expect(result).toContain("glab-axi issue view 7 -R group/project");
   });
 
+  it("suggests nothing when the path names a project by numeric id", async () => {
+    mockedGlabExec.mockResolvedValueOnce('{"iid": 1234}');
+    const result = await apiCommand(
+      ["projects/278964/merge_requests/1234"],
+      { fullPath: "myteam/myapp", source: "git" },
+    );
+    expect(result).not.toContain("help[");
+    expect(result).not.toContain("myteam/myapp");
+  });
+
   it("suggests nothing for a path no glab-axi command wraps", async () => {
     mockedGlabExec.mockResolvedValueOnce('{"version": "17.0"}');
     const result = await apiCommand(["version"], ctx);

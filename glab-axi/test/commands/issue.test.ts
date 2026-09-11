@@ -95,7 +95,24 @@ describe("issue list", () => {
     ).rejects.toThrow(/opened, closed, all/);
   });
 
-  it("forwards repeatable labels and assignees once per value", async () => {
+  it("rejects a second --assignee, which glab would silently discard", async () => {
+    await expect(
+      issueCommand(["list", "--assignee", "alice", "--assignee", "bob"], ctx),
+    ).rejects.toThrow(/--assignee may only be given once/);
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
+  it("clamps --limit to GitLab's page cap and marks the page truncated", async () => {
+    mockedGlabJson.mockResolvedValueOnce(
+      Array.from({ length: 100 }, (_, i) => ({ ...OPEN_ISSUE, iid: i + 1 })),
+    );
+    const result = await issueCommand(["list", "--limit", "500"], ctx);
+    const args = mockedGlabJson.mock.calls[0]?.[0] as string[];
+    expect(args[args.indexOf("--per-page") + 1]).toBe("100");
+    expect(result).toContain("count: 100 (showing first 100)");
+  });
+
+  it("forwards repeatable labels and a single assignee", async () => {
     mockedGlabJson.mockResolvedValueOnce([]);
     await issueCommand(
       ["list", "--label", "bug", "--label=backend", "--assignee", "alice", "--author", "bob"],

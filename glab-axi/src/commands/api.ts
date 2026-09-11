@@ -162,16 +162,19 @@ const WRAPPED_RESOURCE =
   /^\/?projects\/([^/]+)\/(merge_requests|issues)(?:\/(\d+))?\/?$/;
 
 /**
- * Resolve the project a raw API path names. `:fullpath` (glab's placeholder)
- * and a numeric project id both mean "the current project", so they keep the
- * caller's context; an explicit path targets that project instead.
+ * Resolve the project a raw API path names. glab's `:fullpath`/`:id`
+ * placeholders mean "the current project", so they keep the caller's context;
+ * an explicit path targets that project. Anything else — a numeric project id
+ * above all — names a project this command cannot resolve, and guessing the
+ * caller's would point the suggestion at a different project.
  */
 function projectFromPathSegment(
   segment: string,
   ctx?: ProjectContext,
 ): ProjectContext | undefined {
+  if (segment === ":fullpath" || segment === ":id") return ctx;
   const fullPath = segment.replace(/%2f/gi, "/");
-  if (!/^[\w.-]+(?:\/[\w.-]+)+$/.test(fullPath)) return ctx;
+  if (!/^[\w.-]+(?:\/[\w.-]+)+$/.test(fullPath)) return undefined;
   return { fullPath, source: "flag", host: ctx?.host };
 }
 
@@ -237,17 +240,20 @@ export async function apiCommand(
   if (paginate) glabArgs.push("--paginate");
 
   const wrapped = path.split("?")[0].match(WRAPPED_RESOURCE);
+  const wrappedProject = wrapped
+    ? projectFromPathSegment(wrapped[1], ctx)
+    : undefined;
   const help = renderHelp(
-    getSuggestions({
-      domain: "api",
-      action: wrapped
-        ? wrapped[2] === "merge_requests"
-          ? "mr"
-          : "issue"
-        : "raw",
-      id: wrapped?.[3],
-      repo: wrapped ? projectFromPathSegment(wrapped[1], ctx) : ctx,
-    }),
+    getSuggestions(
+      wrapped && wrappedProject
+        ? {
+            domain: "api",
+            action: wrapped[2] === "merge_requests" ? "mr" : "issue",
+            id: wrapped[3],
+            repo: wrappedProject,
+          }
+        : { domain: "api", action: "raw", repo: ctx },
+    ),
   );
 
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output

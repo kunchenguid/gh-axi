@@ -1,5 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { formatCountLine } from "../src/format.js";
+import { formatCountLine, resolveLimit } from "../src/format.js";
+
+describe("resolveLimit", () => {
+  it("defaults to 30 when --limit is omitted", () => {
+    expect(resolveLimit(undefined)).toBe(30);
+  });
+
+  it("keeps a limit within GitLab's page cap", () => {
+    expect(resolveLimit("5")).toBe(5);
+    expect(resolveLimit("100")).toBe(100);
+  });
+
+  it("clamps a limit above GitLab's page cap", () => {
+    expect(resolveLimit("500")).toBe(100);
+  });
+
+  it("rejects a non-positive or non-numeric limit", () => {
+    expect(() => resolveLimit("0")).toThrow(/Invalid --limit value/);
+    expect(() => resolveLimit("abc")).toThrow(/Invalid --limit value/);
+  });
+});
 
 describe("formatCountLine", () => {
   it("simple count", () => {
