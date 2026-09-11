@@ -120,6 +120,17 @@ Human-authored PRs targeting `main` must be raised through [`no-mistakes`](https
 `.github/workflows/no-mistakes-required.yml` is a thin caller of the shared `kunchenguid/no-mistakes/.github/actions/require-no-mistakes` composite action, pinned to an immutable commit SHA and never `@main` (main is editable by the very PR the gate judges). Enforcement logic - the `Updates from [git push no-mistakes]` signature check, the `<!-- no-mistakes-pipeline-attestation:v1 {...} -->` parse, and the head binding - and its tests live upstream in the no-mistakes repository; change enforcement there rather than copying it locally, and bump this repository's pin in a deliberate separate pull request. This repository still owns its `on:`, `paths-ignore`, `concurrency`, `permissions`, job name, and author-exemption `if:`.
 The shared action's head binding means a PR whose body no-mistakes did not rewrite for the current head goes red. That is the attestation contract, not a flake: push through `git push no-mistakes` so the body is refreshed.
 
+## The glab-axi sibling package (`glab-axi/`)
+
+`glab-axi` is a pnpm workspace package (`pnpm-workspace.yaml` lists it) mirroring gh-axi's architecture around GitLab's `glab`: same `runAxiCli` registry, TOON helpers, suggestion table, `mapGlabError` pattern order, and `rejectUnknownFlags` discipline. Root commands cover it: `pnpm run build` chains `pnpm --filter glab-axi build`, root vitest and eslint pick up `glab-axi/`, and its skill stub regenerates via `pnpm --filter glab-axi build:skill`.
+
+Deltas grounded in verified glab behavior (glab 1.117, live-checked):
+
+- Identity is (host, full path, number), not owner/repo: `ProjectContext.fullPath` nests arbitrarily (`group/sub/project`); `buildArgs` appends `-R <fullPath>` for flag/env sources only; `--hostname` maps to `GITLAB_HOST` for the child glab (explicit flag wins, env untouched otherwise).
+- glab has no field selector: read JSON with `-F json` — except `glab issue list`, whose `-F` means `details|ids|urls` and whose JSON flag is `-O json`. Parse in-process; there is no `--json` field selection to trim.
+- State checks (`mr merge/close/reopen`, `issue close`) compare the exact normalized value (`=== "merged"`), never a substring, so an output-format change degrades to attempting the mutation instead of a false-positive no-op.
+- Mutation handlers never let glab prompt: `create` commands always forward a concrete `--description` (default `""`) plus `--yes`; `mr merge` passes `--auto-merge=false` by default (glab auto-merges when a pipeline runs) and `--auto-merge=true` only for `--auto`. Valued boolean switches (`--squash=false`) are rejected before any glab call because `rejectUnknownFlags` strips `=value` and `takeBoolFlag` matches whole tokens only.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

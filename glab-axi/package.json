@@ -1,39 +1,38 @@
 {
-  "name": "gh-axi",
-  "version": "0.1.35",
+  "name": "glab-axi",
+  "version": "0.1.0",
   "packageManager": "pnpm@11.1.1",
-  "description": "AXI-compliant gh CLI wrapper — token-efficient TOON output, contextual suggestions, idempotent mutations",
+  "description": "AXI-compliant glab CLI wrapper — token-efficient TOON output, contextual suggestions, idempotent mutations",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kunchenguid/gh-axi.git"
+    "url": "https://github.com/kunchenguid/gh-axi.git",
+    "directory": "glab-axi"
   },
   "keywords": [
-    "github",
+    "gitlab",
     "cli",
     "agent",
     "axi",
     "toon",
-    "gh"
+    "glab"
   ],
   "bin": {
-    "gh-axi": "./dist/bin/gh-axi.js"
+    "glab-axi": "./dist/bin/glab-axi.js"
   },
   "files": [
     "dist",
-    "skills/gh-axi",
-    "LICENSE",
-    "README.md"
+    "skills/glab-axi"
   ],
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsc && pnpm --filter glab-axi build",
+    "build": "tsc",
     "build:skill": "tsx scripts/build-skill.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx bin/gh-axi.ts",
+    "dev": "tsx bin/glab-axi.ts",
     "prepublishOnly": "npm run build"
   },
   "license": "MIT",
@@ -45,15 +44,8 @@
     "axi-sdk-js": "^0.1.10"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
-    "eslint": "^10.1.0",
-    "globals": "^17.4.0",
-    "prettier": "^3.8.1",
     "tsx": "^4.0.0",
-    "typescript": "^5.7.0",
-    "typescript-eslint": "^8.58.0",
-    "vitest": "^3.0.0",
-    "yaml": "^2.9.0"
+    "typescript": "^5.7.0"
   }
 }

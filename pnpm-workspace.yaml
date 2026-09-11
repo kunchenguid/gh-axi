@@ -1,5 +1,6 @@
 packages:
   - "."
+  - "glab-axi"
 
 minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true

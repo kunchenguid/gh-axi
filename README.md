@@ -217,6 +217,18 @@ The committed `skills/gh-axi/SKILL.md` is generated from `src/skill.ts` by `pnpm
 The generated skill intentionally defers all command guidance to the CLI dashboard and help output so installed copies do not duplicate stale instructions.
 The npm package includes `skills/gh-axi/`, so published releases ship the same installable Agent Skill documented in Quick Start.
 
+## Sibling: glab-axi (GitLab)
+
+`glab-axi/` in this repository is a pnpm workspace package proposing the same axi contract for GitLab: it wraps GitLab's `glab` CLI and offers token-efficient TOON output, contextual suggestions, idempotent mutations, `setup hooks`, and a raw `api` passthrough — for `mr` (list/view/create/merge/close/reopen), `issue` (list/view/create/close), `repo view`, and a dashboard, on gitlab.com and self-hosted instances alike.
+
+```sh
+pnpm install
+pnpm --filter glab-axi build
+pnpm --filter glab-axi dev -- mr list
+```
+
+The first parity subset is deliberately small; the command registry is table-driven so later commands slot in without structural change.
+
 ## License
 
 MIT
