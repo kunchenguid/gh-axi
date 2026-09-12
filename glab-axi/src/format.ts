@@ -20,8 +20,8 @@ const MAX_LIMIT = 100;
 
 export function resolveLimit(raw: string | undefined): number {
   if (raw === undefined) return DEFAULT_LIMIT;
-  const limit = Number.parseInt(raw, 10);
-  if (!Number.isFinite(limit) || limit < 1) {
+  const limit = Number(raw);
+  if (!/^\d+$/.test(raw) || limit < 1) {
     throw new AxiError(
       `Invalid --limit value: ${raw}. Must be a positive integer`,
       "VALIDATION_ERROR",

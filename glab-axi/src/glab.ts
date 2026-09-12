@@ -61,12 +61,15 @@ function toExecResult(
 
 function run(args: string[]): Promise<ExecResult> {
   return new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       resolveGlabBin(),
       args,
       { maxBuffer: MAX_BUFFER_BYTES },
       toExecResult(resolve),
     );
+    // glab reads standard input for `--input -` and `--field k=@-`; with the
+    // pipe left open the child would wait for input that never arrives.
+    child.stdin?.end();
   });
 }
 

@@ -88,7 +88,7 @@ export async function repoCommand(
 ): Promise<string> {
   const sub = args[0];
 
-  if (sub === "--help" || sub === "-h" || sub === undefined) {
+  if (!sub || args.includes("--help") || args.includes("-h")) {
     return REPO_HELP;
   }
 

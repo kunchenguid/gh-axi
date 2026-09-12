@@ -562,6 +562,14 @@ describe("mr close", () => {
     expect(result).toContain("state: closed");
   });
 
+  it("refuses a number with trailing garbage instead of closing !42", async () => {
+    await expect(mrCommand(["close", "42abc"], ctx)).rejects.toThrow(
+      /Invalid merge request number: 42abc/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
   it("refuses to close a merged MR", async () => {
     mockedGlabJson.mockResolvedValueOnce(mergedMr());
     await expect(mrCommand(["close", "42"], ctx)).rejects.toThrow(

@@ -15,9 +15,10 @@ describe("resolveLimit", () => {
     expect(resolveLimit("500")).toBe(100);
   });
 
-  it("rejects a non-positive or non-numeric limit", () => {
+  it("rejects a non-positive, non-numeric, or partly numeric limit", () => {
     expect(() => resolveLimit("0")).toThrow(/Invalid --limit value/);
     expect(() => resolveLimit("abc")).toThrow(/Invalid --limit value/);
+    expect(() => resolveLimit("50x")).toThrow(/Invalid --limit value/);
   });
 });
 

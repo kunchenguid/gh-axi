@@ -1,9 +1,9 @@
 /** Default GitLab host used when none is configured. */
 export const DEFAULT_HOST = "gitlab.com";
 
+/** An explicitly requested host. Absent when no --hostname flag was given. */
 export interface HostContext {
   value: string;
-  source: "flag" | "env" | "default";
 }
 
 /**

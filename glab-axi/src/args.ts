@@ -157,10 +157,9 @@ export function getPositional(
 /** Parse and validate a required numeric argument. */
 export function requireNumber(raw: string | undefined, label: string): number {
   if (!raw) throw new AxiError(`Missing ${label} number`, "VALIDATION_ERROR");
-  const n = parseInt(raw, 10);
-  if (isNaN(n))
+  if (!/^\d+$/.test(raw))
     throw new AxiError(`Invalid ${label} number: ${raw}`, "VALIDATION_ERROR");
-  return n;
+  return Number(raw);
 }
 
 /** Find the first numeric positional arg, remove it from args, and return it as a number. */

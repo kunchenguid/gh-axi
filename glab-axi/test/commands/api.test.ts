@@ -16,7 +16,12 @@ const ctx: ProjectContext = { fullPath: "group/project", source: "flag" };
 describe("apiCommand help", () => {
   it("returns help for --help/-h or no args", async () => {
     expect(await apiCommand(["--help"])).toBe(API_HELP);
+    expect(await apiCommand(["-h"])).toBe(API_HELP);
     expect(await apiCommand([])).toBe(API_HELP);
+  });
+
+  it("treats -h after a path as help, not an unknown flag", async () => {
+    expect(await apiCommand(["projects/g%2Fp", "-h"])).toBe(API_HELP);
   });
 });
 

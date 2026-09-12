@@ -44,7 +44,7 @@ export async function withSuggestionHost<T>(
 
 function hostnameFlag(): string {
   const host = activeHost;
-  if (!host || host.source !== "flag" || host.value === DEFAULT_HOST) {
+  if (!host || host.value === DEFAULT_HOST) {
     return "";
   }
   return ` --hostname ${host.value}`;

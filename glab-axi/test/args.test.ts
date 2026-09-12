@@ -142,6 +142,10 @@ describe("getPositional / requireNumber / takeNumber", () => {
     expect(() => requireNumber("abc", "mr")).toThrow(AxiError);
   });
 
+  it("requireNumber rejects trailing garbage instead of truncating it", () => {
+    expect(() => requireNumber("42abc", "mr")).toThrow(/Invalid mr number/);
+  });
+
   it("takeNumber finds and removes the first numeric positional", () => {
     const args = ["--full", "42"];
     expect(takeNumber(args, "mr")).toBe(42);

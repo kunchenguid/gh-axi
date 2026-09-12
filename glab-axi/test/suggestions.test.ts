@@ -5,7 +5,7 @@ import type { HostContext } from "../src/host.js";
 
 const gitRepo: ProjectContext = { fullPath: "group/project", source: "git" };
 const flagRepo: ProjectContext = { fullPath: "group/project", source: "flag" };
-const flagHost: HostContext = { value: "git.example.com", source: "flag" };
+const flagHost: HostContext = { value: "git.example.com" };
 
 describe("getSuggestions", () => {
   it("appends -R for flag/env project sources", () => {
@@ -52,6 +52,18 @@ describe("getSuggestions", () => {
       for (const line of lines) {
         expect(line).toContain("--hostname git.example.com");
       }
+    });
+  });
+
+  it("keeps an explicit gitlab.com host free of --hostname", async () => {
+    await withSuggestionHost({ value: "gitlab.com" }, async () => {
+      const lines = getSuggestions({
+        domain: "mr",
+        action: "merge",
+        id: 9,
+        repo: gitRepo,
+      });
+      expect(lines.join("\n")).not.toContain("--hostname");
     });
   });
 

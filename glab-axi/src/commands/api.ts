@@ -185,7 +185,7 @@ export async function apiCommand(
   args: string[],
   ctx?: ProjectContext,
 ): Promise<string> {
-  if (args[0] === "--help" || args[0] === "-h" || args.length === 0)
+  if (args.length === 0 || args.includes("--help") || args.includes("-h"))
     return API_HELP;
 
   const { positionals, fields, rawFields, headers, method: methodFlag, input, paginate, full } =

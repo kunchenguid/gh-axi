@@ -36,6 +36,11 @@ describe("repoCommand", () => {
     expect(await repoCommand([])).toContain(REPO_HELP);
   });
 
+  it("treats -h after a subcommand as help, not a project view", async () => {
+    expect(await repoCommand(["view", "-h"], ctx)).toContain(REPO_HELP);
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("returns an error block for unknown subcommands", async () => {
     const result = await repoCommand(["create", "x"]);
     expect(result).toContain("Unknown repo subcommand: create");

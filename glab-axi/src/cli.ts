@@ -150,7 +150,7 @@ function resolveHostContext(
   if (hostFlag === undefined) {
     return undefined;
   }
-  return { value: resolveHost(hostFlag), source: "flag" };
+  return { value: resolveHost(hostFlag) };
 }
 
 function parseProjectContextArgs(
