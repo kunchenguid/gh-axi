@@ -62,8 +62,11 @@ const patterns: ErrorPattern[] = [
   {
     // glab wraps whatever went wrong in this prefix, so the status inside it
     // decides the code: only a 404 is a missing merge request. A 401/403/429
-    // reason must fall through to the status patterns below.
-    pattern: /Failed to get merge request (\d+):[^\n]*\b404\b/i,
+    // reason must fall through to the status patterns below. The status is the
+    // only number followed by a space — glab echoes the iid before a colon,
+    // both after "merge request" and in the request URL, so an iid of 404
+    // cannot stand in for the status.
+    pattern: /Failed to get merge request (\d+):[^\n]*\b404(?=\s|$)/i,
     code: "NOT_FOUND",
     message: (m) => `Merge request !${m[1]} not found in this project`,
     suggestions: () => [

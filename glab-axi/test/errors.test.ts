@@ -21,20 +21,29 @@ describe("mapGlabError", () => {
     );
     expect(wrapped.code).toBe("NOT_FOUND");
     expect(wrapped.message).toBe("Merge request !7 not found in this project");
+
+    const iid404 = mapGlabError(
+      "Failed to get merge request 404: GET https://gitlab.com/api/v4/projects/g%2Fp/merge_requests/404: 404 {message: 404 Not Found}.",
+      1,
+      "mr view",
+    );
+    expect(iid404.code).toBe("NOT_FOUND");
+    expect(iid404.message).toBe("Merge request !404 not found in this project");
   });
 
   it("keeps the status glab wrapped in its merge request prefix", () => {
-    // glab 1.117 wraps every reason in "Failed to get merge request <n>:",
-    // so the status inside it decides the code, not the prefix.
+    // glab 1.117 wraps every reason in "Failed to get merge request <n>:", so
+    // the status inside it decides the code, not the prefix — and not the iid,
+    // which glab echoes in the request URL even when it reads like a status.
     const unauthorized = mapGlabError(
-      "\n   ERROR  \n\n  Failed to get merge request 1: GET https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/merge_requests/1: 401 {message: 401 Unauthorized}.\n",
+      "\n   ERROR  \n\n  Failed to get merge request 404: GET https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/merge_requests/404: 401 {message: 401 Unauthorized}.\n",
       1,
       "mr view",
     );
     expect(unauthorized.code).toBe("AUTH_REQUIRED");
 
     const forbidden = mapGlabError(
-      "Failed to get merge request 42: GET https://gitlab.com/api/v4/projects/g%2Fp/merge_requests/42: 403 {message: 403 Forbidden}.",
+      "Failed to get merge request 404: GET https://gitlab.com/api/v4/projects/g%2Fp/merge_requests/404: 403 {message: 403 Forbidden}.",
       1,
       "mr view",
     );
