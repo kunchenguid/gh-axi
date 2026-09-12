@@ -30,8 +30,6 @@
   "scripts": {
     "build": "tsc",
     "build:skill": "tsx scripts/build-skill.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "dev": "tsx bin/glab-axi.ts",
     "prepublishOnly": "npm run build"
   },

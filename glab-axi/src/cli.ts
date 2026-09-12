@@ -58,10 +58,10 @@ type WrappedCommandFn = (
 ) => Promise<string>;
 
 const COMMANDS: Record<string, WrappedCommandFn> = {
-  mr: withProjectContext("mr", mrCommand),
-  issue: withProjectContext("issue", issueCommand),
-  repo: withProjectContext("repo", repoCommand),
-  api: withProjectContext("api", apiCommand),
+  mr: withProjectContext(mrCommand),
+  issue: withProjectContext(issueCommand),
+  repo: withProjectContext(repoCommand),
+  api: withProjectContext(apiCommand),
   setup: setupCommand,
 };
 
@@ -103,12 +103,12 @@ async function runProjectCli(options: MainOptions): Promise<void> {
     version: VERSION,
     topLevelHelp: TOP_HELP,
     ...(options.stdout ? { stdout: options.stdout } : {}),
-    home: withProjectContext(undefined, homeCommand),
+    home: withProjectContext(homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
     formatError,
     resolveContext: ({ command, args }) => {
-      const { repoFlag, hostFlag } = parseProjectContextArgs(command, args);
+      const { repoFlag, hostFlag } = parseProjectContextArgs(args);
       // Explicit --hostname wins over the GITLAB_HOST env var. Setting
       // GITLAB_HOST here means the child `glab` process (which inherits
       // process.env) targets the configured host, and resolveHost() reflects
@@ -127,16 +127,10 @@ async function runProjectCli(options: MainOptions): Promise<void> {
   });
 }
 
-function withProjectContext(
-  command: string | undefined,
-  handler: CommandFn,
-): WrappedCommandFn {
+function withProjectContext(handler: CommandFn): WrappedCommandFn {
   return (args, ctx) =>
     withSuggestionHost(ctx?.host, () =>
-      handler(
-        parseProjectContextArgs(command, args).strippedArgs,
-        projectContext(ctx),
-      ),
+      handler(parseProjectContextArgs(args).strippedArgs, projectContext(ctx)),
     );
 }
 
@@ -153,15 +147,11 @@ function resolveHostContext(
   return { value: resolveHost(hostFlag) };
 }
 
-function parseProjectContextArgs(
-  command: string | undefined,
-  args: string[],
-): {
+function parseProjectContextArgs(args: string[]): {
   repoFlag: string | undefined;
   hostFlag: string | undefined;
   strippedArgs: string[];
 } {
-  void command;
   const stripped: string[] = [];
   let repoFlag: string | undefined;
   let hostFlag: string | undefined;

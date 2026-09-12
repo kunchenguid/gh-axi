@@ -118,6 +118,15 @@ const table: SuggestionEntry[] = [
     ],
   },
 
+  // MR merge scheduled — auto-merge waits for the pipeline, so the MR is
+  // still open when the command returns.
+  {
+    match: (c) => c.domain === "mr" && c.action === "merge-scheduled",
+    lines: (c) => [
+      `Run \`glab-axi${repoFlag(c)} mr view ${c.id}\` to check whether the merge completed`,
+    ],
+  },
+
   // MR close
   {
     match: (c) => c.domain === "mr" && c.action === "close",

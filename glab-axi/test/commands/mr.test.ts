@@ -404,6 +404,18 @@ describe("mr create", () => {
     expect(mockedGlabExec).not.toHaveBeenCalled();
   });
 
+  it("reads back by URL when the MR number cannot be parsed", async () => {
+    mockedGlabExec.mockResolvedValueOnce(
+      "https://gitlab.com/group/project/-/mrs/42",
+    );
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
+    await mrCommand(["create", "--title", "Fix login"], ctx);
+    expect(mockedGlabJson).toHaveBeenCalledWith(
+      ["mr", "view", "https://gitlab.com/group/project/-/mrs/42", "-F", "json"],
+      ctx,
+    );
+  });
+
   it("raises MutationFollowupError when the read-back fails", async () => {
     mockedGlabExec.mockResolvedValueOnce(
       "https://gitlab.com/group/project/-/merge_requests/42",
@@ -446,6 +458,18 @@ describe("mr merge", () => {
     const args = mockedGlabExec.mock.calls[0]?.[0] as string[];
     expect(args).toContain("--auto-merge=true");
     expect(args).not.toContain("--auto-merge=false");
+  });
+
+  it("--auto reports a scheduled merge, never a completed one", async () => {
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_MR });
+    const result = await mrCommand(["merge", "42", "--auto"], ctx);
+    expect(result).toContain("merge_scheduled:");
+    expect(result).toContain("status: scheduled");
+    expect(result).not.toContain("merged:");
+    expect(result).not.toContain("status: ok");
+    expect(result).toContain(
+      "glab-axi mr view 42 -R group/project` to check whether the merge completed",
+    );
   });
 
   it("forwards the squash method", async () => {
@@ -566,7 +590,7 @@ describe("mr merge", () => {
     expect(result).toContain("iid: 42");
     expect(result).toContain("status: ok");
     expect(result).toContain("method: squash");
-    expect(result).toContain("auto: no");
+    expect(result).toContain("to see the merged MR");
   });
 });
 

@@ -69,7 +69,13 @@ export function takeRequiredFlag(
   return undefined;
 }
 
-function collectAllFlags(args: string[], flag: string): string[] {
+/**
+ * Collect every value for a repeatable flag in --flag value or --flag=value
+ * form and remove each occurrence from args. Throws VALIDATION_ERROR if any
+ * occurrence has a missing or blank value, rather than silently dropping it;
+ * a following flag-shaped token is a missing value, not the flag's value.
+ */
+export function takeAllFlags(args: string[], flag: string): string[] {
   const result: string[] = [];
   const equalsPrefix = flagEqualsPrefix(flag);
   let i = 0;
@@ -89,16 +95,6 @@ function collectAllFlags(args: string[], flag: string): string[] {
     }
   }
   return result;
-}
-
-/**
- * Collect every value for a repeatable flag in --flag value or --flag=value
- * form and remove each occurrence from args. Throws VALIDATION_ERROR if any
- * occurrence has a missing or blank value, rather than silently dropping it;
- * a following flag-shaped token is a missing value, not the flag's value.
- */
-export function takeAllFlags(args: string[], flag: string): string[] {
-  return collectAllFlags(args, flag);
 }
 
 /** Append a repeatable flag once per value onto a glab argv array. */

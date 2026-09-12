@@ -60,7 +60,7 @@ flags{view}:
 flags{create}:
   --title <text> (required), --description <text> or --description-file <path>, --source-branch <name>, --target-branch <name>, --assignee <username> (repeatable), --label <name> (repeatable), --milestone <id>
 flags{merge}:
-  --squash, --rebase (choose at most one; the project's configured merge method applies when neither is given), --auto (wait for pipeline instead of merging immediately), --remove-source-branch, --message <text>, --sha <sha>
+  --squash, --rebase (choose at most one; the project's configured merge method applies when neither is given), --auto (schedule the merge for when the pipeline succeeds; the MR is not merged yet), --remove-source-branch, --message <text>, --sha <sha>
 flags{close}:
   (none)
 flags{reopen}:
@@ -300,23 +300,22 @@ async function createMr(args: string[], ctx?: ProjectContext): Promise<string> {
   if (milestone) glabArgs.push("--milestone", milestone);
 
   const output = await glabExec(glabArgs, ctx);
-  const urlMatch =
-    output.match(/https?:\/\/\S+\/-\/merge_requests\/(\d+)\S*/g)?.[0] ??
-    output.match(/https?:\/\/\S+/)?.[0] ??
-    output.trim();
-  const numMatch = urlMatch.match(/\/-\/merge_requests\/(\d+)/);
-  const num = numMatch ? parseInt(numMatch[1], 10) : 0;
+  const created = output.match(/https?:\/\/\S+\/-\/merge_requests\/(\d+)/);
+  const url =
+    created?.[0] ?? output.match(/https?:\/\/\S+/)?.[0] ?? output.trim();
+  const num = created ? Number(created[1]) : 0;
 
   // Fetch the created MR for structured output. A failure here must not
-  // suggest retrying the creation.
+  // suggest retrying the creation. glab mr view accepts a full URL, so an
+  // unfamiliar URL shape still reads back rather than asking for MR 0.
   let item: Record<string, unknown>;
   try {
     item = await glabJson<Record<string, unknown>>(
-      ["mr", "view", String(num), "-F", "json"],
+      ["mr", "view", num > 0 ? String(num) : url, "-F", "json"],
       ctx,
     );
   } catch (error) {
-    throw MutationFollowupError.from(urlMatch, error);
+    throw MutationFollowupError.from(url, error);
   }
 
   const blocks: string[] = [renderDetail("mr", item, createResultSchema)];
@@ -397,14 +396,25 @@ async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
 
   await glabExec(glabArgs, ctx);
 
+  // --auto sets merge-when-pipeline-succeeds: glab returns at once and the MR
+  // is still open, so it must not be reported as merged.
   return renderOutput([
     renderDetail(
-      "merged",
-      { iid: num, status: "ok", method: method ?? "default", auto },
-      [field("iid"), field("status"), field("method"), boolYesNo("auto")],
+      auto ? "merge_scheduled" : "merged",
+      {
+        iid: num,
+        status: auto ? "scheduled" : "ok",
+        method: method ?? "default",
+      },
+      [field("iid"), field("status"), field("method")],
     ),
     renderHelp(
-      getSuggestions({ domain: "mr", action: "merge", id: num, repo: ctx }),
+      getSuggestions({
+        domain: "mr",
+        action: auto ? "merge-scheduled" : "merge",
+        id: num,
+        repo: ctx,
+      }),
     ),
   ]);
 }
