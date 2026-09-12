@@ -3,14 +3,13 @@ import { glabJson, glabExec } from "../glab.js";
 import { AxiError, MutationFollowupError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
-  getFlag,
-  getAllFlags,
   pushRepeated,
   onlyPositional,
   requireNumber,
   takeBoolFlag,
   takeAllFlags,
   takeRequiredFlag,
+  rejectPositionals,
   rejectUnknownFlags,
 } from "../args.js";
 import { takeDescription, truncateBody } from "../body.js";
@@ -204,16 +203,20 @@ function pushStateFilter(glabArgs: string[], state: string | undefined): void {
 // ---------------------------------------------------------------------------
 
 async function listMrs(args: string[], ctx?: ProjectContext): Promise<string> {
-  const state = getFlag(args, "--state");
+  const state = takeRequiredFlag(args, "--state");
   // Validate the state even before fetching so a typo fails fast.
   pushStateFilter([], state);
-  const labels = getAllFlags(args, "--label");
-  const assignees = getAllFlags(args, "--assignee");
-  const author = getFlag(args, "--author");
-  const sourceBranch = getFlag(args, "--source-branch");
-  const targetBranch = getFlag(args, "--target-branch");
-  const limit = resolveLimit(getFlag(args, "--limit"));
-  const extraDefs = collectExtraFields(getFlag(args, "--fields"), MR_LIST_EXTRA_FIELDS);
+  const labels = takeAllFlags(args, "--label");
+  const assignees = takeAllFlags(args, "--assignee");
+  const author = takeRequiredFlag(args, "--author");
+  const sourceBranch = takeRequiredFlag(args, "--source-branch");
+  const targetBranch = takeRequiredFlag(args, "--target-branch");
+  const limit = resolveLimit(takeRequiredFlag(args, "--limit"));
+  const extraDefs = collectExtraFields(
+    takeRequiredFlag(args, "--fields"),
+    MR_LIST_EXTRA_FIELDS,
+  );
+  rejectPositionals(args, 1, "mr list");
 
   const glabArgs = ["mr", "list", "-F", "json", "--per-page", String(limit)];
   pushStateFilter(glabArgs, state);
@@ -279,6 +282,7 @@ async function createMr(args: string[], ctx?: ProjectContext): Promise<string> {
   const assignees = takeAllFlags(args, "--assignee");
   const labels = takeAllFlags(args, "--label");
   const milestone = takeRequiredFlag(args, "--milestone");
+  rejectPositionals(args, 1, "mr create");
 
   const glabArgs = [
     "mr",

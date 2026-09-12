@@ -3,13 +3,13 @@ import { glabJson, glabExec } from "../glab.js";
 import { AxiError, MutationFollowupError } from "../errors.js";
 import { getSuggestions } from "../suggestions.js";
 import {
-  getFlag,
-  getAllFlags,
   pushRepeated,
   onlyPositional,
   requireNumber,
+  takeAllFlags,
   takeBoolFlag,
   takeRequiredFlag,
+  rejectPositionals,
   rejectUnknownFlags,
 } from "../args.js";
 import { takeDescription, truncateBody } from "../body.js";
@@ -176,22 +176,26 @@ async function listIssues(
   args: string[],
   ctx?: ProjectContext,
 ): Promise<string> {
-  const state = getFlag(args, "--state");
+  const state = takeRequiredFlag(args, "--state");
   // Validate the state even before fetching so a typo fails fast.
   pushIssueStateFilter([], state);
-  const labels = getAllFlags(args, "--label");
+  const labels = takeAllFlags(args, "--label");
   // Unlike `glab mr list`, `glab issue list` filters by a single assignee and
   // silently keeps the last one, so a second value would return a wrong set.
-  const assignees = getAllFlags(args, "--assignee");
+  const assignees = takeAllFlags(args, "--assignee");
   if (assignees.length > 1) {
     throw new AxiError(
       "--assignee may only be given once for glab-axi issue list: glab issue list filters by a single assignee",
       "VALIDATION_ERROR",
     );
   }
-  const author = getFlag(args, "--author");
-  const limit = resolveLimit(getFlag(args, "--limit"));
-  const extraDefs = collectExtraFields(getFlag(args, "--fields"), ISSUE_LIST_EXTRA_FIELDS);
+  const author = takeRequiredFlag(args, "--author");
+  const limit = resolveLimit(takeRequiredFlag(args, "--limit"));
+  const extraDefs = collectExtraFields(
+    takeRequiredFlag(args, "--fields"),
+    ISSUE_LIST_EXTRA_FIELDS,
+  );
+  rejectPositionals(args, 1, "issue list");
 
   // glab issue list's -F means details|ids|urls; JSON output is -O json.
   const glabArgs = ["issue", "list", "-O", "json", "--per-page", String(limit)];
@@ -257,9 +261,10 @@ async function createIssue(
   // Resolve the description ourselves (inline or file) so the child glab
   // always receives a concrete value and never opens an interactive editor.
   const description = takeDescription(args) ?? "";
-  const assignees = getAllFlags(args, "--assignee");
-  const labels = getAllFlags(args, "--label");
+  const assignees = takeAllFlags(args, "--assignee");
+  const labels = takeAllFlags(args, "--label");
   const milestone = takeRequiredFlag(args, "--milestone");
+  rejectPositionals(args, 1, "issue create");
 
   const glabArgs = [
     "issue",
@@ -275,23 +280,24 @@ async function createIssue(
   if (milestone) glabArgs.push("--milestone", milestone);
 
   const output = await glabExec(glabArgs, ctx);
-  const urlMatch =
-    output.match(/https?:\/\/\S+\/-\/issues\/(\d+)\S*/g)?.[0] ??
-    output.match(/https?:\/\/\S+/)?.[0] ??
-    output.trim();
-  const numMatch = urlMatch.match(/\/-\/issues\/(\d+)/);
-  const num = numMatch ? parseInt(numMatch[1], 10) : 0;
+  // GitLab serves an issue's web_url in work-items form; older instances
+  // still use /-/issues/.
+  const created = output.match(/https?:\/\/\S+\/-\/(?:issues|work_items)\/(\d+)/);
+  const url =
+    created?.[0] ?? output.match(/https?:\/\/\S+/)?.[0] ?? output.trim();
+  const num = created ? Number(created[1]) : 0;
 
   // Fetch the created issue for structured output. A failure here must not
-  // suggest retrying the creation.
+  // suggest retrying the creation. glab issue view accepts a full URL, so an
+  // unfamiliar URL shape still reads back rather than asking for issue 0.
   let item: Record<string, unknown>;
   try {
     item = await glabJson<Record<string, unknown>>(
-      ["issue", "view", String(num), "-F", "json"],
+      ["issue", "view", num > 0 ? String(num) : url, "-F", "json"],
       ctx,
     );
   } catch (error) {
-    throw MutationFollowupError.from(urlMatch, error);
+    throw MutationFollowupError.from(url, error);
   }
 
   const blocks: string[] = [renderDetail("issue", item, createResultSchema)];

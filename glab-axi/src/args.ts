@@ -5,28 +5,6 @@ function flagEqualsPrefix(flag: string): string {
 }
 
 /**
- * Get a flag's value from --flag value or --flag=value without modifying args.
- * Like takeRequiredFlag, a dangling, blank, or flag-shaped value throws
- * VALIDATION_ERROR: dropping it would silently return an unfiltered superset.
- */
-export function getFlag(args: string[], flag: string): string | undefined {
-  const equalsPrefix = flagEqualsPrefix(flag);
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === flag) {
-      const val = args[i + 1];
-      if (val === undefined || isFlagShaped(val))
-        throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
-      return requireFlagValue(val, flag);
-    }
-    if (arg.startsWith(equalsPrefix)) {
-      return requireFlagValue(arg.slice(equalsPrefix.length), flag);
-    }
-  }
-  return undefined;
-}
-
-/**
  * Check if a boolean flag is present and remove it from args.
  *
  * A `--flag=value` spelling is rejected rather than ignored: matching whole
@@ -91,11 +69,7 @@ export function takeRequiredFlag(
   return undefined;
 }
 
-function collectAllFlags(
-  args: string[],
-  flag: string,
-  consume: boolean,
-): string[] {
+function collectAllFlags(args: string[], flag: string): string[] {
   const result: string[] = [];
   const equalsPrefix = flagEqualsPrefix(flag);
   let i = 0;
@@ -106,12 +80,10 @@ function collectAllFlags(
       if (val === undefined || isFlagShaped(val))
         throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
       result.push(requireFlagValue(val, flag));
-      if (consume) args.splice(i, 2);
-      else i += 2;
+      args.splice(i, 2);
     } else if (arg.startsWith(equalsPrefix)) {
       result.push(requireFlagValue(arg.slice(equalsPrefix.length), flag));
-      if (consume) args.splice(i, 1);
-      else i++;
+      args.splice(i, 1);
     } else {
       i++;
     }
@@ -120,18 +92,13 @@ function collectAllFlags(
 }
 
 /**
- * Collect all values for a repeatable flag in --flag value or --flag=value form
- * without modifying args. Throws VALIDATION_ERROR if any occurrence has a
- * missing or blank value, rather than silently dropping it; a following
- * flag-shaped token is a missing value, not the flag's value.
+ * Collect every value for a repeatable flag in --flag value or --flag=value
+ * form and remove each occurrence from args. Throws VALIDATION_ERROR if any
+ * occurrence has a missing or blank value, rather than silently dropping it;
+ * a following flag-shaped token is a missing value, not the flag's value.
  */
-export function getAllFlags(args: string[], flag: string): string[] {
-  return collectAllFlags(args, flag, false);
-}
-
-/** Like getAllFlags, but also removes every occurrence from args. */
 export function takeAllFlags(args: string[], flag: string): string[] {
-  return collectAllFlags(args, flag, true);
+  return collectAllFlags(args, flag);
 }
 
 /** Append a repeatable flag once per value onto a glab argv array. */
@@ -156,7 +123,7 @@ export function onlyPositional(
   startIndex: number,
   label: string,
 ): string | undefined {
-  const positionals = args.slice(startIndex).filter((a) => !isFlagShaped(a));
+  const positionals = remainingPositionals(args, startIndex);
   if (positionals.length > 1) {
     throw new AxiError(
       `Too many arguments for ${label}: expected one number, got ${positionals.join(", ")}`,
@@ -164,6 +131,29 @@ export function onlyPositional(
     );
   }
   return positionals[0];
+}
+
+/**
+ * Reject every positional a subcommand that takes none was given. Call it
+ * once the subcommand's flags have been consumed, so only stray tokens are
+ * left: `mr list closed` would otherwise return the default opened set.
+ */
+export function rejectPositionals(
+  args: string[],
+  startIndex: number,
+  label: string,
+): void {
+  const positionals = remainingPositionals(args, startIndex);
+  if (positionals.length > 0) {
+    throw new AxiError(
+      `Unexpected argument for ${label}: ${positionals.join(", ")}. This subcommand takes flags only`,
+      "VALIDATION_ERROR",
+    );
+  }
+}
+
+function remainingPositionals(args: string[], startIndex: number): string[] {
+  return args.slice(startIndex).filter((a) => !isFlagShaped(a));
 }
 
 /** Parse and validate a required numeric argument. */

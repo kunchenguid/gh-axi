@@ -144,6 +144,13 @@ describe("issue list", () => {
     expect(mockedGlabJson).not.toHaveBeenCalled();
   });
 
+  it("refuses a stray positional instead of listing the default set", async () => {
+    await expect(issueCommand(["list", "closed"], ctx)).rejects.toThrow(
+      /Unexpected argument for issue list: closed/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown --fields entries", async () => {
     await expect(
       issueCommand(["list", "--fields", "nope"], ctx),
@@ -260,7 +267,7 @@ describe("issue create", () => {
 
   it("always forwards a concrete description so glab never opens an editor", async () => {
     mockedGlabExec.mockResolvedValueOnce(
-      "https://gitlab.com/group/project/-/issues/42",
+      "https://gitlab.com/group/project/-/work_items/42",
     );
     mockedGlabJson.mockResolvedValueOnce({ ...OPEN_ISSUE });
     await issueCommand(["create", "--title", "T"], ctx);
@@ -273,7 +280,7 @@ describe("issue create", () => {
 
   it("forwards assignees, labels, and milestones", async () => {
     mockedGlabExec.mockResolvedValueOnce(
-      "https://gitlab.com/group/project/-/issues/42",
+      "https://gitlab.com/group/project/-/work_items/42",
     );
     mockedGlabJson.mockResolvedValueOnce({ ...OPEN_ISSUE });
     await issueCommand(
@@ -292,9 +299,38 @@ describe("issue create", () => {
     );
   });
 
+  it("reads back by URL when the issue number cannot be parsed", async () => {
+    mockedGlabExec.mockResolvedValueOnce(
+      "https://gitlab.com/group/project/-/incidents/42",
+    );
+    mockedGlabJson.mockResolvedValueOnce({ ...OPEN_ISSUE });
+    const result = await issueCommand(
+      ["create", "--title", "Broken login"],
+      ctx,
+    );
+    expect(mockedGlabJson).toHaveBeenCalledWith(
+      [
+        "issue",
+        "view",
+        "https://gitlab.com/group/project/-/incidents/42",
+        "-F",
+        "json",
+      ],
+      ctx,
+    );
+    expect(result).toContain("iid: 42");
+  });
+
+  it("refuses a stray positional on create", async () => {
+    await expect(
+      issueCommand(["create", "--title", "T", "extra"], ctx),
+    ).rejects.toThrow(/Unexpected argument for issue create: extra/);
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
   it("raises MutationFollowupError when the read-back fails", async () => {
     mockedGlabExec.mockResolvedValueOnce(
-      "https://gitlab.com/group/project/-/issues/42",
+      "https://gitlab.com/group/project/-/work_items/42",
     );
     mockedGlabJson.mockRejectedValueOnce(
       new AxiError("view blew up", "NOT_FOUND"),

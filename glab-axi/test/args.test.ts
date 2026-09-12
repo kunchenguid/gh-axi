@@ -1,42 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
-  getFlag,
   takeBoolFlag,
   takeRequiredFlag,
-  getAllFlags,
   takeAllFlags,
   pushRepeated,
   onlyPositional,
+  rejectPositionals,
   requireNumber,
   rejectUnknownFlags,
 } from "../src/args.js";
 import { AxiError } from "../src/errors.js";
-
-describe("getFlag", () => {
-  it("reads --flag value", () => {
-    expect(getFlag(["--state", "opened"], "--state")).toBe("opened");
-  });
-
-  it("reads --flag=value", () => {
-    expect(getFlag(["--state=opened"], "--state")).toBe("opened");
-  });
-
-  it("returns undefined when absent", () => {
-    expect(getFlag([], "--state")).toBeUndefined();
-  });
-
-  it("rejects a dangling, blank, or flag-shaped value", () => {
-    expect(() => getFlag(["--state"], "--state")).toThrow(
-      /--state requires a value/,
-    );
-    expect(() => getFlag(["--state="], "--state")).toThrow(
-      /--state requires a value/,
-    );
-    expect(() =>
-      getFlag(["list", "--author", "--state", "closed"], "--author"),
-    ).toThrow(/--author requires a value/);
-  });
-});
 
 describe("takeBoolFlag", () => {
   it("takeBoolFlag removes the flag", () => {
@@ -88,36 +61,26 @@ describe("takeRequiredFlag", () => {
   });
 });
 
-describe("getAllFlags / takeAllFlags", () => {
-  it("collects every occurrence", () => {
-    const args = ["--label", "bug", "--label=backend", "other"];
-    expect(getAllFlags(args, "--label")).toEqual(["bug", "backend"]);
-    expect(args).toEqual(["--label", "bug", "--label=backend", "other"]);
-  });
-
-  it("takeAllFlags removes every occurrence", () => {
+describe("takeAllFlags", () => {
+  it("collects and removes every occurrence", () => {
     const args = ["--label", "bug", "x", "--label=backend"];
     expect(takeAllFlags(args, "--label")).toEqual(["bug", "backend"]);
     expect(args).toEqual(["x"]);
   });
 
   it("rejects dangling and blank values instead of dropping them", () => {
-    expect(() => getAllFlags(["--label"], "--label")).toThrow(AxiError);
-    expect(() => getAllFlags(["--label="], "--label")).toThrow(AxiError);
+    expect(() => takeAllFlags(["--label"], "--label")).toThrow(AxiError);
+    expect(() => takeAllFlags(["--label="], "--label")).toThrow(AxiError);
   });
 
   it("treats a following option token as a missing value", () => {
     expect(() =>
-      getAllFlags(["list", "--label", "--state", "closed"], "--label"),
+      takeAllFlags(["list", "--label", "--state", "closed"], "--label"),
     ).toThrow(/--label requires a value/);
-    const args = ["create", "--assignee", "--label", "bug"];
-    expect(() => takeAllFlags(args, "--assignee")).toThrow(
-      /--assignee requires a value/,
-    );
   });
 
   it("returns [] when absent", () => {
-    expect(getAllFlags(["a"], "--label")).toEqual([]);
+    expect(takeAllFlags(["a"], "--label")).toEqual([]);
   });
 });
 
@@ -139,6 +102,18 @@ describe("onlyPositional / requireNumber", () => {
     expect(() => onlyPositional(["close", "42", "43"], 1, "mr")).toThrow(
       /Too many arguments for mr/,
     );
+  });
+
+  it("rejectPositionals refuses a stray token", () => {
+    expect(() => rejectPositionals(["list", "closed"], 1, "mr list")).toThrow(
+      /Unexpected argument for mr list: closed/,
+    );
+  });
+
+  it("rejectPositionals passes once the flags have been consumed", () => {
+    const args = ["list", "--state", "closed"];
+    takeRequiredFlag(args, "--state");
+    expect(() => rejectPositionals(args, 1, "mr list")).not.toThrow();
   });
 
   it("requireNumber parses or throws", () => {

@@ -155,6 +155,13 @@ describe("mr list", () => {
     expect(result).toContain("https://gitlab.com/group/project/-/merge_requests/42");
   });
 
+  it("refuses a stray positional instead of listing the default set", async () => {
+    await expect(mrCommand(["list", "closed"], ctx)).rejects.toThrow(
+      /Unexpected argument for mr list: closed/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown --fields entries", async () => {
     mockedGlabJson.mockResolvedValueOnce([]);
     await expect(
@@ -387,6 +394,13 @@ describe("mr create", () => {
     await expect(
       mrCommand(["create", "--title", "Fix login", "--source-branch", ""], ctx),
     ).rejects.toThrow(/--source-branch requires a value/);
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
+  it("refuses a stray positional on create", async () => {
+    await expect(
+      mrCommand(["create", "--title", "T", "extra"], ctx),
+    ).rejects.toThrow(/Unexpected argument for mr create: extra/);
     expect(mockedGlabExec).not.toHaveBeenCalled();
   });
 
