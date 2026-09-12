@@ -5,11 +5,19 @@ vi.mock("../../src/glab.js", () => ({
   glabExec: vi.fn(),
 }));
 
+vi.mock("../../src/stdin.js", () => ({
+  readStdin: vi.fn(),
+  isStdinTTY: vi.fn(() => false),
+}));
+
 import { glabExec } from "../../src/glab.js";
+import { readStdin, isStdinTTY } from "../../src/stdin.js";
 import { apiCommand, API_HELP } from "../../src/commands/api.js";
 import type { ProjectContext } from "../../src/context.js";
 
 const mockedGlabExec = vi.mocked(glabExec);
+const mockedReadStdin = vi.mocked(readStdin);
+const mockedIsStdinTTY = vi.mocked(isStdinTTY);
 
 const ctx: ProjectContext = { fullPath: "group/project", source: "flag" };
 
@@ -123,6 +131,7 @@ describe("apiCommand passthrough", () => {
     expect(mockedGlabExec).toHaveBeenCalledWith(
       ["api", "projects/g%2Fp"],
       ctx,
+      undefined,
     );
   });
 
@@ -132,6 +141,7 @@ describe("apiCommand passthrough", () => {
     expect(mockedGlabExec).toHaveBeenCalledWith(
       ["api", "projects/g%2Fp/issues", "-X", "POST"],
       ctx,
+      undefined,
     );
   });
 
@@ -161,6 +171,7 @@ describe("apiCommand passthrough", () => {
         "--header", "PRIVATE-TOKEN: x",
       ],
       ctx,
+      undefined,
     );
   });
 
@@ -255,6 +266,60 @@ describe("apiCommand passthrough", () => {
     mockedGlabExec.mockResolvedValueOnce('{"description": "' + "x".repeat(3000) + '"}');
     const full = await apiCommand(["projects/g%2Fp", "--full"]);
     expect(full).not.toContain("(truncated)");
+  });
+
+  it("relays the piped body for --input -", async () => {
+    mockedIsStdinTTY.mockReturnValue(false);
+    mockedReadStdin.mockResolvedValueOnce('{"title":"x"}');
+    mockedGlabExec.mockResolvedValueOnce("{}");
+    await apiCommand(
+      ["POST", "projects/g%2Fp/issues", "--input", "-"],
+      ctx,
+    );
+    expect(mockedGlabExec).toHaveBeenCalledWith(
+      ["api", "projects/g%2Fp/issues", "-X", "POST", "--input", "-"],
+      ctx,
+      '{"title":"x"}',
+    );
+  });
+
+  it("relays the piped body for a --field @- value", async () => {
+    mockedIsStdinTTY.mockReturnValue(false);
+    mockedReadStdin.mockResolvedValueOnce("body text");
+    mockedGlabExec.mockResolvedValueOnce("{}");
+    await apiCommand(
+      ["POST", "projects/g%2Fp/issues", "--field", "description=@-"],
+      ctx,
+    );
+    expect(mockedGlabExec.mock.calls[0]?.[2]).toBe("body text");
+  });
+
+  it("sends no stdin when no form reads it", async () => {
+    mockedIsStdinTTY.mockReturnValue(false);
+    mockedGlabExec.mockResolvedValueOnce("{}");
+    await apiCommand(["projects/g%2Fp"], ctx);
+    expect(mockedReadStdin).not.toHaveBeenCalled();
+    expect(mockedGlabExec.mock.calls[0]?.[2]).toBeUndefined();
+  });
+
+  it("refuses --input - on a terminal instead of sending an empty body", async () => {
+    mockedIsStdinTTY.mockReturnValue(true);
+    await expect(
+      apiCommand(["POST", "projects/g%2Fp/issues", "--input", "-"], ctx),
+    ).rejects.toThrow(/piped stdin/);
+    expect(mockedGlabExec).not.toHaveBeenCalled();
+  });
+
+  it("shapes concatenated object pages instead of dumping raw text", async () => {
+    // `glab api graphql --paginate` emits one JSON object per page.
+    mockedGlabExec.mockResolvedValueOnce(
+      '{"data":{"title":"' + "z".repeat(3000) + '","runners_token":"GR1348941page1"}}{"data":{"title":"B"}}',
+    );
+    const result = await apiCommand(["graphql", "--paginate"], ctx);
+    expect(result).not.toContain("api_response");
+    expect(result).toContain("... (truncated)");
+    expect(result).not.toContain("GR1348941page1");
+    expect(result).toContain("B");
   });
 
   it("merges the concatenated pages glab --paginate emits into one array", async () => {

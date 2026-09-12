@@ -25,11 +25,12 @@ function firstErrorLine(stderr: string): string {
 
 interface ErrorPattern {
   /**
-   * Limits the pattern to one glab command family (the first argv token).
-   * glab names the entity for `mr view` but not for `issue view`, whose 404
-   * stderr is a bare banner, so the command is the only way to tell them apart.
+   * Limits the pattern to specific glab invocations, each written as
+   * "<family> <subcommand>". glab names the entity for `mr view` but not for
+   * `issue view`, whose 404 stderr is the same bare banner a missing project
+   * produces, so the invocation is the only way to tell those apart.
    */
-  command?: string;
+  commands?: readonly string[];
   pattern: RegExp;
   code: ErrorCode;
   message: (match: RegExpMatchArray, stderr: string) => string;
@@ -75,9 +76,10 @@ const patterns: ErrorPattern[] = [
     ],
   },
   {
-    // glab issue commands report a missing issue as a bare 404, so only the
-    // command family distinguishes it from a missing project (matched above).
-    command: "issue",
+    // Only the subcommands that name an issue: `issue list`/`issue create`
+    // emit the same bare 404 when the project is missing, and must fall
+    // through to the project-path message below.
+    commands: ["issue view", "issue close"],
     pattern: /404 (?:Project )?Not Found/i,
     code: "NOT_FOUND",
     message: () => "Issue not found in this project",
@@ -125,8 +127,8 @@ export function mapGlabError(
   exitCode: number,
   command?: string,
 ): AxiError {
-  for (const { command: only, pattern, code, message, suggestions } of patterns) {
-    if (only !== undefined && only !== command) continue;
+  for (const { commands, pattern, code, message, suggestions } of patterns) {
+    if (commands && !commands.includes(command ?? "")) continue;
     const match = stderr.match(pattern);
     if (match) {
       return new AxiError(

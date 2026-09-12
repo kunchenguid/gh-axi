@@ -46,10 +46,13 @@ export function resolveProject(flagValue?: string): ProjectContext | undefined {
  * project, so a mutation aimed elsewhere would land on the current one.
  */
 function parsePath(path: string, source: "flag" | "env"): ProjectContext {
-  // glab -R accepts OWNER/REPO, GROUP/NAMESPACE/REPO, or a full URL. Normalize
-  // a URL to its path so downstream URL building always has a bare full path.
-  const urlMatch = path.match(/^https?:\/\/[^/]+\/(.+?)(?:\.git)?$/);
-  const fullPath = urlMatch ? urlMatch[1] : path.replace(/\.git$/, "");
+  // glab -R accepts the [HOST/]OWNER/[NAMESPACE/]REPO form, so a URL selector
+  // keeps its host: dropping it would retarget the request at the default
+  // host and resolve a different project than the caller named.
+  const urlMatch = path.match(/^https?:\/\/([^/]+)\/(.+?)(?:\.git)?$/);
+  const fullPath = urlMatch
+    ? `${urlMatch[1]}/${urlMatch[2]}`
+    : path.replace(/\.git$/, "");
   if (!fullPath || fullPath.includes(" ")) {
     throw new AxiError(
       `Invalid ${source === "flag" ? "-R/--repo" : "GITLAB_REPO"} project: "${path}". Use group/project (groups may nest) or a project URL`,

@@ -59,7 +59,7 @@ function toExecResult(
   };
 }
 
-function run(args: string[]): Promise<ExecResult> {
+function run(args: string[], stdin?: string): Promise<ExecResult> {
   return new Promise((resolve) => {
     const child = execFile(
       resolveGlabBin(),
@@ -67,10 +67,16 @@ function run(args: string[]): Promise<ExecResult> {
       { maxBuffer: MAX_BUFFER_BYTES },
       toExecResult(resolve),
     );
-    // glab reads standard input for `--input -` and `--field k=@-`; with the
-    // pipe left open the child would wait for input that never arrives.
-    child.stdin?.end();
+    // glab reads standard input for `--input -` and `--field k=@-`; relay the
+    // caller's body when there is one, and always close the pipe so a child
+    // that reads stdin cannot wait for input that never arrives.
+    child.stdin?.end(stdin ?? "");
   });
+}
+
+/** The glab invocation an error belongs to, as "<family> <subcommand>". */
+function invocation(args: string[]): string {
+  return args.slice(0, 2).join(" ");
 }
 
 /**
@@ -87,7 +93,7 @@ export async function glabJson<T = unknown>(
   const result = await run(buildArgs(args, ctx));
   if (result.stderr === "ENOENT") throw missingGlabError();
   if (result.exitCode !== 0)
-    throw mapGlabError(result.stderr, result.exitCode, args[0]);
+    throw mapGlabError(result.stderr, result.exitCode, invocation(args));
   try {
     return JSON.parse(result.stdout);
   } catch {
@@ -98,14 +104,18 @@ export async function glabJson<T = unknown>(
   }
 }
 
-/** Execute glab and return raw stdout. */
+/**
+ * Execute glab and return raw stdout. `stdin` is piped to the child for the
+ * glab forms that read a request body from standard input.
+ */
 export async function glabExec(
   args: string[],
   ctx?: ProjectContext,
+  stdin?: string,
 ): Promise<string> {
-  const result = await run(buildArgs(args, ctx));
+  const result = await run(buildArgs(args, ctx), stdin);
   if (result.stderr === "ENOENT") throw missingGlabError();
   if (result.exitCode !== 0)
-    throw mapGlabError(result.stderr, result.exitCode, args[0]);
+    throw mapGlabError(result.stderr, result.exitCode, invocation(args));
   return result.stdout;
 }

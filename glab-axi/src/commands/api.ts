@@ -2,6 +2,7 @@ import { encode } from "@toon-format/toon";
 import type { ProjectContext } from "../context.js";
 import { glabExec } from "../glab.js";
 import { AxiError } from "../errors.js";
+import { isStdinTTY, readStdin } from "../stdin.js";
 import { getSuggestions } from "../suggestions.js";
 import { renderHelp, renderOutput } from "../toon.js";
 
@@ -10,7 +11,7 @@ description: Make an authenticated GitLab API request (passthrough to glab api).
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
 flags[7]:
-  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; forwarded as glab's typed -F), --raw-field <key=value> (repeatable; forwarded as glab's -f), --header <key:value> (repeatable), --input <file> (raw request body file), --paginate, --full (preserve complete field values without truncation)
+  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; forwarded as glab's typed -F), --raw-field <key=value> (repeatable; forwarded as glab's -f), --header <key:value> (repeatable), --input <file> (or - to read the body piped to glab-axi), --paginate, --full (preserve complete field values without truncation)
 examples:
   glab-axi api projects/group%2Fproject
   glab-axi api projects/:fullpath/merge_requests
@@ -238,8 +239,12 @@ function parseApiResponse(raw: string): { data: unknown } | undefined {
     // Possibly several pages concatenated; fall through.
   }
   const docs = splitJsonDocuments(trimmed);
-  if (!docs || docs.length < 2 || !docs.every(Array.isArray)) return undefined;
-  return { data: (docs as unknown[][]).flat() };
+  if (!docs || docs.length < 2) return undefined;
+  // Array pages merge into one list (gh's shape); object pages (graphql)
+  // become one document per page.
+  return docs.every(Array.isArray)
+    ? { data: (docs as unknown[][]).flat() }
+    : { data: docs };
 }
 
 /** Maximum length for raw (non-JSON) API output before truncation. */
@@ -303,6 +308,20 @@ export async function apiCommand(
   }
   if (paginate) glabArgs.push("--paginate");
 
+  // glab reads the request body from its own stdin for these forms, and the
+  // child inherits nothing, so relay what was piped to glab-axi.
+  const readsStdin =
+    input === "-" ||
+    [...fields, ...rawFields].some((value) => value.endsWith("=@-"));
+  if (readsStdin && isStdinTTY()) {
+    throw new AxiError(
+      "Reading the request body from `-`/`@-` needs piped stdin; glab-axi is attached to a terminal",
+      "VALIDATION_ERROR",
+      ["Pipe the body in, e.g. `cat body.json | glab-axi api ... --input -`"],
+    );
+  }
+  const body = readsStdin ? await readStdin() : undefined;
+
   const wrapped = path.split("?")[0].match(WRAPPED_RESOURCE);
   const wrappedProject = wrapped
     ? projectFromPathSegment(wrapped[1], ctx)
@@ -322,7 +341,7 @@ export async function apiCommand(
 
   // Shape decodable JSON (single page or concatenated pages); otherwise fall
   // back to raw output.
-  const raw = await glabExec(glabArgs, ctx);
+  const raw = await glabExec(glabArgs, ctx, body);
   const parsed = parseApiResponse(raw);
   if (parsed) {
     return renderOutput([encode(shapeOutput(parsed.data, !full, !full)), help]);

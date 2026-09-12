@@ -32,15 +32,28 @@ describe("resolveProject", () => {
     });
   });
 
-  it("normalizes a URL flag value to its path", () => {
+  it("keeps the host a URL flag value names", () => {
     expect(resolveProject("https://git.example.com/group/sub/project")).toEqual(
-      { fullPath: "group/sub/project", source: "flag" },
+      { fullPath: "git.example.com/group/sub/project", source: "flag" },
+    );
+  });
+
+  it("keeps a self-hosted URL off the default host", () => {
+    // glab reads -R as [HOST/]OWNER/[NAMESPACE/]REPO, so the host must survive.
+    const project = resolveProject("https://gitlab.corp.com/team/app");
+    expect(project?.fullPath).toBe("gitlab.corp.com/team/app");
+    expect(project?.fullPath.startsWith("gitlab.corp.com/")).toBe(true);
+  });
+
+  it("passes a bare HOST/PATH selector through unchanged", () => {
+    expect(resolveProject("gitlab.corp.com/team/app")?.fullPath).toBe(
+      "gitlab.corp.com/team/app",
     );
   });
 
   it("strips .git from a URL flag value", () => {
     expect(resolveProject("https://gitlab.com/group/project.git")).toEqual({
-      fullPath: "group/project",
+      fullPath: "gitlab.com/group/project",
       source: "flag",
     });
   });

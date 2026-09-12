@@ -18,7 +18,11 @@ describe("mapGlabError", () => {
   it("maps glab's bare 404 banner from an issue command", () => {
     // glab 1.117 never names the issue: `glab issue view 999999 -F json`
     // writes only this banner to stderr.
-    const err = mapGlabError("\n   ERROR  \n\n  404 Not Found.\n", 1, "issue");
+    const err = mapGlabError(
+      "\n   ERROR  \n\n  404 Not Found.\n",
+      1,
+      "issue view",
+    );
     expect(err.code).toBe("NOT_FOUND");
     expect(err.message).toBe("Issue not found in this project");
     expect(err.suggestions).toContain(
@@ -27,8 +31,24 @@ describe("mapGlabError", () => {
   });
 
   it("still reports a missing project ahead of a missing issue", () => {
-    const err = mapGlabError("glab: 404 Project Not Found (HTTP 404)", 1, "issue");
+    const err = mapGlabError(
+      "glab: 404 Project Not Found (HTTP 404)",
+      1,
+      "issue view",
+    );
     expect(err.code).toBe("PROJECT_NOT_FOUND");
+  });
+
+  it("sends a missing project on issue list to the project-path remedy", () => {
+    // glab emits the same bare banner for a missing issue and a missing
+    // project; only `issue view`/`issue close` name an issue.
+    const err = mapGlabError(
+      "\n   ERROR  \n\n  404 Not Found.\n",
+      1,
+      "issue list",
+    );
+    expect(err.message).toBe("Not found in this project");
+    expect(err.suggestions.join(" ")).toContain("Check the project path");
   });
 
   it("maps a 404 Project Not Found from the api passthrough", () => {
