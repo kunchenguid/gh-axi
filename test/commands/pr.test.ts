@@ -423,7 +423,7 @@ describe("prCommand", () => {
 
         const result = await prCommand(["view", "42", "--full"], ctx);
 
-        expect(result).toContain("blocked — blocked by required reviews");
+        expect(result).toContain("blocked — blocked by branch protection");
       });
 
       it("omits merge_state for a merged PR", async () => {

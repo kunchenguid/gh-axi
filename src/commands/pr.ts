@@ -270,7 +270,7 @@ const MERGE_STATE_HINTS: Record<string, string> = {
   DIRTY: "merge conflicts with the base branch",
   BEHIND:
     "head branch is behind the base branch; gh-axi pr update-branch brings it up to date",
-  BLOCKED: "blocked by required reviews or status checks",
+  BLOCKED: "blocked by branch protection (e.g. required reviews or checks)",
   UNSTABLE: "mergeable, but some non-required checks are failing",
   UNKNOWN: "GitHub is still computing mergeability; retry shortly",
 };
