@@ -179,6 +179,8 @@ function findProvidedFlags(args: string[], flags: string[]): string[] {
 
 const RELEASE_NOTES_FLAGS = ["--notes", "-n", "--notes-file", "-F"];
 
+// `--notes-file -` must never reach gh: the child's stdin is an unconnected
+// pipe, so gh would block forever. Read our own stdin and forward it as --notes.
 function appendNotesFileFlag(ghArgs: string[], args: string[]): void {
   for (const flag of ["--notes-file", "-F"]) {
     const value = takeFlag(args, flag);

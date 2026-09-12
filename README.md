@@ -117,6 +117,7 @@ gh-axi update                   # upgrade a global install
 
 For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` on the relevant command.
 For releases, `--body` and `--body-file` are aliases for release notes, alongside `--notes` and `--notes-file`.
+Any of these file flags also accepts `-` to read the Markdown from piped stdin (`cat body.md | gh-axi pr comment 42 --body-file -`); an interactive terminal or empty pipe is rejected instead of waited on.
 For multi-line variable values, pipe stdin to `gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
 
 `--attach <path>` is repeatable on `issue` and `pr` `create`, `edit`, and `comment` (not `pr review`). It uploads a local image or video through the same `gh --attach` mechanism (requires **gh >= 2.99.0**) and inlines it in the Markdown body. If the body already references the local path, `gh` replaces that reference with the uploaded URL; otherwise it appends the attachment. Alt text is `path#alt` for images; videos cannot take alt text. Supported types: PNG, JPEG, GIF, WebP, SVG, MP4, MOV, WebM. Size limits match GitHub's web upload: 10 MB for images and GIFs, 10 MB for video on Free, 100 MB for video on paid plans. GitHub Enterprise Server is not supported in this gh release. Successful output names each attached file and only the `user-attachments` asset URLs uploaded by that invocation. Override the wrapped `gh` binary with `GH_BIN`.

@@ -22,7 +22,11 @@ export function readStdin(): Promise<string> {
   });
 }
 
-/** Whether stdin is an interactive terminal (no piped input available). */
+/**
+ * Whether stdin is an interactive terminal (no piped input available).
+ * Checks fd 0 directly: touching `process.stdin` wraps a pipe in a socket that
+ * switches it to non-blocking, so a later `readStdinSync()` could hit EAGAIN.
+ */
 export function isStdinTTY(): boolean {
   return isatty(0);
 }
