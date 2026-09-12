@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { isatty } from "node:tty";
 
 /**
  * Read all of this process's piped stdin synchronously as a UTF-8 string.
@@ -23,5 +24,5 @@ export function readStdin(): Promise<string> {
 
 /** Whether stdin is an interactive terminal (no piped input available). */
 export function isStdinTTY(): boolean {
-  return Boolean(process.stdin.isTTY);
+  return isatty(0);
 }

@@ -90,7 +90,7 @@ function takeFlagMatches(
  * AXI commands must never hang waiting for input, so an interactive TTY is
  * refused before any read.
  */
-function readBodyStdin(flag: string, suggestions: string[]): string {
+export function readBodyStdin(flag: string, suggestions: string[]): string {
   const pipeExample = `Example: cat body.md | gh-axi <command> ${flag} -`;
   if (isStdinTTY()) {
     throw new AxiError(
