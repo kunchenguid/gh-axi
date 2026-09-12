@@ -44,6 +44,7 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
   release-please updates it in the release PR.
 - Do not hand-edit `skills/gh-axi/SKILL.md`.
   It is generated from `src/skill.ts`, including frontmatter metadata; run `pnpm run build:skill` and commit the result.
+  The sibling `glab-axi/skills/glab-axi/SKILL.md` works the same way; regenerate it with `pnpm --filter glab-axi build:skill`.
 
 ## Questions
 

@@ -206,7 +206,7 @@ When a command also needs a destination repository, use a dedicated flag for it:
 ## Development
 
 ```sh
-pnpm run build       # Compile TypeScript to dist/
+pnpm run build       # Compile TypeScript to dist/ (also builds the glab-axi/ workspace package)
 pnpm run build:skill # Regenerate skills/gh-axi/SKILL.md from src/skill.ts
 pnpm run dev         # Run CLI directly with tsx
 pnpm test            # Run tests with vitest

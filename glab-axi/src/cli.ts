@@ -107,7 +107,7 @@ async function runProjectCli(options: MainOptions): Promise<void> {
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
     formatError,
-    resolveContext: ({ command, args }) => {
+    resolveContext: ({ args }) => {
       const { repoFlag, hostFlag } = parseProjectContextArgs(args);
       // Explicit --hostname wins over the GITLAB_HOST env var. Setting
       // GITLAB_HOST here means the child `glab` process (which inherits

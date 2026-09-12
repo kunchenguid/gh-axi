@@ -122,7 +122,7 @@ The shared action's head binding means a PR whose body no-mistakes did not rewri
 
 ## The glab-axi sibling package (`glab-axi/`)
 
-`glab-axi` is a pnpm workspace package (`pnpm-workspace.yaml` lists it) mirroring gh-axi's architecture around GitLab's `glab`: same `runAxiCli` registry, TOON helpers, suggestion table, `mapGlabError` pattern order, and `rejectUnknownFlags` discipline. Root commands cover it: `pnpm run build` chains `pnpm --filter glab-axi build`, root vitest and eslint pick up `glab-axi/` (the package declares no test script of its own — vitest is a root devDependency and is not linked into `glab-axi/node_modules/.bin`), and its skill stub regenerates via `pnpm --filter glab-axi build:skill`.
+`glab-axi` is a pnpm workspace package (`pnpm-workspace.yaml` lists it) mirroring gh-axi's architecture around GitLab's `glab`: same `runAxiCli` registry, TOON helpers, suggestion table, `mapGlabError` pattern order, and `rejectUnknownFlags` discipline. Root commands cover it: `pnpm run build` chains `pnpm --filter glab-axi build`, root vitest and eslint pick up `glab-axi/` (the package declares no test script of its own — vitest is a root devDependency and is not linked into `glab-axi/node_modules/.bin`), and its skill stub regenerates via `pnpm --filter glab-axi build:skill`. `release-please-config.json` still lists only the root package, so `glab-axi` is built and tested in CI but never published by the release workflow.
 
 Deltas grounded in verified glab behavior (glab 1.117, live-checked):
 
