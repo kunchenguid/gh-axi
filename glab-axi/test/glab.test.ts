@@ -95,6 +95,16 @@ describe("glabJson", () => {
     ]);
   });
 
+  it("hands a URL selector to the child verbatim", async () => {
+    mockExecFileResult(null, "[]", "");
+    await glabJson(["mr", "list", "-F", "json"], {
+      fullPath: "https://gitlab.corp.com/team/app",
+      source: "flag",
+    });
+    const args = mockedExecFile.mock.calls[0]?.[1] as string[];
+    expect(args[args.indexOf("-R") + 1]).toBe("https://gitlab.corp.com/team/app");
+  });
+
   it("appends -R for env sources too", async () => {
     mockExecFileResult(null, "[]", "");
     await glabJson(["mr", "list", "-F", "json"], {

@@ -32,30 +32,35 @@ describe("resolveProject", () => {
     });
   });
 
-  it("keeps the host a URL flag value names", () => {
+  it("forwards a URL flag value unchanged", () => {
+    // glab resolves a full URL against the host it names; rewriting it to
+    // HOST/PATH would make glab ask the default host for a project of that
+    // literal name.
     expect(resolveProject("https://git.example.com/group/sub/project")).toEqual(
-      { fullPath: "git.example.com/group/sub/project", source: "flag" },
+      { fullPath: "https://git.example.com/group/sub/project", source: "flag" },
     );
   });
 
-  it("keeps a self-hosted URL off the default host", () => {
-    // glab reads -R as [HOST/]OWNER/[NAMESPACE/]REPO, so the host must survive.
+  it("keeps a self-hosted URL selector a URL", () => {
     const project = resolveProject("https://gitlab.corp.com/team/app");
-    expect(project?.fullPath).toBe("gitlab.corp.com/team/app");
-    expect(project?.fullPath.startsWith("gitlab.corp.com/")).toBe(true);
+    expect(project?.fullPath).toBe("https://gitlab.corp.com/team/app");
   });
 
-  it("passes a bare HOST/PATH selector through unchanged", () => {
-    expect(resolveProject("gitlab.corp.com/team/app")?.fullPath).toBe(
-      "gitlab.corp.com/team/app",
+  it("passes a bare selector through unchanged", () => {
+    expect(resolveProject("group/sub/project")?.fullPath).toBe(
+      "group/sub/project",
     );
   });
 
-  it("strips .git from a URL flag value", () => {
+  it("leaves a Git URL flag value intact (glab accepts it)", () => {
     expect(resolveProject("https://gitlab.com/group/project.git")).toEqual({
-      fullPath: "gitlab.com/group/project",
+      fullPath: "https://gitlab.com/group/project.git",
       source: "flag",
     });
+  });
+
+  it("strips .git from a bare path flag value", () => {
+    expect(resolveProject("group/project.git")?.fullPath).toBe("group/project");
   });
 
   it("refuses an explicit selector it cannot parse, never falling back", () => {
