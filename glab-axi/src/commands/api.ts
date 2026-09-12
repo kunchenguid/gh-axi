@@ -309,10 +309,10 @@ export async function apiCommand(
   if (paginate) glabArgs.push("--paginate");
 
   // glab reads the request body from its own stdin for these forms, and the
-  // child inherits nothing, so relay what was piped to glab-axi.
+  // child inherits nothing, so relay what was piped to glab-axi. Only the
+  // typed `--field` expands `@-`; `--raw-field` always sends a plain string.
   const readsStdin =
-    input === "-" ||
-    [...fields, ...rawFields].some((value) => value.endsWith("=@-"));
+    input === "-" || fields.some((value) => value.endsWith("=@-"));
   if (readsStdin && isStdinTTY()) {
     throw new AxiError(
       "Reading the request body from `-`/`@-` needs piped stdin; glab-axi is attached to a terminal",

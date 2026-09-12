@@ -294,6 +294,31 @@ describe("apiCommand passthrough", () => {
     expect(mockedGlabExec.mock.calls[0]?.[2]).toBe("body text");
   });
 
+  it("forwards a --raw-field @- value verbatim without touching stdin", async () => {
+    // glab expands `@file`/`@-` only for the typed `--field`; `--raw-field`
+    // is a plain string parameter (live-verified against glab 1.117), so
+    // reading stdin here would hang or refuse a request glab accepts.
+    mockedIsStdinTTY.mockReturnValue(true);
+    mockedGlabExec.mockResolvedValueOnce("{}");
+    await apiCommand(
+      ["POST", "projects/g%2Fp/issues", "--raw-field", "description=@-"],
+      ctx,
+    );
+    expect(mockedReadStdin).not.toHaveBeenCalled();
+    expect(mockedGlabExec).toHaveBeenCalledWith(
+      [
+        "api",
+        "projects/g%2Fp/issues",
+        "-X",
+        "POST",
+        "--raw-field",
+        "description=@-",
+      ],
+      ctx,
+      undefined,
+    );
+  });
+
   it("sends no stdin when no form reads it", async () => {
     mockedIsStdinTTY.mockReturnValue(false);
     mockedGlabExec.mockResolvedValueOnce("{}");
