@@ -24,6 +24,12 @@ function firstErrorLine(stderr: string): string {
 }
 
 interface ErrorPattern {
+  /**
+   * Limits the pattern to one glab command family (the first argv token).
+   * glab names the entity for `mr view` but not for `issue view`, whose 404
+   * stderr is a bare banner, so the command is the only way to tell them apart.
+   */
+  command?: string;
   pattern: RegExp;
   code: ErrorCode;
   message: (match: RegExpMatchArray, stderr: string) => string;
@@ -36,8 +42,9 @@ interface ErrorPattern {
  * otherwise be swallowed by.
  *
  * Verified glab stderr shapes (glab 1.117.0):
- *   mr view:   "Failed to get merge request 999999: 404 Not Found."
- *   api:       "glab: 404 Project Not Found (HTTP 404)"
+ *   mr view:    "Failed to get merge request 999999: 404 Not Found."
+ *   issue view: "404 Not Found." (the entity is never named)
+ *   api:        "glab: 404 Project Not Found (HTTP 404)"
  */
 const patterns: ErrorPattern[] = [
   {
@@ -58,14 +65,6 @@ const patterns: ErrorPattern[] = [
     ],
   },
   {
-    pattern: /Failed to get issue (\d+):\s*(.+)/i,
-    code: "NOT_FOUND",
-    message: (m) => `Issue #${m[1]} not found in this project`,
-    suggestions: () => [
-      "Run `glab-axi issue list` to see open issues",
-    ],
-  },
-  {
     // glab rejects a -R value that is not [HOST/]OWNER/[NAMESPACE/]REPO before
     // any request goes out; must sit ahead of the generic 404 patterns.
     pattern: /Expected the "\[HOST\/\]OWNER\/\[NAMESPACE\/\]REPO" format/i,
@@ -74,6 +73,15 @@ const patterns: ErrorPattern[] = [
     suggestions: () => [
       "Pass the full project path to -R, e.g. `-R group/subgroup/project` (after the command)",
     ],
+  },
+  {
+    // glab issue commands report a missing issue as a bare 404, so only the
+    // command family distinguishes it from a missing project (matched above).
+    command: "issue",
+    pattern: /404 (?:Project )?Not Found/i,
+    code: "NOT_FOUND",
+    message: () => "Issue not found in this project",
+    suggestions: () => ["Run `glab-axi issue list` to see open issues"],
   },
   {
     // list commands surface a bare 404 when the project is missing (no item
@@ -112,8 +120,13 @@ const patterns: ErrorPattern[] = [
   },
 ];
 
-export function mapGlabError(stderr: string, exitCode: number): AxiError {
-  for (const { pattern, code, message, suggestions } of patterns) {
+export function mapGlabError(
+  stderr: string,
+  exitCode: number,
+  command?: string,
+): AxiError {
+  for (const { command: only, pattern, code, message, suggestions } of patterns) {
+    if (only !== undefined && only !== command) continue;
     const match = stderr.match(pattern);
     if (match) {
       return new AxiError(

@@ -257,6 +257,49 @@ describe("apiCommand passthrough", () => {
     expect(full).not.toContain("(truncated)");
   });
 
+  it("merges the concatenated pages glab --paginate emits into one array", async () => {
+    // glab writes one JSON document per page, unlike gh's single merged array.
+    mockedGlabExec.mockResolvedValueOnce(
+      '[{"iid": 1, "title": "A"}][{"iid": 2, "title": "B"}]\n[{"iid": 3, "title": "C"}]',
+    );
+    const result = await apiCommand(
+      ["projects/g%2Fp/merge_requests", "--paginate"],
+      ctx,
+    );
+    expect(result).not.toContain("api_response");
+    expect(result).toContain("[3]{iid,title}:");
+    expect(result).toContain("1,A");
+    expect(result).toContain("2,B");
+    expect(result).toContain("3,C");
+  });
+
+  it("redacts the runner token across paginated pages", async () => {
+    mockedGlabExec.mockResolvedValueOnce(
+      '[{"id": 1, "runners_token": "GR1348941first"}][{"id": 2, "runners_token": "GR1348941second"}]',
+    );
+    const result = await apiCommand(
+      ["groups/9/projects", "--paginate", "--full"],
+      ctx,
+    );
+    expect(result).not.toContain("GR1348941first");
+    expect(result).not.toContain("GR1348941second");
+    expect(result).not.toContain("runners_token");
+  });
+
+  it("bounds and redacts values nested past the old depth cap", async () => {
+    const deep = {
+      data: { project: { issues: { nodes: [{ notes: { nodes: [{
+        body: "y".repeat(3000),
+        runners_token: "GR1348941deep",
+      }] } }] } } },
+    };
+    mockedGlabExec.mockResolvedValueOnce(JSON.stringify(deep));
+    const result = await apiCommand(["graphql"], ctx);
+    expect(result).toContain("... (truncated)");
+    expect(result).not.toContain("GR1348941deep");
+    expect(result).not.toContain("y".repeat(2100));
+  });
+
   it("wraps non-JSON output with truncation metadata", async () => {
     mockedGlabExec.mockResolvedValueOnce("x".repeat(5000));
     const result = await apiCommand(["projects/g%2Fp"], ctx);

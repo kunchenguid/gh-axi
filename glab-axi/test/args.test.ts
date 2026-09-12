@@ -6,9 +6,8 @@ import {
   getAllFlags,
   takeAllFlags,
   pushRepeated,
-  getPositional,
+  onlyPositional,
   requireNumber,
-  takeNumber,
   rejectUnknownFlags,
 } from "../src/args.js";
 import { AxiError } from "../src/errors.js";
@@ -130,10 +129,16 @@ describe("pushRepeated", () => {
   });
 });
 
-describe("getPositional / requireNumber / takeNumber", () => {
-  it("getPositional skips flags", () => {
-    expect(getPositional(["view", "--full", "42"], 1)).toBe("42");
-    expect(getPositional(["view", "--full"], 1)).toBeUndefined();
+describe("onlyPositional / requireNumber", () => {
+  it("onlyPositional skips flags", () => {
+    expect(onlyPositional(["view", "--full", "42"], 1, "mr")).toBe("42");
+    expect(onlyPositional(["view", "--full"], 1, "mr")).toBeUndefined();
+  });
+
+  it("onlyPositional rejects a surplus positional", () => {
+    expect(() => onlyPositional(["close", "42", "43"], 1, "mr")).toThrow(
+      /Too many arguments for mr/,
+    );
   });
 
   it("requireNumber parses or throws", () => {
@@ -144,12 +149,6 @@ describe("getPositional / requireNumber / takeNumber", () => {
 
   it("requireNumber rejects trailing garbage instead of truncating it", () => {
     expect(() => requireNumber("42abc", "mr")).toThrow(/Invalid mr number/);
-  });
-
-  it("takeNumber finds and removes the first numeric positional", () => {
-    const args = ["--full", "42"];
-    expect(takeNumber(args, "mr")).toBe(42);
-    expect(args).toEqual(["--full"]);
   });
 });
 

@@ -183,6 +183,13 @@ describe("issue view", () => {
     expect(result).toContain("glab-axi issue list --state closed -R group/project");
   });
 
+  it("refuses a surplus positional instead of viewing only #42", async () => {
+    await expect(issueCommand(["view", "42", "43"], ctx)).rejects.toThrow(
+      /Too many arguments for issue/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("rejects --full=true instead of silently truncating", async () => {
     await expect(
       issueCommand(["view", "42", "--full=true"], ctx),

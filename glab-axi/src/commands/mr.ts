@@ -6,10 +6,9 @@ import {
   getFlag,
   getAllFlags,
   pushRepeated,
-  getPositional,
+  onlyPositional,
   requireNumber,
   takeBoolFlag,
-  takeNumber,
   takeAllFlags,
   takeRequiredFlag,
   rejectUnknownFlags,
@@ -246,7 +245,7 @@ async function listMrs(args: string[], ctx?: ProjectContext): Promise<string> {
 }
 
 async function viewMr(args: string[], ctx?: ProjectContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), "merge request");
+  const num = requireNumber(onlyPositional(args, 1, "merge request"), "merge request");
   const full = takeBoolFlag(args, "--full");
 
   const item = await glabJson<Record<string, unknown>>(
@@ -345,9 +344,12 @@ async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
   const removeSourceBranch = takeBoolFlag(args, "--remove-source-branch");
   const message = takeRequiredFlag(args, "--message");
   const sha = takeRequiredFlag(args, "--sha");
-  // Only now is every flag value consumed, so the remaining numeric token is
-  // the merge request: an all-digit --sha must never be read as the number.
-  const num = takeNumber(args, "merge request");
+  // Only now is every flag value consumed, so the remaining positional is the
+  // merge request: an all-digit --sha must never be read as the number.
+  const num = requireNumber(
+    onlyPositional(args, 1, "merge request"),
+    "merge request",
+  );
 
   // Idempotent: check current state with an exact match only.
   const current = await glabJson<Record<string, unknown>>(
@@ -404,7 +406,7 @@ async function mergeMr(args: string[], ctx?: ProjectContext): Promise<string> {
 }
 
 async function closeMr(args: string[], ctx?: ProjectContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), "merge request");
+  const num = requireNumber(onlyPositional(args, 1, "merge request"), "merge request");
 
   // Idempotent: check current state with an exact match only.
   const current = await glabJson<Record<string, unknown>>(
@@ -447,7 +449,7 @@ async function closeMr(args: string[], ctx?: ProjectContext): Promise<string> {
 }
 
 async function reopenMr(args: string[], ctx?: ProjectContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), "merge request");
+  const num = requireNumber(onlyPositional(args, 1, "merge request"), "merge request");
 
   // Idempotent: check current state with an exact match only.
   const current = await glabJson<Record<string, unknown>>(

@@ -175,6 +175,73 @@ function projectFromPathSegment(
   return { fullPath, source: "flag" };
 }
 
+/**
+ * Split a stream of concatenated JSON documents (`[...][...]`) into its parts.
+ * Returns undefined when the text is not a clean sequence of documents, so a
+ * genuinely non-JSON body still reaches the raw fallback.
+ */
+function splitJsonDocuments(raw: string): unknown[] | undefined {
+  const docs: unknown[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      if (depth === 0) return undefined;
+      inString = true;
+      continue;
+    }
+    if (ch === "[" || ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+      continue;
+    }
+    if (ch === "]" || ch === "}") {
+      depth--;
+      if (depth < 0) return undefined;
+      if (depth === 0) {
+        try {
+          docs.push(JSON.parse(raw.slice(start, i + 1)));
+        } catch {
+          return undefined;
+        }
+      }
+      continue;
+    }
+    // Only whitespace may separate documents; anything else is not a stream.
+    if (depth === 0 && !/\s/.test(ch)) return undefined;
+  }
+  return depth === 0 ? docs : undefined;
+}
+
+/**
+ * Decode an API response body.
+ *
+ * `glab api --paginate` emits one JSON document per page rather than gh's
+ * single merged array, so the pages are merged here and the result is shaped
+ * like any other response instead of degrading to truncated raw text.
+ */
+function parseApiResponse(raw: string): { data: unknown } | undefined {
+  const trimmed = raw.trim();
+  if (trimmed === "") return undefined;
+  try {
+    return { data: JSON.parse(trimmed) };
+  } catch {
+    // Possibly several pages concatenated; fall through.
+  }
+  const docs = splitJsonDocuments(trimmed);
+  if (!docs || docs.length < 2 || !docs.every(Array.isArray)) return undefined;
+  return { data: (docs as unknown[][]).flat() };
+}
+
 /** Maximum length for raw (non-JSON) API output before truncation. */
 const RAW_OUTPUT_TRUNCATION_LIMIT = 4000;
 
@@ -253,12 +320,14 @@ export async function apiCommand(
     ),
   );
 
-  // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
+  // Shape decodable JSON (single page or concatenated pages); otherwise fall
+  // back to raw output.
   const raw = await glabExec(glabArgs, ctx);
-  try {
-    const data = JSON.parse(raw);
-    return renderOutput([encode(shapeOutput(data, !full, !full)), help]);
-  } catch {
+  const parsed = parseApiResponse(raw);
+  if (parsed) {
+    return renderOutput([encode(shapeOutput(parsed.data, !full, !full)), help]);
+  }
+  {
     // Not JSON — wrap in TOON envelope with truncation metadata
     const trimmed = raw.trim();
     const truncated = !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
@@ -318,13 +387,9 @@ function shapeOutput(
   obj: unknown,
   stripNoisyKeys: boolean,
   truncateValues: boolean,
-  depth = 0,
 ): unknown {
-  if (depth > 8) return obj;
   if (Array.isArray(obj)) {
-    return obj.map((item) =>
-      shapeOutput(item, stripNoisyKeys, truncateValues, depth + 1),
-    );
+    return obj.map((item) => shapeOutput(item, stripNoisyKeys, truncateValues));
   }
   if (obj !== null && typeof obj === "object") {
     const record = obj as Record<string, unknown>;
@@ -332,12 +397,7 @@ function shapeOutput(
     for (const [key, value] of Object.entries(record)) {
       if (SECRET_KEYS.has(key)) continue;
       if (!stripNoisyKeys) {
-        result[key] = shapeOutput(
-          value,
-          stripNoisyKeys,
-          truncateValues,
-          depth + 1,
-        );
+        result[key] = shapeOutput(value, stripNoisyKeys, truncateValues);
         continue;
       }
       if (NOISY_KEYS.has(key)) continue;
@@ -352,12 +412,7 @@ function shapeOutput(
         result[key] = (value as Record<string, unknown>).username;
         continue;
       }
-      result[key] = shapeOutput(
-        value,
-        stripNoisyKeys,
-        truncateValues,
-        depth + 1,
-      );
+      result[key] = shapeOutput(value, stripNoisyKeys, truncateValues);
     }
     return result;
   }

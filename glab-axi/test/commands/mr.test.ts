@@ -516,6 +516,13 @@ describe("mr merge", () => {
     expect(args[args.indexOf("--message") + 1]).toBe("- see thread");
   });
 
+  it("refuses a surplus positional instead of merging only !42", async () => {
+    await expect(mrCommand(["merge", "42", "43"], ctx)).rejects.toThrow(
+      /Too many arguments for merge request/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("refuses a blank or value-less --sha instead of merging without it", async () => {
     await expect(mrCommand(["merge", "42", "--sha", ""], ctx)).rejects.toThrow(
       /--sha requires a value/,
@@ -560,6 +567,14 @@ describe("mr close", () => {
     expect(mockedGlabExec).not.toHaveBeenCalled();
     expect(result).toContain("message: Already closed");
     expect(result).toContain("state: closed");
+  });
+
+  it("refuses a surplus positional instead of closing only !42", async () => {
+    await expect(mrCommand(["close", "42", "43"], ctx)).rejects.toThrow(
+      /Too many arguments for merge request/,
+    );
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+    expect(mockedGlabExec).not.toHaveBeenCalled();
   });
 
   it("refuses a number with trailing garbage instead of closing !42", async () => {

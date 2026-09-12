@@ -15,10 +15,20 @@ describe("mapGlabError", () => {
     );
   });
 
-  it("maps a missing issue", () => {
-    const err = mapGlabError("Failed to get issue 7: 404 Not Found.", 1);
+  it("maps glab's bare 404 banner from an issue command", () => {
+    // glab 1.117 never names the issue: `glab issue view 999999 -F json`
+    // writes only this banner to stderr.
+    const err = mapGlabError("\n   ERROR  \n\n  404 Not Found.\n", 1, "issue");
     expect(err.code).toBe("NOT_FOUND");
-    expect(err.message).toBe("Issue #7 not found in this project");
+    expect(err.message).toBe("Issue not found in this project");
+    expect(err.suggestions).toContain(
+      "Run `glab-axi issue list` to see open issues",
+    );
+  });
+
+  it("still reports a missing project ahead of a missing issue", () => {
+    const err = mapGlabError("glab: 404 Project Not Found (HTTP 404)", 1, "issue");
+    expect(err.code).toBe("PROJECT_NOT_FOUND");
   });
 
   it("maps a 404 Project Not Found from the api passthrough", () => {

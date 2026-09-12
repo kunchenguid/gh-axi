@@ -143,15 +143,27 @@ export function pushRepeated(
   for (const value of values) glabArgs.push(flag, value);
 }
 
-/** Get the first positional arg (non-flag) starting from startIndex. */
-export function getPositional(
+/**
+ * The one positional argument a subcommand takes, or undefined when absent.
+ *
+ * A surplus positional throws: `mr close 42 43` would otherwise close only
+ * !42, applying the mutation to fewer entities than the caller asked for.
+ * Call it after the subcommand's value flags have been consumed, so only
+ * genuine positionals remain.
+ */
+export function onlyPositional(
   args: string[],
   startIndex: number,
+  label: string,
 ): string | undefined {
-  for (let i = startIndex; i < args.length; i++) {
-    if (!args[i].startsWith("--")) return args[i];
+  const positionals = args.slice(startIndex).filter((a) => !isFlagShaped(a));
+  if (positionals.length > 1) {
+    throw new AxiError(
+      `Too many arguments for ${label}: expected one number, got ${positionals.join(", ")}`,
+      "VALIDATION_ERROR",
+    );
   }
-  return undefined;
+  return positionals[0];
 }
 
 /** Parse and validate a required numeric argument. */
@@ -159,14 +171,6 @@ export function requireNumber(raw: string | undefined, label: string): number {
   if (!raw) throw new AxiError(`Missing ${label} number`, "VALIDATION_ERROR");
   if (!/^\d+$/.test(raw))
     throw new AxiError(`Invalid ${label} number: ${raw}`, "VALIDATION_ERROR");
-  return Number(raw);
-}
-
-/** Find the first numeric positional arg, remove it from args, and return it as a number. */
-export function takeNumber(args: string[], label: string): number {
-  const raw = args.find((a) => /^\d+$/.test(a));
-  if (!raw) throw new AxiError(`Missing ${label} number`, "VALIDATION_ERROR");
-  args.splice(args.indexOf(raw), 1);
   return Number(raw);
 }
 

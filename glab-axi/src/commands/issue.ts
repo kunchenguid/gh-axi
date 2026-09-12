@@ -6,7 +6,7 @@ import {
   getFlag,
   getAllFlags,
   pushRepeated,
-  getPositional,
+  onlyPositional,
   requireNumber,
   takeBoolFlag,
   takeRequiredFlag,
@@ -225,7 +225,7 @@ async function viewIssue(
   args: string[],
   ctx?: ProjectContext,
 ): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), "issue");
+  const num = requireNumber(onlyPositional(args, 1, "issue"), "issue");
   const full = takeBoolFlag(args, "--full");
 
   const item = await glabJson<Record<string, unknown>>(
@@ -310,7 +310,7 @@ async function closeIssue(
   args: string[],
   ctx?: ProjectContext,
 ): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), "issue");
+  const num = requireNumber(onlyPositional(args, 1, "issue"), "issue");
 
   // Idempotent: check current state with an exact match only.
   const current = await glabJson<Record<string, unknown>>(

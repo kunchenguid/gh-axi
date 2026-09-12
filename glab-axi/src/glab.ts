@@ -86,7 +86,8 @@ export async function glabJson<T = unknown>(
 ): Promise<T> {
   const result = await run(buildArgs(args, ctx));
   if (result.stderr === "ENOENT") throw missingGlabError();
-  if (result.exitCode !== 0) throw mapGlabError(result.stderr, result.exitCode);
+  if (result.exitCode !== 0)
+    throw mapGlabError(result.stderr, result.exitCode, args[0]);
   try {
     return JSON.parse(result.stdout);
   } catch {
@@ -104,6 +105,7 @@ export async function glabExec(
 ): Promise<string> {
   const result = await run(buildArgs(args, ctx));
   if (result.stderr === "ENOENT") throw missingGlabError();
-  if (result.exitCode !== 0) throw mapGlabError(result.stderr, result.exitCode);
+  if (result.exitCode !== 0)
+    throw mapGlabError(result.stderr, result.exitCode, args[0]);
   return result.stdout;
 }
