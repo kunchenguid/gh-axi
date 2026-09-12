@@ -44,6 +44,8 @@ interface ErrorPattern {
  *
  * Verified glab stderr shapes (glab 1.117.0):
  *   mr view:    "Failed to get merge request 999999: 404 Not Found."
+ *   mr view:    "Failed to get merge request 1: GET https://gitlab.com/api/v4/
+ *                projects/x/merge_requests/1: 401 {message: 401 Unauthorized}."
  *   issue view: "404 Not Found." (the entity is never named)
  *   api:        "glab: 404 Project Not Found (HTTP 404)"
  */
@@ -58,7 +60,10 @@ const patterns: ErrorPattern[] = [
     ],
   },
   {
-    pattern: /Failed to get merge request (\d+):\s*(.+)/i,
+    // glab wraps whatever went wrong in this prefix, so the status inside it
+    // decides the code: only a 404 is a missing merge request. A 401/403/429
+    // reason must fall through to the status patterns below.
+    pattern: /Failed to get merge request (\d+):[^\n]*\b404\b/i,
     code: "NOT_FOUND",
     message: (m) => `Merge request !${m[1]} not found in this project`,
     suggestions: () => [

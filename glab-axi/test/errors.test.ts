@@ -13,6 +13,39 @@ describe("mapGlabError", () => {
     expect(err.suggestions).toContain(
       "Run `glab-axi mr list` to see open merge requests",
     );
+
+    const wrapped = mapGlabError(
+      "Failed to get merge request 7: GET https://gitlab.com/api/v4/projects/g%2Fp/merge_requests/7: 404 {message: 404 Not Found}.",
+      1,
+      "mr view",
+    );
+    expect(wrapped.code).toBe("NOT_FOUND");
+    expect(wrapped.message).toBe("Merge request !7 not found in this project");
+  });
+
+  it("keeps the status glab wrapped in its merge request prefix", () => {
+    // glab 1.117 wraps every reason in "Failed to get merge request <n>:",
+    // so the status inside it decides the code, not the prefix.
+    const unauthorized = mapGlabError(
+      "\n   ERROR  \n\n  Failed to get merge request 1: GET https://gitlab.com/api/v4/projects/gitlab-org%2Fcli/merge_requests/1: 401 {message: 401 Unauthorized}.\n",
+      1,
+      "mr view",
+    );
+    expect(unauthorized.code).toBe("AUTH_REQUIRED");
+
+    const forbidden = mapGlabError(
+      "Failed to get merge request 42: GET https://gitlab.com/api/v4/projects/g%2Fp/merge_requests/42: 403 {message: 403 Forbidden}.",
+      1,
+      "mr view",
+    );
+    expect(forbidden.code).toBe("FORBIDDEN");
+
+    const rateLimited = mapGlabError(
+      "Failed to get merge request 42: GET https://gitlab.com/api/v4/projects/g%2Fp/merge_requests/42: 429 {message: 429 Too Many Requests}.",
+      1,
+      "mr view",
+    );
+    expect(rateLimited.code).toBe("RATE_LIMITED");
   });
 
   it("maps glab's bare 404 banner from an issue command", () => {
