@@ -66,6 +66,37 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
 };
 
 export async function main(options: MainOptions = {}): Promise<void> {
+  const stdout = options.stdout ?? process.stdout;
+  try {
+    await runProjectCli(options);
+  } catch (error) {
+    // resolveContext runs outside the SDK's per-command error handling, so a
+    // rejected project selector would otherwise escape as a raw stack trace.
+    const formatted = formatError(error);
+    stdout.write(formatted.output);
+    process.exitCode = formatted.exitCode;
+  }
+}
+
+function formatError(error: unknown): { output: string; exitCode: number } {
+  const axiError =
+    error instanceof AxiError
+      ? error
+      : new AxiError(
+          error instanceof Error ? error.message : String(error),
+          "UNKNOWN",
+        );
+  return {
+    output: `${encode({
+      error: axiError.message,
+      code: axiError.code,
+      ...(axiError.suggestions.length > 0 ? { help: axiError.suggestions } : {}),
+    })}\n`,
+    exitCode: exitCodeForError(axiError),
+  };
+}
+
+async function runProjectCli(options: MainOptions): Promise<void> {
   await runAxiCli<CliContext | undefined>({
     ...(options.argv ? { argv: options.argv } : {}),
     description: DESCRIPTION,
@@ -75,25 +106,7 @@ export async function main(options: MainOptions = {}): Promise<void> {
     home: withProjectContext(undefined, homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
-    formatError: (error) => {
-      const axiError =
-        error instanceof AxiError
-          ? error
-          : new AxiError(
-              error instanceof Error ? error.message : String(error),
-              "UNKNOWN",
-            );
-      return {
-        output: `${encode({
-          error: axiError.message,
-          code: axiError.code,
-          ...(axiError.suggestions.length > 0
-            ? { help: axiError.suggestions }
-            : {}),
-        })}\n`,
-        exitCode: exitCodeForError(axiError),
-      };
-    },
+    formatError,
     resolveContext: ({ command, args }) => {
       const { repoFlag, hostFlag } = parseProjectContextArgs(command, args);
       // Explicit --hostname wins over the GITLAB_HOST env var. Setting

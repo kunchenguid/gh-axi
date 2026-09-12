@@ -116,6 +116,13 @@ describe("mr list", () => {
     expect(args).toContain("--all");
   });
 
+  it("refuses a dangling --author instead of filtering by the next flag", async () => {
+    await expect(
+      mrCommand(["list", "--author", "--state", "merged"], ctx),
+    ).rejects.toThrow(/--author requires a value/);
+    expect(mockedGlabJson).not.toHaveBeenCalled();
+  });
+
   it("rejects an invalid --state with the allowed values", async () => {
     await expect(mrCommand(["list", "--state", "bogus"], ctx)).rejects.toThrow(
       /opened, closed, merged, all/,

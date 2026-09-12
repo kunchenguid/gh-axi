@@ -2,36 +2,26 @@ import { AxiError } from "./errors.js";
 import type { FieldDef } from "./toon.js";
 
 /**
- * Describes an extra column that can be requested via --fields.
- * `jsonKey` names the glab JSON field the column reads.
- * `def` is the FieldDef used to extract and format the value.
- */
-export interface ExtraFieldSpec {
-  jsonKey: string;
-  def: FieldDef;
-}
-
-/**
  * Resolve --fields extra columns. glab has no field selector — the JSON comes
  * back complete — so extras only extend the output schema.
  */
 export function collectExtraFields(
   fieldsArg: string | undefined,
-  extras: Record<string, ExtraFieldSpec>,
+  extras: Record<string, FieldDef>,
 ): FieldDef[] {
   if (!fieldsArg) return [];
   const extraDefs: FieldDef[] = [];
   for (const raw of fieldsArg.split(",")) {
     const name = raw.trim();
     if (name === "") continue;
-    const spec = extras[name];
-    if (!spec) {
+    const def = extras[name];
+    if (!def) {
       throw new AxiError(
         `Unknown --fields entry: ${name}. Available: ${Object.keys(extras).join(", ")}`,
         "VALIDATION_ERROR",
       );
     }
-    extraDefs.push(spec.def);
+    extraDefs.push(def);
   }
   return extraDefs;
 }

@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { AxiError } from "./errors.js";
 import { escapeRegExp, resolveHost, type HostContext } from "./host.js";
 
 /**
@@ -19,7 +20,7 @@ export interface ProjectContext {
  * Priority: --repo flag > GITLAB_REPO env > git remote origin.
  */
 export function resolveProject(flagValue?: string): ProjectContext | undefined {
-  if (flagValue) {
+  if (flagValue !== undefined) {
     return parsePath(flagValue, "flag");
   }
 
@@ -39,15 +40,22 @@ export function resolveProject(flagValue?: string): ProjectContext | undefined {
   }
 }
 
-function parsePath(
-  path: string,
-  source: "flag" | "env",
-): ProjectContext | undefined {
+/**
+ * Parse an explicitly supplied selector. An unparseable one throws rather than
+ * degrading to undefined: with no project resolved, glab auto-detects the cwd
+ * project, so a mutation aimed elsewhere would land on the current one.
+ */
+function parsePath(path: string, source: "flag" | "env"): ProjectContext {
   // glab -R accepts OWNER/REPO, GROUP/NAMESPACE/REPO, or a full URL. Normalize
   // a URL to its path so downstream URL building always has a bare full path.
   const urlMatch = path.match(/^https?:\/\/[^/]+\/(.+?)(?:\.git)?$/);
   const fullPath = urlMatch ? urlMatch[1] : path.replace(/\.git$/, "");
-  if (!fullPath || fullPath.includes(" ")) return undefined;
+  if (!fullPath || fullPath.includes(" ")) {
+    throw new AxiError(
+      `Invalid ${source === "flag" ? "-R/--repo" : "GITLAB_REPO"} project: "${path}". Use group/project (groups may nest) or a project URL`,
+      "VALIDATION_ERROR",
+    );
+  }
   return { fullPath, source };
 }
 

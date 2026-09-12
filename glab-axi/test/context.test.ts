@@ -45,9 +45,18 @@ describe("resolveProject", () => {
     });
   });
 
-  it("rejects a flag value without a path", () => {
-    expect(resolveProject("")).toBeUndefined();
-    expect(resolveProject("has space/x")).toBeUndefined();
+  it("refuses an explicit selector it cannot parse, never falling back", () => {
+    expect(() => resolveProject("")).toThrow(/Invalid -R\/--repo project/);
+    expect(() => resolveProject("has space/x")).toThrow(
+      /Invalid -R\/--repo project/,
+    );
+    expect(mockedExecFileSync).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unparseable GITLAB_REPO by name", () => {
+    process.env["GITLAB_REPO"] = "my group/b";
+    expect(() => resolveProject()).toThrow(/Invalid GITLAB_REPO project/);
+    delete process.env["GITLAB_REPO"];
   });
 
   it("prefers the flag over GITLAB_REPO", () => {

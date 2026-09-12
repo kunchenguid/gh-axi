@@ -103,18 +103,12 @@ const listSchema: FieldDef[] = [
   relativeTime("created_at", "created"),
 ];
 
-const ISSUE_LIST_EXTRA_FIELDS: Record<string, { jsonKey: string; def: FieldDef }> = {
-  description: { jsonKey: "description", def: field("description") },
-  labels: { jsonKey: "labels", def: joinStrings("labels") },
-  url: { jsonKey: "web_url", def: field("web_url", "url") },
-  updatedAt: {
-    jsonKey: "updated_at",
-    def: relativeTime("updated_at", "updated"),
-  },
-  closedAt: {
-    jsonKey: "closed_at",
-    def: relativeTime("closed_at", "closed"),
-  },
+const ISSUE_LIST_EXTRA_FIELDS: Record<string, FieldDef> = {
+  description: field("description"),
+  labels: joinStrings("labels"),
+  url: field("web_url", "url"),
+  updatedAt: relativeTime("updated_at", "updated"),
+  closedAt: relativeTime("closed_at", "closed"),
 };
 
 const viewSchema: FieldDef[] = [

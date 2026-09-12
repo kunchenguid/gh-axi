@@ -22,9 +22,20 @@ describe("getFlag", () => {
     expect(getFlag(["--state=opened"], "--state")).toBe("opened");
   });
 
-  it("returns undefined when absent or dangling", () => {
+  it("returns undefined when absent", () => {
     expect(getFlag([], "--state")).toBeUndefined();
-    expect(getFlag(["--state"], "--state")).toBeUndefined();
+  });
+
+  it("rejects a dangling, blank, or flag-shaped value", () => {
+    expect(() => getFlag(["--state"], "--state")).toThrow(
+      /--state requires a value/,
+    );
+    expect(() => getFlag(["--state="], "--state")).toThrow(
+      /--state requires a value/,
+    );
+    expect(() =>
+      getFlag(["list", "--author", "--state", "closed"], "--author"),
+    ).toThrow(/--author requires a value/);
   });
 });
 

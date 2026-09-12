@@ -127,16 +127,13 @@ const listSchema: FieldDef[] = [
   boolYesNo("draft", "draft"),
 ];
 
-const MR_LIST_EXTRA_FIELDS: Record<string, { jsonKey: string; def: FieldDef }> = {
-  description: { jsonKey: "description", def: field("description") },
-  labels: { jsonKey: "labels", def: joinStrings("labels") },
-  sourceBranch: { jsonKey: "source_branch", def: field("source_branch") },
-  targetBranch: { jsonKey: "target_branch", def: field("target_branch") },
-  url: { jsonKey: "web_url", def: field("web_url", "url") },
-  updatedAt: {
-    jsonKey: "updated_at",
-    def: relativeTime("updated_at", "updated"),
-  },
+const MR_LIST_EXTRA_FIELDS: Record<string, FieldDef> = {
+  description: field("description"),
+  labels: joinStrings("labels"),
+  sourceBranch: field("source_branch"),
+  targetBranch: field("target_branch"),
+  url: field("web_url", "url"),
+  updatedAt: relativeTime("updated_at", "updated"),
 };
 
 const viewSchema: FieldDef[] = [

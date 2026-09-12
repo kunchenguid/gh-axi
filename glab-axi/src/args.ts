@@ -4,17 +4,23 @@ function flagEqualsPrefix(flag: string): string {
   return `${flag}=`;
 }
 
-/** Get a flag's value from --flag value or --flag=value without modifying args. */
-export function getFlag(args: string[], name: string): string | undefined {
-  const equalsPrefix = flagEqualsPrefix(name);
+/**
+ * Get a flag's value from --flag value or --flag=value without modifying args.
+ * Like takeRequiredFlag, a dangling, blank, or flag-shaped value throws
+ * VALIDATION_ERROR: dropping it would silently return an unfiltered superset.
+ */
+export function getFlag(args: string[], flag: string): string | undefined {
+  const equalsPrefix = flagEqualsPrefix(flag);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === name) {
-      if (i + 1 >= args.length) return undefined;
-      return args[i + 1];
+    if (arg === flag) {
+      const val = args[i + 1];
+      if (val === undefined || isFlagShaped(val))
+        throw new AxiError(`${flag} requires a value`, "VALIDATION_ERROR");
+      return requireFlagValue(val, flag);
     }
     if (arg.startsWith(equalsPrefix)) {
-      return arg.slice(equalsPrefix.length);
+      return requireFlagValue(arg.slice(equalsPrefix.length), flag);
     }
   }
   return undefined;
