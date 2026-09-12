@@ -135,6 +135,7 @@ When truncation happens, gh-axi best-effort saves the complete log to a temp fil
 
 `gh-axi pr checks <number>` and the `checks` summary of `gh-axi pr view <number>` bucket every entry of the PR's status-check rollup as `pass`, `fail`, `skip`, or `pending`, covering both check runs (GitHub Actions and similar) and legacy commit statuses (Vercel, `ci/circleci`, and similar).
 Cancelled, stale, timed-out, action-required, and startup-failure check runs count as failed, so a red PR is never reported as merely unfinished.
+For an open PR, `gh-axi pr view <number>` also prints `merge_state` right after `checks`: GitHub's merge state lowercased (`clean`, `dirty`, `behind`, `blocked`, ...), with a short hint on states that need action. Merged and closed PRs omit it, since GitHub no longer reports a meaningful value for them.
 
 `gh-axi stack` is a strict, non-interactive adapter over the official `github/gh-stack` extension. It supports `view`, `init`, `add`, `checkout`, `push`, `submit`, `sync`, `rebase`, `link`, `unstack`, `merge`, and branch navigation. It intentionally excludes the interactive `modify` and `switch` TUIs and the human-only `alias` and `feedback` utilities.
 Stack commands operate on local branches and `.git/gh-stack`, so run them from the target repository's working directory. They reject `-R`, `--repo`, and `GH_REPO` rather than pretending a remote repository is enough. `--hostname` remains available for authenticated GitHub Enterprise hosts.
