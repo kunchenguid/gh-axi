@@ -782,6 +782,8 @@ function rejectValuedMergeSwitches(args: string[]): void {
 
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   rejectValuedMergeSwitches(args);
+  // Extract before positional/body/subject parsing can swallow the condition.
+  // Pass the value unchanged to gh, which enforces the head match.
   const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
   const num = takeNumber(args, "PR");
   const explicitMethod = takeFlag(args, "--method");

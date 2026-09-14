@@ -109,8 +109,8 @@ function formatCliError(error: unknown) {
           error instanceof Error ? error.message : String(error),
           "UNKNOWN",
         );
-  // Mirrors the SDK's defaultFormatError output byte-for-byte; the only
-  // difference this hook introduces is StackError's upstream exit code.
+  // Preserve the SDK's error/help shape, adding operation outcomes and asset
+  // URLs to distinguish partial success, and retain StackError's upstream exit.
   return {
     output: `${encode({
       error: axiError.message,
@@ -161,6 +161,8 @@ export async function main(options: MainOptions = {}): Promise<void> {
       return repo ?? (host ? { host } : undefined);
     },
   }).catch((error) => {
+    // The SDK resolves context outside its handler error boundary, so context
+    // validation failures need the same structured output and exit-code mapping.
     const formatted = formatCliError(error);
     (options.stdout ?? process.stdout).write(formatted.output);
     process.exitCode = formatted.exitCode;
@@ -206,6 +208,10 @@ function resolveHostContext(
   return { value: resolveHost(hostFlag), source: "flag" };
 }
 
+/**
+ * Preserve a supplied merge-head condition or reject it if context stripping
+ * consumes it as a repository/hostname value; handler-only validation is too late.
+ */
 function parseRepoContextArgs(
   command: string | undefined,
   args: string[],
