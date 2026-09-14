@@ -220,17 +220,18 @@ function parseRepoContextArgs(
   hostFlag: string | undefined;
   strippedArgs: string[];
 } {
-  const matchHeadCommit =
-    command === "pr"
-      ? takeSingleRequiredFlag([...args], "--match-head-commit")
-      : undefined;
   const stripped: string[] = [];
   let repoFlag: string | undefined;
   let hostFlag: string | undefined;
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
-    if (arg === "-R" && index + 1 < args.length) {
+    if (arg === "--") {
+      stripped.push(...args.slice(index));
+      break;
+    }
+
+    if (arg === "-R" && index + 1 < args.length && args[index + 1] !== "--") {
       repoFlag = args[index + 1];
       index++;
       continue;
@@ -241,7 +242,11 @@ function parseRepoContextArgs(
       continue;
     }
 
-    if (arg === "--repo" && index + 1 < args.length) {
+    if (
+      arg === "--repo" &&
+      index + 1 < args.length &&
+      args[index + 1] !== "--"
+    ) {
       const value = args[index + 1];
 
       repoFlag = value;
@@ -266,7 +271,11 @@ function parseRepoContextArgs(
 
     // --hostname routes to GH_HOST for the child gh process; it is never a
     // subcommand flag, so strip it for every command.
-    if (arg === "--hostname" && index + 1 < args.length) {
+    if (
+      arg === "--hostname" &&
+      index + 1 < args.length &&
+      args[index + 1] !== "--"
+    ) {
       hostFlag = args[index + 1];
       index++;
       continue;
@@ -280,15 +289,22 @@ function parseRepoContextArgs(
     stripped.push(arg);
   }
 
-  if (
-    command === "pr" &&
-    takeSingleRequiredFlag([...stripped], "--match-head-commit") !==
-      matchHeadCommit
-  ) {
-    throw new AxiError(
-      "--match-head-commit cannot be used as a repository or hostname value",
-      "VALIDATION_ERROR",
+  if (command === "pr" && stripped[0] === "merge") {
+    // Check the original options first, so context stripping cannot hide a
+    // missing or duplicate condition. Non-merge flags belong to their handler.
+    const matchHeadCommit = takeSingleRequiredFlag(
+      [...args],
+      "--match-head-commit",
     );
+    if (
+      takeSingleRequiredFlag([...stripped], "--match-head-commit") !==
+      matchHeadCommit
+    ) {
+      throw new AxiError(
+        "--match-head-commit cannot be used as a repository or hostname value",
+        "VALIDATION_ERROR",
+      );
+    }
   }
 
   return { repoFlag, hostFlag, strippedArgs: stripped };

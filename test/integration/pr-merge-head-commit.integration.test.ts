@@ -48,11 +48,11 @@ describe("compiled pr merge --match-head-commit", () => {
       GH_AXI_ARGV_FILE: argvFile,
       GH_AXI_EXPECTED_HEAD: expectedHead,
     };
-    return spawnSync(process.execPath, [cli, ...args, "-R", "octo/repo"], {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env,
-    });
+    return spawnSync(
+      process.execPath,
+      [cli, args[0], "-R", "octo/repo", ...args.slice(1)],
+      { cwd: repoRoot, encoding: "utf8", env },
+    );
   }
 
   function ghArgv(): string[][] {
@@ -105,6 +105,104 @@ describe("compiled pr merge --match-head-commit", () => {
     expect(mergeArgv()).toEqual([
       ["pr", "merge", "17", "--squash", "--repo", "octo/repo"],
     ]);
+  });
+
+  it.each([
+    ["space", ["--match-head-commit", head]],
+    ["equals", [`--match-head-commit=${head}`]],
+    ["missing", ["--match-head-commit"]],
+    ["blank", ["--match-head-commit="]],
+  ])("does not activate a %s head condition after --", (_form, flags) => {
+    const result = runCli(["pr", "merge", "17", "--squash", "--", ...flags]);
+
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+    expect(mergeArgv()).toEqual([
+      ["pr", "merge", "17", "--squash", "--repo", "octo/repo"],
+    ]);
+  });
+
+  it.each(headForms)(
+    "keeps the %s condition before -- without treating a positional as a duplicate",
+    (_form, flags) => {
+      const result = runCli(
+        [
+          "pr",
+          "merge",
+          "17",
+          ...flags,
+          "--",
+          `--match-head-commit=${movedHead}`,
+        ],
+        head,
+      );
+
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      expect(mergeArgv()).toEqual([
+        [
+          "pr",
+          "merge",
+          "17",
+          "--match-head-commit",
+          head,
+          "--repo",
+          "octo/repo",
+        ],
+      ]);
+    },
+  );
+
+  it.each(["-R", "--repo", "--hostname"])(
+    "rejects a valueless %s without swallowing -- and activating a condition",
+    (contextFlag) => {
+      const result = runCli([
+        "pr",
+        "merge",
+        "17",
+        "--squash",
+        contextFlag,
+        "--",
+        "--match-head-commit",
+        head,
+      ]);
+
+      expect(result.status, result.stderr || result.stdout).toBe(2);
+      expect(result.stdout).toContain("code: VALIDATION_ERROR");
+      expect(ghArgv()).toEqual([]);
+    },
+  );
+
+  it("leaves repository-shaped positionals after -- out of context resolution", () => {
+    const result = runCli([
+      "pr",
+      "merge",
+      "17",
+      "--",
+      "--repo=other/repo",
+      "--match-head-commit",
+    ]);
+
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+    expect(mergeArgv()).toEqual([["pr", "merge", "17", "--repo", "octo/repo"]]);
+  });
+
+  it("lets non-merge commands handle positionals after --", () => {
+    const result = runCli(["pr", "view", "17", "--", "--match-head-commit"]);
+
+    expect(result.status, result.stderr || result.stdout).toBe(0);
+    expect(ghArgv()).toEqual([
+      ["pr", "view", "17", "--json", expect.any(String), "--repo", "octo/repo"],
+    ]);
+  });
+
+  it("lets non-merge commands reject an unsupported head condition", () => {
+    const result = runCli(["pr", "view", "17", "--match-head-commit"]);
+
+    expect(result.status, result.stderr || result.stdout).toBe(2);
+    expect(result.stdout).toContain(
+      "unknown flag for gh-axi pr view: --match-head-commit",
+    );
+    expect(result.stdout).toContain("code: VALIDATION_ERROR");
+    expect(ghArgv()).toEqual([]);
   });
 
   it.each(headForms)(

@@ -86,16 +86,20 @@ export function takeRequiredFlag(
   return undefined;
 }
 
-/** Like takeRequiredFlag, but rejects a repeated single-value option. */
+/** Like takeRequiredFlag, but rejects repeats and only scans before `--`. */
 export function takeSingleRequiredFlag(
   args: string[],
   flag: string,
 ): string | undefined {
-  const value = takeRequiredFlag(args, flag);
+  const end = args.indexOf("--");
+  const optionCount = end === -1 ? args.length : end;
+  const options = args.slice(0, optionCount);
+  const value = takeRequiredFlag(options, flag);
   const equalsPrefix = flagEqualsPrefix(flag);
-  if (args.some((arg) => arg === flag || arg.startsWith(equalsPrefix))) {
+  if (options.some((arg) => arg === flag || arg.startsWith(equalsPrefix))) {
     throw new AxiError(`${flag} may only be given once`, "VALIDATION_ERROR");
   }
+  args.splice(0, optionCount, ...options);
   return value;
 }
 
