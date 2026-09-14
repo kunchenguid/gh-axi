@@ -104,7 +104,7 @@ gh sometimes embeds remediation hints in errors with a different root cause, so 
 This only works because `src/version.ts` is a LEAF module importing node builtins only - `cli.ts` imports `VERSION` from it, never the reverse. Adding any non-builtin import to `src/version.ts` silently undoes the speedup.
 `test/version-fast-path.test.ts` guards it deterministically with a `module.register()` load-hook trace (`test/fixtures/module-trace-*.mjs`) plus a negative control on `--help`. Do not add a wall-clock timing assertion; it was proven flaky under CI contention.
 
-Compiled-CLI tests share `dist`; the package test scripts build before starting Vitest. Do not rebuild from individual suites while parallel workers may be executing those files. When invoking Vitest directly, build first.
+Compiled-CLI tests share `dist`; `test/global-setup.ts` owns the build before the initial run and each watch rerun via Vitest's `onTestsRerun` hook. Do not rebuild from individual suites while parallel workers may be executing those files. Direct Vitest invocations use the same setup through `vitest.config.ts`.
 
 ## Stacked PR support (`src/commands/stack.ts`)
 
