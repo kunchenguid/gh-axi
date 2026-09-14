@@ -86,6 +86,19 @@ export function takeRequiredFlag(
   return undefined;
 }
 
+/** Like takeRequiredFlag, but rejects a repeated single-value option. */
+export function takeSingleRequiredFlag(
+  args: string[],
+  flag: string,
+): string | undefined {
+  const value = takeRequiredFlag(args, flag);
+  const equalsPrefix = flagEqualsPrefix(flag);
+  if (args.some((arg) => arg === flag || arg.startsWith(equalsPrefix))) {
+    throw new AxiError(`${flag} may only be given once`, "VALIDATION_ERROR");
+  }
+  return value;
+}
+
 function collectAllFlags(
   args: string[],
   flag: string,

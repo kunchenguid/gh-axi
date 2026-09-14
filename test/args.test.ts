@@ -3,6 +3,7 @@ import {
   getFlag,
   takeFlag,
   takeRequiredFlag,
+  takeSingleRequiredFlag,
   hasFlag,
   takeBoolFlag,
   getAllFlags,
@@ -108,6 +109,23 @@ describe("takeRequiredFlag", () => {
   it("accepts a dash-leading value via the --flag=value form", () => {
     const args = ["--source=-dashy", "--push"];
     expect(takeRequiredFlag(args, "--source")).toBe("-dashy");
+    expect(args).toEqual(["--push"]);
+  });
+});
+
+describe("takeSingleRequiredFlag", () => {
+  it("rejects a repeated option instead of silently discarding one value", () => {
+    const args = ["--head", "one", "--head=two"];
+
+    expect(() => takeSingleRequiredFlag(args, "--head")).toThrow(
+      new AxiError("--head may only be given once", "VALIDATION_ERROR"),
+    );
+  });
+
+  it("keeps the sole value and removes it", () => {
+    const args = ["--head=one", "--push"];
+
+    expect(takeSingleRequiredFlag(args, "--head")).toBe("one");
     expect(args).toEqual(["--push"]);
   });
 });

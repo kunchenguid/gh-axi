@@ -962,6 +962,66 @@ describe("prCommand", () => {
       );
     });
 
+    it("forwards an exact head commit condition with the selected merge options", async () => {
+      const head = "0123456789abcdef0123456789abcdef01234567";
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        [
+          "merge",
+          "10",
+          "--squash",
+          "--delete-branch",
+          "--match-head-commit",
+          head,
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        [
+          "pr",
+          "merge",
+          "10",
+          "--squash",
+          "--delete-branch",
+          "--match-head-commit",
+          head,
+        ],
+        ctx,
+      );
+    });
+
+    it.each([
+      ["--match-head-commit"],
+      ["--match-head-commit="],
+      ["--match-head-commit", "--auto"],
+    ])("rejects a head commit condition without a value", async (...flags) => {
+      await expect(prCommand(["merge", "10", ...flags], ctx)).rejects.toThrow(
+        "--match-head-commit requires a value",
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects a repeated head commit condition instead of silently choosing one", async () => {
+      await expect(
+        prCommand(
+          [
+            "merge",
+            "10",
+            "--match-head-commit",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--match-head-commit=fedcba9876543210fedcba9876543210fedcba987",
+          ],
+          ctx,
+        ),
+      ).rejects.toThrow("--match-head-commit may only be given once");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it("still rejects an unknown merge flag", async () => {
       await expect(prCommand(["merge", "10", "--bogus"], ctx)).rejects.toThrow(
         /unknown flag for gh-axi pr merge: --bogus/,

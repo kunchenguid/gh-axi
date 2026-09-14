@@ -25,6 +25,7 @@ import { fetchListTotal, type ListFilter } from "../totals.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   takeFlag,
+  takeSingleRequiredFlag,
   takeBoolFlag,
   takeNumber,
   takeAllFlags,
@@ -321,6 +322,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--body",
     "--body-file",
     "--subject",
+    "--match-head-commit",
   ],
   review: [
     "--approve",
@@ -353,7 +355,7 @@ flags{edit}:
 flags{close}:
   --comment <text>
 flags{merge}:
-  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject, --match-head-commit <SHA> (require the PR head to match before merging)
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{comment}:
@@ -819,6 +821,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
+  const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
 
   // Idempotent: check if already merged
   const pr = await ghJson<Pick<PrItem, "state" | "mergedBy" | "mergedAt">>(
@@ -855,6 +858,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   if (deleteBranch) ghArgs.push("--delete-branch");
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
+  if (matchHeadCommit) ghArgs.push("--match-head-commit", matchHeadCommit);
 
   await ghExec(ghArgs, ctx);
 
