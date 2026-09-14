@@ -20,6 +20,7 @@ import { stackCommand, STACK_HELP } from "./commands/stack.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
+import { takeSingleRequiredFlag } from "./args.js";
 import {
   AxiError,
   exitCodeForError,
@@ -100,6 +101,37 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
   stack: withLocalRepoContext(stackCommand),
 };
 
+function formatCliError(error: unknown) {
+  const axiError =
+    error instanceof AxiError
+      ? error
+      : new AxiError(
+          error instanceof Error ? error.message : String(error),
+          "UNKNOWN",
+        );
+  // Mirrors the SDK's defaultFormatError output byte-for-byte; the only
+  // difference this hook introduces is StackError's upstream exit code.
+  return {
+    output: `${encode({
+      error: axiError.message,
+      code: axiError.code,
+      ...(error instanceof OperationOutcomeError
+        ? {
+            ...error.operationOutcomes,
+            ...(error.assetUrls.length > 0
+              ? { asset_urls: error.assetUrls }
+              : {}),
+          }
+        : {}),
+      ...(axiError.suggestions.length > 0
+        ? { help: axiError.suggestions }
+        : {}),
+    })}\n`,
+    exitCode:
+      error instanceof StackError ? error.exitCode : exitCodeForError(axiError),
+  };
+}
+
 export async function main(options: MainOptions = {}): Promise<void> {
   await runAxiCli<CliContext | undefined>({
     ...(options.argv ? { argv: options.argv } : {}),
@@ -110,38 +142,7 @@ export async function main(options: MainOptions = {}): Promise<void> {
     home: withRepoContext(undefined, homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
-    formatError: (error) => {
-      const axiError =
-        error instanceof AxiError
-          ? error
-          : new AxiError(
-              error instanceof Error ? error.message : String(error),
-              "UNKNOWN",
-            );
-      // Mirrors the SDK's defaultFormatError output byte-for-byte; the only
-      // difference this hook introduces is StackError's upstream exit code.
-      return {
-        output: `${encode({
-          error: axiError.message,
-          code: axiError.code,
-          ...(error instanceof OperationOutcomeError
-            ? {
-                ...error.operationOutcomes,
-                ...(error.assetUrls.length > 0
-                  ? { asset_urls: error.assetUrls }
-                  : {}),
-              }
-            : {}),
-          ...(axiError.suggestions.length > 0
-            ? { help: axiError.suggestions }
-            : {}),
-        })}\n`,
-        exitCode:
-          error instanceof StackError
-            ? error.exitCode
-            : exitCodeForError(axiError),
-      };
-    },
+    formatError: formatCliError,
     resolveContext: ({ command, args }) => {
       const { repoFlag, hostFlag } = parseRepoContextArgs(command, args);
       // Explicit --hostname wins over the GH_HOST env var. Setting GH_HOST here
@@ -159,6 +160,10 @@ export async function main(options: MainOptions = {}): Promise<void> {
       }
       return repo ?? (host ? { host } : undefined);
     },
+  }).catch((error) => {
+    const formatted = formatCliError(error);
+    (options.stdout ?? process.stdout).write(formatted.output);
+    process.exitCode = formatted.exitCode;
   });
 }
 
@@ -209,6 +214,10 @@ function parseRepoContextArgs(
   hostFlag: string | undefined;
   strippedArgs: string[];
 } {
+  const matchHeadCommit =
+    command === "pr"
+      ? takeSingleRequiredFlag([...args], "--match-head-commit")
+      : undefined;
   const stripped: string[] = [];
   let repoFlag: string | undefined;
   let hostFlag: string | undefined;
@@ -263,6 +272,17 @@ function parseRepoContextArgs(
     }
 
     stripped.push(arg);
+  }
+
+  if (
+    command === "pr" &&
+    takeSingleRequiredFlag([...stripped], "--match-head-commit") !==
+      matchHeadCommit
+  ) {
+    throw new AxiError(
+      "--match-head-commit cannot be used as a repository or hostname value",
+      "VALIDATION_ERROR",
+    );
   }
 
   return { repoFlag, hostFlag, strippedArgs: stripped };

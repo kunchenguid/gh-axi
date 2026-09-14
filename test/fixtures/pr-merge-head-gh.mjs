@@ -3,6 +3,7 @@ import { appendFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
 const logFile = process.env.GH_AXI_ARGV_FILE;
+if (logFile) appendFileSync(logFile, `${JSON.stringify(args)}\n`);
 
 function optionValue(name) {
   const index = args.indexOf(name);
@@ -17,7 +18,6 @@ if (args[0] === "pr" && args[1] === "view") {
 }
 
 if (args[0] === "pr" && args[1] === "merge") {
-  if (logFile) appendFileSync(logFile, `${JSON.stringify(args)}\n`);
   if (optionValue("--match-head-commit") !== process.env.GH_AXI_EXPECTED_HEAD) {
     process.stderr.write(
       "refusing merge: reviewed commit does not match current pull request head\n",

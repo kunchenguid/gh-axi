@@ -782,6 +782,7 @@ function rejectValuedMergeSwitches(args: string[]): void {
 
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   rejectValuedMergeSwitches(args);
+  const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
   const num = takeNumber(args, "PR");
   const explicitMethod = takeFlag(args, "--method");
   const shorthandMethods = ["merge", "squash", "rebase"].filter((candidate) =>
@@ -821,7 +822,6 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   const deleteBranch = takeBoolFlag(args, "--delete-branch");
   const body = takeBody(args);
   const subject = takeFlag(args, "--subject");
-  const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
 
   // Idempotent: check if already merged
   const pr = await ghJson<Pick<PrItem, "state" | "mergedBy" | "mergedAt">>(

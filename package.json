@@ -31,8 +31,8 @@
   "scripts": {
     "build": "tsc",
     "build:skill": "tsx scripts/build-skill.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "npm run build && vitest run",
+    "test:watch": "npm run build && vitest",
     "dev": "tsx bin/gh-axi.ts",
     "prepublishOnly": "npm run build"
   },

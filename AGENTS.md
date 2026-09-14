@@ -90,6 +90,8 @@ Verify the real conflict against the installed gh (`gh pr merge 999999 --admin -
 `prMerge` closes that gap for its own on/off switches with `rejectValuedMergeSwitches`, which throws a `VALIDATION_ERROR` naming the offending token before any gh call; a command adding its own boolean flag needs the same guard until the shared helper learns the `=value` form.
 Run such a guard over the raw argv as the first statement of the handler: once a value-taking option has parsed, `--body --admin=true` has already been consumed as body text and there is no token left to reject.
 
+`--match-head-commit` also needs validation before repository/hostname context stripping in `cli.ts#parseRepoContextArgs`; handler-only validation cannot see a condition consumed by `-R`. `prMerge` extracts the condition before other value or positional parsers, leaving native `gh` to enforce the exact value. The SDK resolves context outside its handler error boundary, so `main` routes escaped errors through the same formatter.
+
 ## gh stderr classification (`src/errors.ts`)
 
 `mapGhError` walks `patterns` in order and returns on the first regex hit, so **order is the contract**: a narrow, specific pattern must sit ahead of any broader one it would otherwise be swallowed by.
@@ -101,6 +103,8 @@ gh sometimes embeds remediation hints in errors with a different root cause, so 
 `bin/gh-axi.ts` answers a bare `-v`/`-V`/`--version` via `tryFastPath` from `axi-sdk-js/fast-path` (a dependency-free SDK subpath) and only `await import("../src/cli.js")` otherwise, so the version path never loads the command graph (~31ms -> ~20ms, the node floor).
 This only works because `src/version.ts` is a LEAF module importing node builtins only - `cli.ts` imports `VERSION` from it, never the reverse. Adding any non-builtin import to `src/version.ts` silently undoes the speedup.
 `test/version-fast-path.test.ts` guards it deterministically with a `module.register()` load-hook trace (`test/fixtures/module-trace-*.mjs`) plus a negative control on `--help`. Do not add a wall-clock timing assertion; it was proven flaky under CI contention.
+
+Compiled-CLI tests share `dist`; the package test scripts build before starting Vitest. Do not rebuild from individual suites while parallel workers may be executing those files. When invoking Vitest directly, build first.
 
 ## Stacked PR support (`src/commands/stack.ts`)
 
