@@ -429,6 +429,10 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const schema: FieldDef[] = [...baseSchema];
   const augmented: Record<string, unknown> = { ...item };
+  if (ctx) {
+    augmented._repo = ctx.nwo;
+    schema.splice(1, 0, field("_repo", "repo"));
+  }
   if (childNums.length > 0) {
     augmented._subissues = childNums.map((n) => `#${n}`);
     schema.push(custom("subissues", (it) => it._subissues));
