@@ -1273,6 +1273,91 @@ describe("prCommand", () => {
       expect(result).toContain("3 total");
     });
 
+    it("reports the LATEST run of a re-run check, not the stale one", async () => {
+      // The rollup returns every run on the head commit, so a re-run check
+      // appears twice. Reporting both counted a now-green check as failing —
+      // the dangerous direction, because it says "blocked" about a clear PR.
+      //
+      // The older FAILURE is listed FIRST here on purpose: that is the order
+      // GitHub actually returned for this case on Chamber-Hero/memberos#5877,
+      // where pr-review-blockers was FAILURE@15:44 then SUCCESS@16:09.
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          {
+            name: "pr-review-blockers",
+            conclusion: "FAILURE",
+            startedAt: "2026-09-06T15:44:28Z",
+            completedAt: "2026-09-06T15:44:30Z",
+          },
+          {
+            name: "pr-review-blockers",
+            conclusion: "SUCCESS",
+            startedAt: "2026-09-06T16:09:43Z",
+            completedAt: "2026-09-06T16:09:45Z",
+          },
+          { name: "build", conclusion: "SUCCESS", startedAt: "2026-09-06T15:30:00Z" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("2 passed");
+      expect(result).toContain("0 failed");
+      expect(result).toContain("2 total");
+    });
+
+    it("reports the LATEST run when the newest is listed first", async () => {
+      // Mirror of the case above. In the SAME response that produced the
+      // oldest-first ordering, another duplicated name came back newest-first,
+      // so neither "keep the first" nor "keep the last" is correct — only the
+      // timestamps decide. This case fails if the fix relies on array order.
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          {
+            name: "flaky",
+            conclusion: "SUCCESS",
+            startedAt: "2026-09-06T16:09:43Z",
+            completedAt: "2026-09-06T16:09:45Z",
+          },
+          {
+            name: "flaky",
+            conclusion: "FAILURE",
+            startedAt: "2026-09-06T15:44:28Z",
+            completedAt: "2026-09-06T15:44:30Z",
+          },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("1 passed");
+      expect(result).toContain("0 failed");
+      expect(result).toContain("1 total");
+    });
+
+    it("does not let a timestampless duplicate displace a real verdict", async () => {
+      // A row carrying no timestamp sorts oldest, so malformed data can never
+      // overwrite a genuine result. Without that, `undefined` comparisons
+      // would make the winner depend on iteration order again.
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          {
+            name: "build",
+            conclusion: "SUCCESS",
+            startedAt: "2026-09-06T16:00:00Z",
+            completedAt: "2026-09-06T16:00:10Z",
+          },
+          { name: "build", conclusion: "FAILURE" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(result).toContain("1 passed");
+      expect(result).toContain("0 failed");
+      expect(result).toContain("1 total");
+    });
+
     it("keeps an unfinished check run pending", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [
