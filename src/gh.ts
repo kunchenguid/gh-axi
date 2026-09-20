@@ -61,6 +61,7 @@ function toExecResult(
   };
 }
 
+/** Stream gh diagnostics live while retaining both streams for result handling. */
 function run(args: string[], input?: string): Promise<ExecResult> {
   return new Promise((resolve) => {
     const child = execFile(
