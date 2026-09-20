@@ -92,6 +92,10 @@ interface PrItem {
   comments?: PrComment[];
   reviews?: unknown[];
   mergedBy?: { login: string };
+  /** SHA of the PR's current head commit. */
+  headRefOid?: string;
+  /** ISO timestamp of the PR's last update. */
+  updatedAt?: string;
 }
 
 interface PrReview {
@@ -338,12 +342,13 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
   reopen: [],
   comment: ["--body", "--body-file", "--attach"],
   "update-branch": [],
+  "head-stable": ["--since"],
   revert: [],
 };
 
 export const PR_HELP = `usage: gh-axi pr <subcommand> [flags]
-subcommands[15]:
-  list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, revert <number>
+subcommands[16]:
+  list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, head-stable <number>, revert <number>
 flags{list}:
   --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
@@ -364,6 +369,8 @@ flags{checks}:
   (none)
 flags{diff}:
   --full (show complete diff without truncation)
+flags{head-stable}:
+  --since <sha> (required; a previously observed headRefOid to compare against — read-only, never mutates the PR)
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
@@ -371,7 +378,8 @@ examples:
   gh-axi pr create --title "Fix login" --attach './before.png#Before'
   gh-axi pr comment 42 --body-file review.md
   gh-axi pr comment 42 --attach ./after.png
-  gh-axi pr merge 42 --squash --delete-branch`;
+  gh-axi pr merge 42 --squash --delete-branch
+  gh-axi pr head-stable 42 --since 8f3c1a2b9e4d6f0817c2a5b3e9f1d4c6a8b0e2f4`;
 
 // ---------------------------------------------------------------------------
 // Subcommands
@@ -1163,6 +1171,91 @@ async function prUpdateBranch(
   ]);
 }
 
+// Full 40-char SHA only — never an abbreviation. `gh pr view --json
+// headRefOid` always returns the full 40-char OID, and the comparison below
+// is a strict equality against it, so an abbreviated SHA can never match even
+// when the head genuinely hasn't moved. Accepting one here would silently
+// guarantee a false "moved" verdict rather than catch the mismatch.
+const GIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
+
+/**
+ * Compare the PR's current head commit against a previously observed SHA.
+ * 100% read-only — never mutates the PR. Meant to replace the by-hand
+ * `gh pr view` + manual comparison used to confirm a PR's head has not moved
+ * since a failure was observed, before leasing a worktree or running a long
+ * local repro.
+ */
+async function prHeadStable(
+  args: string[],
+  ctx?: RepoContext,
+): Promise<string> {
+  const since = takeSingleRequiredFlag(args, "--since");
+  const num = takeNumber(args, "PR");
+
+  if (since === undefined) {
+    throw new AxiError(
+      "--since is required — pass the previously observed headRefOid",
+      "VALIDATION_ERROR",
+      ["Usage: gh-axi pr head-stable <number> --since <sha>"],
+    );
+  }
+  if (!GIT_SHA_PATTERN.test(since)) {
+    throw new AxiError(
+      `--since is not a valid git SHA: "${since}" — expected the full 40-character SHA (an abbreviated SHA can't be safely compared against gh's full headRefOid)`,
+      "VALIDATION_ERROR",
+    );
+  }
+
+  const pr = await ghJson<Pick<PrItem, "headRefOid" | "updatedAt">>(
+    ["pr", "view", String(num), "--json", "headRefOid,updatedAt"],
+    ctx,
+  );
+
+  // A missing/empty/malformed headRefOid is a failed measurement, not
+  // evidence the head moved — collapsing it into `stable: false` would
+  // render a confident wrong answer with exit 0. Surface it distinctly
+  // instead, the same way the gh-nonzero-exit path already does for the
+  // other failure mode of this same fetch.
+  if (!pr.headRefOid || !GIT_SHA_PATTERN.test(pr.headRefOid)) {
+    throw new AxiError(
+      `Could not determine PR #${num}'s current head commit — gh returned ${
+        pr.headRefOid ? `an unexpected value ("${pr.headRefOid}")` : "none"
+      } for headRefOid`,
+      "UNKNOWN",
+    );
+  }
+
+  const stable = pr.headRefOid.toLowerCase() === since.toLowerCase();
+
+  return renderOutput([
+    renderDetail(
+      "head_stable",
+      {
+        number: num,
+        stable,
+        head_ref_oid: pr.headRefOid,
+        since,
+        updatedAt: pr.updatedAt,
+      },
+      [
+        field("number"),
+        boolYesNo("stable"),
+        field("head_ref_oid"),
+        field("since"),
+        relativeTime("updatedAt", "updated_at"),
+      ],
+    ),
+    renderHelp(
+      getSuggestions({
+        domain: "pr",
+        action: "head-stable",
+        id: num,
+        repo: ctx,
+      }),
+    ),
+  ]);
+}
+
 async function prRevert(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
 
@@ -1297,6 +1390,9 @@ export async function prCommand(
         "update-branch",
       );
       return prUpdateBranch(rest, ctx);
+    case "head-stable":
+      rejectUnknownFlags(rest, PR_FLAGS["head-stable"], "pr", "head-stable");
+      return prHeadStable(rest, ctx);
     case "revert":
       rejectUnknownFlags(rest, PR_FLAGS.revert, "pr", "revert");
       return prRevert(rest, ctx);
