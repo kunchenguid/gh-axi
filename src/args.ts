@@ -44,8 +44,19 @@ export function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
 }
 
-/** Check if a boolean flag is present and remove it from args. */
+/**
+ * Check if a boolean flag is present and remove it from args. Value forms
+ * (`--flag=true`) are rejected rather than silently ignored, matching the
+ * repo convention that a boolean flag never takes a value.
+ */
 export function takeBoolFlag(args: string[], flag: string): boolean {
+  const eq = args.findIndex((a) => a.startsWith(flag + "="));
+  if (eq !== -1) {
+    throw new AxiError(
+      `${flag} does not take a value, got "${args[eq]}"`,
+      "VALIDATION_ERROR",
+    );
+  }
   const idx = args.indexOf(flag);
   if (idx === -1) return false;
   args.splice(idx, 1);
