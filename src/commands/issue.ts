@@ -954,7 +954,11 @@ async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ["issue", "close", String(num)];
-  if (reason) ghArgs.push("--reason", reason);
+  if (reason) {
+    // gh accepts only "completed" or "not planned"; normalize the documented form.
+    const nativeReason = reason === "not_planned" ? "not planned" : reason;
+    ghArgs.push("--reason", nativeReason);
+  }
   if (comment) ghArgs.push("--comment", comment);
 
   await ghExec(ghArgs, ctx);
