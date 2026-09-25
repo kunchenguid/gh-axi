@@ -218,6 +218,15 @@ describe("apiCommand", () => {
     expect(result).toBe("autorelease: pending\nbug\ndocumentation");
   });
 
+  it("marks truncation when a bare --jq selection exceeds the raw output limit", async () => {
+    mockedGhExec.mockResolvedValue("x".repeat(4500) + "\n");
+
+    const result = await apiCommand(["/repos/octo/repo", "--jq", ".big"]);
+
+    expect(result).toHaveLength(4000 + "... (truncated)".length);
+    expect(result.endsWith("... (truncated)")).toBe(true);
+  });
+
   it("keeps the envelope for non-JSON output when the caller did not shape it", async () => {
     mockedGhExec.mockResolvedValue("<html>rate limited</html>");
 
