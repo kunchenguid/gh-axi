@@ -231,12 +231,16 @@ async function forkRepo(args: string[], ctx?: RepoContext): Promise<string> {
   const positionals = args.filter((a) => !a.startsWith('--'));
   const repo = positionals[1]; // optional
 
+  // gh repo fork rejects --repo; hand inherited flag/env context to it as the
+  // positional target instead, and delegate without ctx so no --repo is appended.
+  const target = repo ?? (ctx && ctx.source !== 'git' ? ctx.nwo : undefined);
+
   const ghArgs = ['repo', 'fork'];
-  if (repo) ghArgs.push(repo);
+  if (target) ghArgs.push(target);
   if (hasFlag(args, '--clone')) ghArgs.push('--clone');
   if (hasFlag(args, '--remote')) ghArgs.push('--remote');
 
-  await ghExec(ghArgs, ctx);
+  await ghExec(ghArgs);
   const suggestions = getSuggestions({ domain: 'repo', action: 'fork', repo: ctx });
   return renderOutput([
     encode({ fork: 'ok', repo: repo ?? ctx?.nwo ?? 'current' }),

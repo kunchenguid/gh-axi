@@ -128,6 +128,41 @@ describe('repoCommand', () => {
     });
   });
 
+  describe('fork', () => {
+    it('passes inherited flag context as positional target, never as --repo', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      await repoCommand(['fork', '--clone'], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(['repo', 'fork', 'octo/repo', '--clone']);
+      const argv = mockedGhExec.mock.calls[0][0];
+      expect(argv).not.toContain('--repo');
+    });
+
+    it('keeps the explicit positional target over inherited context', async () => {
+      mockedGhExec.mockResolvedValue('');
+
+      await repoCommand(['fork', 'can1357/oh-my-pi', '--clone', '--remote'], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        'repo',
+        'fork',
+        'can1357/oh-my-pi',
+        '--clone',
+        '--remote',
+      ]);
+    });
+
+    it('delegates without a target when context comes from git', async () => {
+      const gitCtx: RepoContext = { owner: 'octo', name: 'repo', nwo: 'octo/repo', source: 'git' };
+      mockedGhExec.mockResolvedValue('');
+
+      await repoCommand(['fork'], gitCtx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(['repo', 'fork']);
+    });
+  });
+
   describe('create', () => {
     it('creates a repo with required name', async () => {
       mockedGhExec.mockResolvedValue('');
