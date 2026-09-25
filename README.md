@@ -142,10 +142,13 @@ Stack commands operate on local branches and `.git/gh-stack`, so run them from t
 Agent-safe behavior is automatic: `stack view` requests JSON, `stack submit` adds `--auto`, and `stack merge` requires an explicit stack or PR target and adds `--yes`. Rebase conflicts and other extension exits retain their original exit codes and include recovery guidance.
 
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
+It rejects `--body`/`-b`. An interactive terminal with no value throws immediately instead of waiting. Secret values never appear in argv, stdout, or error text: an unknown flag is echoed by name only, with any `=value` stripped.
 `gh-axi secret list` never prints values, matching `gh secret list`.
+`gh secret list` and `gh variable list` have no `--limit` or other pagination flag, so `gh-axi secret list` and `gh-axi variable list` return every result in one call.
 `gh-axi secret list`, `set`, and `delete` accept `--env`/`-e <environment>` to scope a secret to a deployment environment; without it the repository scope is used.
-Other `gh secret` scopes (`--org`, `--user`, `--app`) are rejected with a clear error rather than silently falling back to the repository scope.
+A missing or empty `--env`, conflicting `--env` flags, `--env-file`, other `gh secret` scopes (`--org`, `--user`, `--app`), and any unknown flag are rejected rather than silently falling back to the repository scope.
 `gh-axi variable` accepts `--body`/`-b` or piped stdin, and variable values are shown in `list` output because variables are not secret.
+A `variable set --body` value is visible in the `gh-axi` process argv, but it is piped to `gh variable set` so the child process does not receive it in argv.
 `gh-axi project` wraps GitHub Projects (v2) and requires the `project` (or `read:project`) OAuth scope; if a call fails on a missing scope, gh-axi tells you the `gh auth refresh -s <scope>` command to run.
 `--owner` defaults to the current repo's owner, falling back to explicit `@me` for the authenticated user.
 
@@ -186,7 +189,7 @@ JSON responses are normally stripped of noisy fields before TOON encoding, but a
 
 - `--help` — show help for any command
 - `-v`, `-V`, `--version` — show the installed `gh-axi` version
-- `--hostname <host>` / `--hostname=<host>` — target a custom GitHub host; explicit flags win over `GH_HOST`
+- `--hostname <host>` / `--hostname=<host>` - target a custom GitHub host; explicit flags win over `GH_HOST`. The flag must follow the command. gh-axi strips it before invoking `gh` and sets `GH_HOST` for that child only when the flag is present, leaving an existing `GH_HOST` untouched otherwise. `src/host.ts` `resolveHost()` (flag, then `GH_HOST`, then `github.com`) is the host used when building or parsing URLs.
 
 Repository and host targeting are command-first too:
 
@@ -216,6 +219,8 @@ pnpm run test:watch  # Run tests in watch mode
 
 The committed `skills/gh-axi/SKILL.md` is generated from `src/skill.ts` by `pnpm run build:skill`; `pnpm test` fails if the generated file drifts.
 The generated skill intentionally defers all command guidance to the CLI dashboard and help output so installed copies do not duplicate stale instructions.
+`gh-axi update` is not implemented in this repo. `axi-sdk-js` registers it as a built-in and resolves the npm package name from the nearest `package.json`. The SDK also appends a `built-in:` section to top-level `--help` at runtime, so `TOP_HELP` in `src/cli.ts` is only a prefix of the help users see.
+`src/version.ts` imports Node builtins only. `bin/gh-axi.ts` answers a bare `-v`, `-V`, or `--version` from that leaf module and loads the command graph only for every other invocation. Do not add a wall-clock timing assertion to `test/version-fast-path.test.ts`. Compiled CLI tests share `dist`; `test/global-setup.ts` builds it, including on watch reruns. Do not rebuild from an individual suite while other workers may be running those tests.
 The npm package includes `skills/gh-axi/`, so published releases ship the same installable Agent Skill documented in Quick Start.
 
 ## License
