@@ -193,6 +193,39 @@ describe("apiCommand", () => {
     expect(result).toContain("truncated: false");
   });
 
+  it("prints a bare string selected with --jq instead of wrapping it in the envelope", async () => {
+    mockedGhExec.mockResolvedValue("main\n");
+
+    const result = await apiCommand([
+      "/repos/octo/repo",
+      "--jq",
+      ".default_branch",
+    ]);
+
+    expect(result).toBe("main");
+    expect(result).not.toContain("api_response");
+  });
+
+  it("prints a multi-line --jq selection as bare lines", async () => {
+    mockedGhExec.mockResolvedValue("autorelease: pending\nbug\ndocumentation\n");
+
+    const result = await apiCommand([
+      "/repos/octo/repo/labels",
+      "--jq",
+      ".[].name",
+    ]);
+
+    expect(result).toBe("autorelease: pending\nbug\ndocumentation");
+  });
+
+  it("keeps the envelope for non-JSON output when the caller did not shape it", async () => {
+    mockedGhExec.mockResolvedValue("<html>rate limited</html>");
+
+    const result = await apiCommand(["/some/endpoint"]);
+
+    expect(result).toContain("api_response:");
+  });
+
   it("forwards --jq to gh api", async () => {
     mockedGhExec.mockResolvedValue("[]");
 

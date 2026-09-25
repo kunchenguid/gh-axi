@@ -281,8 +281,17 @@ export async function apiCommand(
     const data = JSON.parse(raw);
     return encode(shapeOutput(data, stripNoisyKeys, truncateValues));
   } catch {
-    // Not JSON — wrap in TOON envelope with truncation metadata
     const trimmed = raw.trim();
+    // A caller who shaped output with --jq/--template asked for the selected
+    // value itself, and gh prints bare scalars, which are not valid JSON.
+    // Print the value bare instead of wrapping it in the response-body
+    // envelope; the length clamp still applies.
+    if (callerShapedOutput) {
+      return !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT
+        ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT)
+        : trimmed;
+    }
+    // Not JSON — wrap in TOON envelope with truncation metadata
     const truncated = !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;
     const result: Record<string, unknown> = {
       api_response: {
