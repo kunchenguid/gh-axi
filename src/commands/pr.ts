@@ -71,6 +71,45 @@ interface StatusCheck {
   state?: string;
   /** CheckRun: QUEUED | IN_PROGRESS | COMPLETED. Carries no verdict. */
   status?: string;
+  /** CheckRun: when this attempt started. Present on every CheckRun. */
+  startedAt?: string;
+  /** CheckRun: when this attempt finished; absent while still running. */
+  completedAt?: string;
+  /** StatusContext: when the status was posted. */
+  createdAt?: string;
+}
+
+/**
+ * The most recent run per check name.
+ *
+ * `statusCheckRollup` returns EVERY run on the head commit, so a check that
+ * has been re-run appears more than once — the same name with two different
+ * verdicts. Rendering all of them reports a re-run-and-now-green check as
+ * failing, which is the dangerous direction: it says "blocked" about a PR
+ * that is clear.
+ *
+ * ORDER IS NOT USABLE. Measured against one live PR carrying two duplicated
+ * names, the array was newest-first for one and oldest-first for the other in
+ * the SAME response, so "keep the last occurrence" is wrong just as often as
+ * "keep the first". The timestamps are the only thing that decides, and they
+ * are already in the payload — this type simply never declared them.
+ *
+ * A run with no timestamp at all sorts oldest, so a malformed row can never
+ * displace a real verdict.
+ */
+function latestChecksByName(checks: StatusCheck[]): StatusCheck[] {
+  const newest = new Map<string, StatusCheck>();
+  for (const c of checks) {
+    const key = c.name ?? c.context ?? "check";
+    const prev = newest.get(key);
+    if (!prev || checkRecency(c) > checkRecency(prev)) newest.set(key, c);
+  }
+  return [...newest.values()];
+}
+
+/** Sort key for {@link latestChecksByName}; "" for a row carrying no timestamp. */
+function checkRecency(c: StatusCheck): string {
+  return c.completedAt ?? c.startedAt ?? c.createdAt ?? "";
 }
 
 interface PrComment {
@@ -230,9 +269,11 @@ const viewSchema: FieldDef[] = [
     return "no";
   }),
   custom("checks", (item: PrItem) => {
-    const checks = item.statusCheckRollup;
-    if (!Array.isArray(checks) || checks.length === 0)
+    const raw = item.statusCheckRollup;
+    if (!Array.isArray(raw) || raw.length === 0)
       return "0 passed, 0 failed — this PR has no CI checks configured";
+    // Latest run per name — a re-run check appears twice in the rollup.
+    const checks = latestChecksByName(raw);
     const passed = checks.filter(
       (c: StatusCheck) => classifyCheck(c) === "pass",
     ).length;
@@ -916,9 +957,12 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
     ["pr", "view", String(num), "--json", "statusCheckRollup"],
     ctx,
   );
-  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
-    ? pr.statusCheckRollup
-    : [];
+  // Latest run per name. The rollup carries every run on the head commit, so
+  // a re-run check appears twice and the stale verdict would otherwise be
+  // reported as current — see latestChecksByName.
+  const checks: StatusCheck[] = latestChecksByName(
+    Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [],
+  );
 
   if (checks.length === 0) {
     return renderOutput([
