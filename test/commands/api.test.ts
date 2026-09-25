@@ -219,12 +219,33 @@ describe("apiCommand", () => {
   });
 
   it("marks truncation when a bare --jq selection exceeds the raw output limit", async () => {
-    mockedGhExec.mockResolvedValue("x".repeat(4500) + "\n");
+    // Position-sensitive fixture: head and tail are distinct, so keeping the
+    // LAST 4000 characters instead of the first would fail these assertions.
+    const head = "HEAD-".repeat(20);
+    const tail = "-TAIL".repeat(20);
+    mockedGhExec.mockResolvedValue(head + "x".repeat(4500) + tail + "\n");
 
     const result = await apiCommand(["/repos/octo/repo", "--jq", ".big"]);
 
     expect(result).toHaveLength(4000 + "... (truncated)".length);
     expect(result.endsWith("... (truncated)")).toBe(true);
+    expect(result.startsWith(head)).toBe(true);
+    expect(result).not.toContain("TAIL");
+  });
+
+  it("does not truncate or mark a bare --jq selection when --full is given", async () => {
+    const big = "y".repeat(4500);
+    mockedGhExec.mockResolvedValue(big + "\n");
+
+    const result = await apiCommand([
+      "/repos/octo/repo",
+      "--jq",
+      ".big",
+      "--full",
+    ]);
+
+    expect(result).toBe(big);
+    expect(result).not.toContain("(truncated)");
   });
 
   it("keeps the envelope for non-JSON output when the caller did not shape it", async () => {
