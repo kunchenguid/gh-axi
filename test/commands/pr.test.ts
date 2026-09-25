@@ -1341,6 +1341,12 @@ describe("prCommand", () => {
       expect(result).toContain("3 total");
     });
 
+    it("rejects a --failed value form instead of silently ignoring it", async () => {
+      await expect(
+        prCommand(["checks", "42", "--failed=true"], ctx),
+      ).rejects.toThrow(/--failed does not take a value/);
+    });
+
     it("shows only failing checks with --failed but keeps the full summary", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [

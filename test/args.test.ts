@@ -156,6 +156,14 @@ describe("takeBoolFlag", () => {
     expect(takeBoolFlag(args, "--full")).toBe(false);
     expect(args).toEqual(["--json"]);
   });
+
+  it("rejects value forms instead of silently ignoring them", () => {
+    for (const tok of ["--full=true", "--full=false", "--full=banana"]) {
+      expect(() => takeBoolFlag([tok], "--full")).toThrow(
+        /--full does not take a value/,
+      );
+    }
+  });
 });
 
 describe("getAllFlags", () => {

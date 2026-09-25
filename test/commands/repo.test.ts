@@ -362,7 +362,7 @@ describe('repoCommand', () => {
     it('rejects unconsumed --flag=value forms instead of silently dropping them', async () => {
       await expect(
         repoCommand(['create', '--source', '.', '--push=true']),
-      ).rejects.toThrow('Unsupported extra argument for repo create: --push=true');
+      ).rejects.toThrow('--push does not take a value');
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 

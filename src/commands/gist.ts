@@ -466,8 +466,34 @@ async function cloneGist(args: string[]): Promise<string> {
 // createGist deliberately has no ctx parameter. gist is user-scoped and
 // gh gist create has no --repo flag; the guard is enforced structurally.
 // See AGENTS.md "User-scoped commands" section.
+// Flags `gist create` declares. A bare one of these in a value position is a
+// missing value, never a value (see createGist).
+const CREATE_PROTECTED_FLAGS = [
+  "--public",
+  "--secret",
+  "--filename",
+  "--file",
+  "--desc",
+  "-d",
+];
+
 async function createGist(args: string[]): Promise<string> {
-  // Visibility: required and mutually exclusive — check before any other work.
+  // Value flags are consumed before the visibility booleans so a description
+  // like `--desc --secret=true` is not misread as a boolean value form.
+  // Every value consumer takes CREATE_PROTECTED_FLAGS so a bare declared flag
+  // in the value position (`--desc --secret`) is a missing-value error instead
+  // of being swallowed — swallowing it would silently flip gist visibility.
+  // A dash-leading value stays available via the --flag=value form.
+  // Description: -d and --desc are aliases; take both.
+  const descShort = takeFlag(args, "-d", CREATE_PROTECTED_FLAGS);
+  const descLong = takeFlag(args, "--desc", CREATE_PROTECTED_FLAGS);
+  const desc = descShort ?? descLong;
+
+  // Input form flags. takeAllFlags throws VALIDATION_ERROR on dangling / blank.
+  const filename = takeFlag(args, "--filename", CREATE_PROTECTED_FLAGS);
+  const fileFlags = takeAllFlags(args, "--file", CREATE_PROTECTED_FLAGS);
+
+  // Visibility: required and mutually exclusive — checked before any gh work.
   const wantPublic = takeBoolFlag(args, "--public");
   const wantSecret = takeBoolFlag(args, "--secret");
 
@@ -484,15 +510,6 @@ async function createGist(args: string[]): Promise<string> {
       "VALIDATION_ERROR",
     );
   }
-
-  // Description: -d and --desc are aliases; take both.
-  const descShort = takeFlag(args, "-d");
-  const descLong = takeFlag(args, "--desc");
-  const desc = descShort ?? descLong;
-
-  // Input form flags. takeAllFlags throws VALIDATION_ERROR on dangling / blank.
-  const filename = takeFlag(args, "--filename");
-  const fileFlags = takeAllFlags(args, "--file");
 
   // After consuming all known flags, args[0] === "create" (subcommand name).
   // Anything at index 1+ is either a positional file path or an unknown flag.
