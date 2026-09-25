@@ -317,6 +317,27 @@ describe("prCommand", () => {
       expect(result).toContain("PR body text");
     });
 
+    it("supports updatedAt in --fields", async () => {
+      mockedGhJson.mockResolvedValue([
+        {
+          number: 1,
+          title: "Fix",
+          state: "OPEN",
+          author: { login: "alice" },
+          isDraft: false,
+          reviewDecision: "APPROVED",
+          updatedAt: "2024-01-02T00:00:00Z",
+        },
+      ]);
+
+      const result = await prCommand(["list", "--fields", "updatedAt"], ctx);
+
+      const callArgs = mockedGhJson.mock.calls[0][0] as string[];
+      const jsonIdx = callArgs.indexOf("--json");
+      expect(callArgs[jsonIdx + 1]).toContain("updatedAt");
+      expect(result).toContain("updated_at");
+    });
+
     it("throws VALIDATION_ERROR for unknown --fields", async () => {
       await expect(
         prCommand(["list", "--fields", "fakeField"], ctx),
@@ -351,6 +372,53 @@ describe("prCommand", () => {
       expect(result).toContain("My PR");
       expect(result).toContain("open");
       expect(result).toContain("alice");
+    });
+
+    it("appends the detailed check rollup with --checks", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "lint", conclusion: "FAILURE" },
+        ],
+        body: "PR description here",
+        comments: [],
+        reviews: [],
+      });
+
+      const result = await prCommand(["view", "42", "--checks"], ctx);
+
+      expect(result).toContain("My PR");
+      expect(result).toContain("1 passed, 1 failed");
+      expect(result).toContain("lint,fail");
+    });
+
+    it("omits the detailed check rollup without --checks", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "lint", conclusion: "FAILURE" },
+        ],
+        body: "PR description here",
+        comments: [],
+        reviews: [],
+      });
+
+      const result = await prCommand(["view", "42"], ctx);
+
+      expect(result).toContain("My PR");
+      expect(result).not.toContain("lint,fail");
     });
 
     it("omits help suggestions from detail view", async () => {
@@ -1273,6 +1341,24 @@ describe("prCommand", () => {
       expect(result).toContain("3 total");
     });
 
+    it("shows only failing checks with --failed but keeps the full summary", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "lint", conclusion: "FAILURE" },
+          { name: "test", conclusion: "SKIPPED" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5", "--failed"], ctx);
+
+      expect(result).toContain("1 passed, 1 failed");
+      expect(result).toContain("3 total");
+      expect(result).toContain("lint,fail");
+      expect(result).not.toContain("build,pass");
+      expect(result).not.toContain("test,skip");
+    });
+
     it("keeps an unfinished check run pending", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [
@@ -1397,6 +1483,18 @@ describe("prCommand", () => {
   });
 
   describe("diff", () => {
+    it("accepts --patch as a gh-compatible alias", async () => {
+      mockedGhExec.mockResolvedValue("diff --git a/file.ts b/file.ts\n");
+
+      const result = await prCommand(["diff", "7", "--patch"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "diff", "7"],
+        expect.anything(),
+      );
+      expect(result).toContain("diff --git");
+    });
+
     it("wraps diff output in TOON envelope", async () => {
       mockedGhExec.mockResolvedValue(
         "diff --git a/file.ts b/file.ts\n+added line\n",

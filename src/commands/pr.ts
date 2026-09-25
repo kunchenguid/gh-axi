@@ -215,6 +215,10 @@ const PR_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
     def: pluck("milestone", "title", "milestone"),
   },
   mergedAt: { jsonKey: "mergedAt", def: relativeTime("mergedAt", "merged_at") },
+  updatedAt: {
+    jsonKey: "updatedAt",
+    def: relativeTime("updatedAt", "updated_at"),
+  },
   url: { jsonKey: "url", def: field("url") },
 };
 
@@ -281,7 +285,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--reviews", "--full"],
+  view: ["--comments", "--reviews", "--checks", "--full"],
   create: [
     "--title",
     "--body",
@@ -331,8 +335,8 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--body",
     "--body-file",
   ],
-  checks: [],
-  diff: ["--full"],
+  checks: ["--failed"],
+  diff: ["--full", "--patch"],
   checkout: [],
   ready: [],
   reopen: [],
@@ -347,7 +351,7 @@ subcommands[15]:
 flags{list}:
   --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
+  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation)
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
 flags{edit}:
@@ -361,9 +365,9 @@ flags{review}:
 flags{comment}:
   --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{checks}:
-  (none)
+  --failed (show only failing checks)
 flags{diff}:
-  --full (show complete diff without truncation)
+  --full (show complete diff without truncation), --patch (accepted for gh compatibility; output is already patch format)
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
@@ -458,6 +462,7 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
 async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   const includeComments = takeBoolFlag(args, "--comments");
   const includeReviews = takeBoolFlag(args, "--reviews");
+  const includeChecks = takeBoolFlag(args, "--checks");
   const full = takeBoolFlag(args, "--full");
   const num = takeNumber(args, "PR");
 
@@ -541,7 +546,15 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
 
-  return renderOutput([renderDetail("pull_request", pr, schema)]);
+  const blocks = [renderDetail("pull_request", pr, schema)];
+  if (includeChecks) {
+    const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
+      ? pr.statusCheckRollup
+      : [];
+    blocks.push(...checksBlocks(checks));
+  }
+
+  return renderOutput(blocks);
 }
 
 async function prCreate(
@@ -907,25 +920,15 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
-async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = takeNumber(args, "PR");
-
-  // Use pr view --json statusCheckRollup instead of pr checks --json which
-  // can error on PRs with unusual check data
-  const pr = await ghJson<Pick<PrItem, "statusCheckRollup">>(
-    ["pr", "view", String(num), "--json", "statusCheckRollup"],
-    ctx,
-  );
-  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
-    ? pr.statusCheckRollup
-    : [];
-
+// Summary line plus per-check rows, shared by `pr checks` and `pr view --checks`.
+// Counts always describe the full rollup so a filtered list keeps its context.
+function checksBlocks(checks: StatusCheck[], onlyFailed = false): string[] {
   if (checks.length === 0) {
-    return renderOutput([
+    return [
       encode({
         checks: "0 passed, 0 failed — this PR has no CI checks configured",
       }),
-    ]);
+    ];
   }
 
   // Pre-compute summary counts so agents don't have to count rows
@@ -950,9 +953,32 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
     custom("conclusion", (c: StatusCheck) => classifyCheck(c)),
   ];
 
-  return renderOutput([
+  const visible = onlyFailed
+    ? checks.filter((c: StatusCheck) => classifyCheck(c) === "fail")
+    : checks;
+
+  return [
     encode({ summary: summaryParts.join(", ") }),
-    renderList("checks", checks, checksSchema),
+    renderList("checks", visible, checksSchema),
+  ];
+}
+
+async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
+  const onlyFailed = takeBoolFlag(args, "--failed");
+  const num = takeNumber(args, "PR");
+
+  // Use pr view --json statusCheckRollup instead of pr checks --json which
+  // can error on PRs with unusual check data
+  const pr = await ghJson<Pick<PrItem, "statusCheckRollup">>(
+    ["pr", "view", String(num), "--json", "statusCheckRollup"],
+    ctx,
+  );
+  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
+    ? pr.statusCheckRollup
+    : [];
+
+  return renderOutput([
+    ...checksBlocks(checks, onlyFailed),
     renderHelp(
       getSuggestions({ domain: "pr", action: "checks", id: num, repo: ctx }),
     ),
@@ -962,6 +988,8 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
 const DIFF_TRUNCATE_LIMIT = 4000;
 
 async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
+  // Accepted for gh compatibility: gh-axi's diff output is already patch format
+  takeBoolFlag(args, "--patch");
   const full = takeBoolFlag(args, "--full");
   const num = takeNumber(args, "PR");
   const diff = await ghExec(["pr", "diff", String(num)], ctx);
