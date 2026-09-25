@@ -1082,6 +1082,30 @@ describe("gistCommand", () => {
       ).rejects.toThrow(AxiError);
     });
 
+    it("treats a value-position token like --desc --secret=true as description text", async () => {
+      // Regression: value flags must be consumed before the visibility
+      // booleans, or takeBoolFlag rejects the description as a boolean
+      // value form.
+      await gistCommand([
+        "create",
+        "a.py",
+        "--public",
+        "--desc",
+        "--secret=true",
+      ]);
+      const args = mockedGhExec.mock.calls[0][0] as string[];
+      const d = args.indexOf("-d");
+      expect(d).toBeGreaterThan(-1);
+      expect(args[d + 1]).toBe("--secret=true");
+    });
+
+    it("still rejects a boolean value form on the visibility flag itself", async () => {
+      await expect(
+        gistCommand(["create", "a.py", "--secret=true"]),
+      ).rejects.toThrow(/--secret does not take a value/);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     // ── Positional file form ────────────────────────────────────────────────
 
     it("creates a public gist from positional files and reports id+url+visibility", async () => {
