@@ -1691,4 +1691,135 @@ describe("prCommand", () => {
       });
     });
   });
+
+  describe("head-stable", () => {
+    const FULL_SHA = "0123456789abcdef0123456789abcdef01234567";
+    const OTHER_FULL_SHA = "fedcba9876543210fedcba9876543210fedcba98";
+
+    it("reports stable when the SHA matches", async () => {
+      mockedGhJson.mockResolvedValue({
+        headRefOid: FULL_SHA,
+        updatedAt: "2026-09-19T12:00:00Z",
+      });
+
+      const result = await prCommand(
+        ["head-stable", "5", "--since", FULL_SHA],
+        ctx,
+      );
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["pr", "view", "5", "--json", "headRefOid,updatedAt"],
+        ctx,
+      );
+      expect(result).toContain("number: 5");
+      expect(result).toContain("stable: yes");
+      expect(result).toContain(`head_ref_oid: ${FULL_SHA}`);
+      expect(result).toContain(`since: ${FULL_SHA}`);
+    });
+
+    it("reports stable when the SHA matches case-insensitively", async () => {
+      mockedGhJson.mockResolvedValue({
+        headRefOid: FULL_SHA,
+        updatedAt: "2026-09-19T12:00:00Z",
+      });
+
+      const result = await prCommand(
+        ["head-stable", "5", "--since", FULL_SHA.toUpperCase()],
+        ctx,
+      );
+
+      expect(result).toContain("stable: yes");
+    });
+
+    it("reports moved when the SHA differs, including updatedAt", async () => {
+      mockedGhJson.mockResolvedValue({
+        headRefOid: OTHER_FULL_SHA,
+        updatedAt: new Date().toISOString(),
+      });
+
+      const result = await prCommand(
+        ["head-stable", "5", "--since", FULL_SHA],
+        ctx,
+      );
+
+      expect(result).toContain("stable: no");
+      expect(result).toContain(`head_ref_oid: ${OTHER_FULL_SHA}`);
+      expect(result).toContain("updated_at");
+      expect(result).not.toContain("stable: yes");
+    });
+
+    it("rejects a missing --since with a clear usage error naming the flag", async () => {
+      await expect(prCommand(["head-stable", "5"], ctx)).rejects.toThrow(
+        "--since is required",
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects an empty --since value rather than comparing against undefined", async () => {
+      await expect(
+        prCommand(["head-stable", "5", "--since", ""], ctx),
+      ).rejects.toThrow("--since requires a value");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects a malformed --since that isn't a git SHA", async () => {
+      await expect(
+        prCommand(["head-stable", "5", "--since", "not-a-sha!"], ctx),
+      ).rejects.toThrow("--since is not a valid git SHA");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects an abbreviated --since with a validation error rather than a false 'moved' verdict", async () => {
+      mockedGhJson.mockResolvedValue({
+        headRefOid: FULL_SHA,
+        updatedAt: "2026-09-19T12:00:00Z",
+      });
+
+      await expect(
+        prCommand(["head-stable", "5", "--since", "8f3c1a2"], ctx),
+      ).rejects.toThrow("--since is not a valid git SHA");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("surfaces the real error when the PR does not exist, never a stable/moved verdict", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError("Pull request 999 does not exist", "NOT_FOUND"),
+      );
+
+      await expect(
+        prCommand(["head-stable", "999", "--since", FULL_SHA], ctx),
+      ).rejects.toThrow("Pull request 999 does not exist");
+    });
+
+    it("surfaces a distinct error when gh returns no headRefOid, never a stable/moved verdict", async () => {
+      mockedGhJson.mockResolvedValue({
+        headRefOid: null,
+        updatedAt: "2026-09-19T12:00:00Z",
+      });
+
+      await expect(
+        prCommand(["head-stable", "5", "--since", FULL_SHA], ctx),
+      ).rejects.toThrow("Could not determine PR #5's current head commit");
+    });
+
+    it("is 100% read-only — never calls a mutating gh command", async () => {
+      mockedGhJson.mockResolvedValue({
+        headRefOid: FULL_SHA,
+        updatedAt: "2026-09-19T12:00:00Z",
+      });
+
+      await prCommand(["head-stable", "5", "--since", FULL_SHA], ctx);
+
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();
+      expect(mockedGhRaw).not.toHaveBeenCalled();
+    });
+
+    it("documents --since in help", async () => {
+      const result = await prCommand(["--help"]);
+      expect(result).toContain("head-stable <number>");
+      expect(result).toContain("flags{head-stable}");
+      expect(result).toContain("--since <sha>");
+    });
+  });
 });

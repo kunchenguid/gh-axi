@@ -302,6 +302,14 @@ const table: SuggestionEntry[] = [
     ],
   },
 
+  // PR head-stable
+  {
+    match: (c) => c.domain === "pr" && c.action === "head-stable",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} pr view ${c.id}\` to see the current PR state`,
+    ],
+  },
+
   // PR revert
   {
     match: (c) => c.domain === "pr" && c.action === "revert",
