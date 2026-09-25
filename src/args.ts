@@ -21,12 +21,22 @@ export function getFlag(args: string[], name: string): string | undefined {
 }
 
 /** Get a flag's value from --flag value or --flag=value and remove it from args. */
-export function takeFlag(args: string[], flag: string): string | undefined {
+export function takeFlag(
+  args: string[],
+  flag: string,
+  protectedFlags?: string[],
+): string | undefined {
   const equalsPrefix = flagEqualsPrefix(flag);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === flag) {
       const val = args[i + 1];
+      if (val !== undefined && protectedFlags?.includes(val)) {
+        throw new AxiError(
+          `${flag} requires a value; got ${val}, which is a flag. Use ${flag}=<value> for a dash-leading value.`,
+          "VALIDATION_ERROR",
+        );
+      }
       args.splice(i, 2);
       return val;
     }
@@ -118,6 +128,7 @@ function collectAllFlags(
   args: string[],
   flag: string,
   consume: boolean,
+  protectedFlags?: string[],
 ): string[] {
   const result: string[] = [];
   const equalsPrefix = flagEqualsPrefix(flag);
@@ -125,7 +136,14 @@ function collectAllFlags(
   while (i < args.length) {
     const arg = args[i];
     if (arg === flag) {
-      result.push(requireFlagValue(args[i + 1] ?? "", flag));
+      const next = args[i + 1];
+      if (next !== undefined && protectedFlags?.includes(next)) {
+        throw new AxiError(
+          `${flag} requires a value; got ${next}, which is a flag. Use ${flag}=<value> for a dash-leading value.`,
+          "VALIDATION_ERROR",
+        );
+      }
+      result.push(requireFlagValue(next ?? "", flag));
       if (consume) args.splice(i, 2);
       else i += 2;
     } else if (arg.startsWith(equalsPrefix)) {
@@ -149,8 +167,12 @@ export function getAllFlags(args: string[], flag: string): string[] {
 }
 
 /** Like getAllFlags, but also removes every occurrence from args. */
-export function takeAllFlags(args: string[], flag: string): string[] {
-  return collectAllFlags(args, flag, true);
+export function takeAllFlags(
+  args: string[],
+  flag: string,
+  protectedFlags?: string[],
+): string[] {
+  return collectAllFlags(args, flag, true, protectedFlags);
 }
 
 /** Append a repeatable flag once per value onto a gh argv array. */

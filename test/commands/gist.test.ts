@@ -1106,6 +1106,37 @@ describe("gistCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
+    it("rejects when a bare visibility switch follows --desc", async () => {
+      // Regression (Greptile P1): `--desc --secret` must not swallow the
+      // switch as the description and silently flip visibility to public.
+      await expect(
+        gistCommand(["create", "a.py", "--public", "--desc", "--secret"]),
+      ).rejects.toThrow(/--desc requires a value/);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects the same swallow in the opposite order", async () => {
+      await expect(
+        gistCommand(["create", "a.py", "--secret", "--desc", "--public"]),
+      ).rejects.toThrow(/--desc requires a value/);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects a bare visibility switch in the --file value position", async () => {
+      await expect(
+        gistCommand(["create", "--file", "--public"]),
+      ).rejects.toThrow(/--file requires a value/);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("accepts a dash-leading description via the --desc=value form", async () => {
+      await gistCommand(["create", "a.py", "--secret", "--desc=--public"]);
+      const args = mockedGhExec.mock.calls[0][0] as string[];
+      const d = args.indexOf("-d");
+      expect(d).toBeGreaterThan(-1);
+      expect(args[d + 1]).toBe("--public");
+    });
+
     // ── Positional file form ────────────────────────────────────────────────
 
     it("creates a public gist from positional files and reports id+url+visibility", async () => {
