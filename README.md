@@ -134,8 +134,8 @@ Long `run view --log` and `run view --log-failed` output shows the last 20,000 c
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
 `gh-axi run` manages existing workflow runs; use `gh-axi workflow run <name> --ref <ref>` to trigger (dispatch) a workflow.
 
-`gh-axi pr checks <number>` and the `checks` summary of `gh-axi pr view <number>` bucket every entry of the PR's status-check rollup as `pass`, `fail`, `skip`, or `pending`, covering both check runs (GitHub Actions and similar) and legacy commit statuses (Vercel, `ci/circleci`, and similar).
-Cancelled, stale, timed-out, action-required, and startup-failure check runs count as failed, so a red PR is never reported as merely unfinished.
+`gh-axi pr checks <number>` and the `checks` summary of `gh-axi pr view <number>` bucket every entry of the PR's status-check rollup as `pass`, `fail`, `skip`, `pending`, or `cancel`, covering both check runs (GitHub Actions and similar) and legacy commit statuses (Vercel, `ci/circleci`, and similar).
+Matching `gh pr checks`: a cancelled check run gets its own `cancelled` count instead of counting as failed (a cancelled run delivered no verdict about the code), and a stale check run counts as pending because its result no longer applies to the head commit. Timed-out, action-required, and startup-failure check runs still count as failed, so a red PR is never reported as merely unfinished.
 
 `gh-axi pr checks <number> --failed` lists only the failing checks; the summary line still counts the full rollup. `gh-axi pr view <number> --checks` appends the same detailed rollup to the PR detail, `gh-axi pr list --fields updatedAt` adds a relative `updated_at` column, and `gh-axi pr diff` accepts `--patch` as a no-op for `gh` compatibility since its output is already patch format.
 
