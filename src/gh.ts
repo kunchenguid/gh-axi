@@ -146,7 +146,12 @@ export async function ghExec(
 ): Promise<string> {
   const result = await run(buildArgs(args, ctx));
   if (result.stderr === "ENOENT") throw missingGhError();
-  if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
+  if (result.exitCode !== 0) {
+    // Some gh subcommands (e.g. `run watch --exit-status` on a completed
+    // failed run) write their failure diagnostics to stdout and leave stderr
+    // empty, so fall back to stdout to keep the actionable output visible.
+    throw mapGhError(result.stderr || result.stdout, result.exitCode);
+  }
   return result.stdout;
 }
 
