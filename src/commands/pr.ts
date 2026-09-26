@@ -254,9 +254,11 @@ const viewSchema: FieldDef[] = [
     const cancelled = checks.filter(
       (c: StatusCheck) => classifyCheck(c) === "cancel",
     ).length;
+    const pending = checks.length - passed - failed - skipped - cancelled;
     const parts = [`${passed} passed`, `${failed} failed`];
     if (skipped > 0) parts.push(`${skipped} skipped`);
     if (cancelled > 0) parts.push(`${cancelled} cancelled`);
+    if (pending > 0) parts.push(`${pending} pending`);
     parts.push(`${checks.length} total`);
     return parts.join(", ");
   }),

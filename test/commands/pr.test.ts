@@ -397,6 +397,30 @@ describe("prCommand", () => {
       expect(result).toContain("1 passed, 1 failed");
       expect(result).toContain("lint,fail");
     });
+    it("shows a pending count in the view summary when checks are unfinished", async () => {
+      // The view summary field (no --checks) previously hid pending checks:
+      // a PR with only queued checks read "0 passed, 0 failed, 1 total".
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "e2e", status: "QUEUED", conclusion: null },
+        ],
+        body: "PR description here",
+        comments: [],
+        reviews: [],
+      });
+
+      const result = await prCommand(["view", "42"], ctx);
+
+      expect(result).toContain("1 passed, 0 failed, 1 pending, 2 total");
+    });
+
 
     it("omits the detailed check rollup without --checks", async () => {
       mockedGhJson.mockResolvedValue({
@@ -885,6 +909,12 @@ describe("prCommand", () => {
       expect(result).toContain("number: 42");
       expect(result).toContain("base: main");
       expect(result).toContain("head: feature-x");
+      // The ref lookup must target the PR number parsed from the created URL
+      // and request exactly the fields the output renders.
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["pr", "view", "42", "--json", "baseRefName,headRefName"],
+        ctx,
+      );
     });
 
     it("reports an explicit --base and --head without a follow-up lookup", async () => {

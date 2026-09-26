@@ -150,9 +150,19 @@ export async function ghExec(
     // Some gh subcommands (e.g. `run watch --exit-status` on a completed
     // failed run) write their failure diagnostics to stdout and leave stderr
     // empty, so fall back to stdout to keep the actionable output visible.
-    throw mapGhError(result.stderr || result.stdout, result.exitCode);
+    // gh writes progress lines first and the failure summary at the end of
+    // the stream, so the fallback takes the last non-empty stdout line.
+    throw mapGhError(
+      result.stderr || lastNonEmptyLine(result.stdout),
+      result.exitCode,
+    );
   }
   return result.stdout;
+}
+
+function lastNonEmptyLine(text: string): string {
+  const lines = text.split("\n").filter((line) => line.trim() !== "");
+  return lines[lines.length - 1] ?? "";
 }
 
 export async function ghExecWithAttachmentState(
