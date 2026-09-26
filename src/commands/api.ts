@@ -287,9 +287,12 @@ export async function apiCommand(
     // Print the value bare instead of wrapping it in the response-body
     // envelope; the length clamp still applies.
     if (callerShapedOutput) {
-      return !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT
-        ? trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT)
-        : trimmed;
+      if (!full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT) {
+        return (
+          trimmed.slice(0, RAW_OUTPUT_TRUNCATION_LIMIT) + "... (truncated)"
+        );
+      }
+      return trimmed;
     }
     // Not JSON — wrap in TOON envelope with truncation metadata
     const truncated = !full && trimmed.length > RAW_OUTPUT_TRUNCATION_LIMIT;

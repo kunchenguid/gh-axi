@@ -165,6 +165,7 @@ Use `--input <file>` to send a raw JSON request body, or `--input -` to relay pi
 `--input -` rejects an interactive terminal instead of waiting for input.
 Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
+When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output limit, it is clamped and ends with `... (truncated)` so the cut is visible; pass `--full` to lift the cap.
 `--full` is an explicit opt-in escape hatch: it keeps every field and every complete value, and it also returns non-JSON response bodies without the length cap. `--full` is a gh-axi flag only, and gh-axi does not send it to `gh`. Compact output stays the default without `--full`.
 
 ### Commands
