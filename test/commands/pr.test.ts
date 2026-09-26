@@ -1430,27 +1430,26 @@ describe("prCommand", () => {
       expect(result).not.toContain("pending");
     });
 
-    it("classifies a stale check run as failing", async () => {
+    it("keeps a stale check run pending", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [{ name: "build", conclusion: "STALE" }],
       });
 
       const result = await prCommand(["checks", "5"], ctx);
 
-      expect(result).toContain("build,fail");
-      expect(result).toContain("0 passed, 1 failed");
-      expect(result).not.toContain("pending");
+      expect(result).toContain("build,pending");
+      expect(result).toContain("0 passed, 0 failed, 1 pending");
     });
 
-    it("classifies a cancelled check run as failing", async () => {
+    it("classifies a cancelled check run as cancelled, not failing", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [{ name: "build", conclusion: "CANCELLED" }],
       });
 
       const result = await prCommand(["checks", "5"], ctx);
 
-      expect(result).toContain("build,fail");
-      expect(result).toContain("0 passed, 1 failed");
+      expect(result).toContain("build,cancel");
+      expect(result).toContain("0 passed, 0 failed, 1 cancelled");
       expect(result).not.toContain("pending");
     });
 
