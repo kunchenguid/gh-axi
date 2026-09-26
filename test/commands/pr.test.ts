@@ -1557,6 +1557,9 @@ describe("prCommand", () => {
       expect(result).toContain("original_length: 25000");
       expect(result).toContain("pr diff 7 --full");
       expect(result).toContain("to see the complete diff");
+      // AXI form: flags after the command, never `gh-axi -R ... pr diff`.
+      expect(result).toContain("`gh-axi pr diff 7 --full -R octo/repo`");
+      expect(result).not.toContain("gh-axi -R octo/repo pr diff");
     });
 
     it("skips truncation with --full flag", async () => {

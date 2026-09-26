@@ -1044,9 +1044,12 @@ async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
     repo: ctx,
   });
   if (shouldTruncate) {
+    // Flags go after the command in AXI output (see normalizeRepoFlagLine);
+    // this line is unshifted after suggestion normalization, so emit it
+    // already normalized.
     const repoArg = ctx && ctx.source !== "git" ? ` -R ${ctx.nwo}` : "";
     suggestions.unshift(
-      `Run \`gh-axi${repoArg} pr diff ${num} --full\` to see the complete diff`,
+      `Run \`gh-axi pr diff ${num} --full${repoArg}\` to see the complete diff`,
     );
   }
 
