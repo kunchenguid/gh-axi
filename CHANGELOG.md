@@ -18,6 +18,33 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.36](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.35...gh-axi-v0.1.36) (2026-09-26)
+
+
+### Features
+
+* **commands:** support issue and PR attachment uploads ([#139](https://github.com/kunchenguid/gh-axi/issues/139)) ([10551ab](https://github.com/kunchenguid/gh-axi/commit/10551aba21f70e490bf1292dd13e6b621f2d1144))
+* **issue:** show resolved repository in issue view ([#154](https://github.com/kunchenguid/gh-axi/issues/154)) ([2bffd9a](https://github.com/kunchenguid/gh-axi/commit/2bffd9a5b60ded64d6c9851683b27a480173a7ee))
+* **pr:** add --admin flag to pr merge ([#140](https://github.com/kunchenguid/gh-axi/issues/140)) ([d0a789c](https://github.com/kunchenguid/gh-axi/commit/d0a789c9b1a6580adc2efc668a723ad3e9206351))
+* **repo:** support local-source create with --source, --push, and --remote ([#135](https://github.com/kunchenguid/gh-axi/issues/135)) ([236010e](https://github.com/kunchenguid/gh-axi/commit/236010e2108868904016d83f04a6e70bbae31089))
+
+
+### Bug Fixes
+
+* **api:** mark truncation on bare caller-shaped output that exceeds the raw limit ([#173](https://github.com/kunchenguid/gh-axi/issues/173)) ([61127ef](https://github.com/kunchenguid/gh-axi/commit/61127ef43674b8ce0127b5019417ce2c51802ed8))
+* **api:** print caller-shaped non-JSON values bare instead of wrapping in the api_response envelope ([#169](https://github.com/kunchenguid/gh-axi/issues/169)) ([12d106d](https://github.com/kunchenguid/gh-axi/commit/12d106d1350018cc6337d6c62d5167ae80db4aef))
+* **api:** surface stdout diagnostics when gh fails with empty stderr ([#175](https://github.com/kunchenguid/gh-axi/issues/175)) ([9829ee7](https://github.com/kunchenguid/gh-axi/commit/9829ee735279a10e4af969ba99ec3dc8d68ad440))
+* **commands:** accept common gh flags on pr view, checks, diff, and list ([#166](https://github.com/kunchenguid/gh-axi/issues/166)) ([65e8b19](https://github.com/kunchenguid/gh-axi/commit/65e8b190ab09c52b3e3e4bd884540c15749201a9))
+* **commands:** bucket CANCELLED as cancelled and STALE as pending in pr checks ([#176](https://github.com/kunchenguid/gh-axi/issues/176)) ([6654854](https://github.com/kunchenguid/gh-axi/commit/66548541b0a5801f4532d0b69cc7b47cb6d027f7))
+* **commands:** document flags that are accepted but missing from --help ([#146](https://github.com/kunchenguid/gh-axi/issues/146)) ([ed44fc2](https://github.com/kunchenguid/gh-axi/commit/ed44fc215119c8720cc1339aa339b7983bef5c45))
+* **commands:** emit pr diff continuation with the repo flag after the command ([#174](https://github.com/kunchenguid/gh-axi/issues/174)) ([73393ca](https://github.com/kunchenguid/gh-axi/commit/73393cae520ec13a8025f66bcd09e5057cc85b01))
+* **commands:** preserve head commit conditions for PR merges ([#153](https://github.com/kunchenguid/gh-axi/issues/153)) ([fe0771f](https://github.com/kunchenguid/gh-axi/commit/fe0771f90771b91451c0391f7184bdf576ca005d))
+* **commands:** read --body-file - from piped stdin ([#151](https://github.com/kunchenguid/gh-axi/issues/151)) ([6d5e469](https://github.com/kunchenguid/gh-axi/commit/6d5e469873826caea55fc238949cf6dbafee75d3))
+* **commands:** report base and head in pr create output ([#177](https://github.com/kunchenguid/gh-axi/issues/177)) ([d708e17](https://github.com/kunchenguid/gh-axi/commit/d708e1734150da67f097868434386f5d75001074))
+* **issue:** normalize documented not_planned close reason to gh's "not planned" ([#167](https://github.com/kunchenguid/gh-axi/issues/167)) ([ca2154b](https://github.com/kunchenguid/gh-axi/commit/ca2154b8bc376a6ea93c0e613e630d27227d5c3a))
+* **repo:** pass inherited context to repo fork as positional target instead of --repo ([#168](https://github.com/kunchenguid/gh-axi/issues/168)) ([a072b91](https://github.com/kunchenguid/gh-axi/commit/a072b915e2316db73ed63628f7de994220eba55e))
+* **repo:** report real owner/name and harden name handling in repo create ([#137](https://github.com/kunchenguid/gh-axi/issues/137)) ([18b7cd2](https://github.com/kunchenguid/gh-axi/commit/18b7cd2a594a1a662afec31ec69838a461d238d5))
+
 ## [0.1.35](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.34...gh-axi-v0.1.35) (2026-08-30)
 
 
