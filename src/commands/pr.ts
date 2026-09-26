@@ -122,19 +122,24 @@ interface RevertResult {
 // ---------------------------------------------------------------------------
 
 /** Classify a status check into a simple status category. */
-function classifyCheck(c: StatusCheck): "pass" | "fail" | "skip" | "pending" {
+function classifyCheck(
+  c: StatusCheck,
+): "pass" | "fail" | "skip" | "pending" | "cancel" {
   const conc = (c.conclusion ?? "").toUpperCase();
   if (conc === "SUCCESS" || conc === "NEUTRAL") return "pass";
   if (
     conc === "FAILURE" ||
     conc === "TIMED_OUT" ||
     conc === "ACTION_REQUIRED" ||
-    conc === "STARTUP_FAILURE" ||
-    conc === "STALE" ||
-    conc === "CANCELLED"
+    conc === "STARTUP_FAILURE"
   )
     return "fail";
   if (conc === "SKIPPED") return "skip";
+  // gh pr checks buckets CANCELLED separately from failures: a cancelled run
+  // delivered no verdict about the code, so it is not a failure.
+  if (conc === "CANCELLED") return "cancel";
+  // STALE (and anything else unrecognized) means the result does not apply to
+  // the current head yet - pending, matching gh's default bucket.
   if (conc) return "pending";
 
   // No conclusion: either a StatusContext, whose verdict lives in `state`, or a
@@ -246,8 +251,12 @@ const viewSchema: FieldDef[] = [
     const skipped = checks.filter(
       (c: StatusCheck) => classifyCheck(c) === "skip",
     ).length;
+    const cancelled = checks.filter(
+      (c: StatusCheck) => classifyCheck(c) === "cancel",
+    ).length;
     const parts = [`${passed} passed`, `${failed} failed`];
     if (skipped > 0) parts.push(`${skipped} skipped`);
+    if (cancelled > 0) parts.push(`${cancelled} cancelled`);
     parts.push(`${checks.length} total`);
     return parts.join(", ");
   }),
@@ -961,10 +970,14 @@ function checksBlocks(checks: StatusCheck[], onlyFailed = false): string[] {
   const skipped = checks.filter(
     (c: StatusCheck) => classifyCheck(c) === "skip",
   ).length;
-  const pending = checks.length - passed - failed - skipped;
+  const cancelled = checks.filter(
+    (c: StatusCheck) => classifyCheck(c) === "cancel",
+  ).length;
+  const pending = checks.length - passed - failed - skipped - cancelled;
 
   const summaryParts = [`${passed} passed`, `${failed} failed`];
   if (skipped > 0) summaryParts.push(`${skipped} skipped`);
+  if (cancelled > 0) summaryParts.push(`${cancelled} cancelled`);
   if (pending > 0) summaryParts.push(`${pending} pending`);
   summaryParts.push(`${checks.length} total`);
 
