@@ -872,6 +872,45 @@ describe("prCommand", () => {
     });
   });
 
+  describe("create base/head output", () => {
+    it("reports the base and head the PR was created with", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
+      mockedGhJson.mockResolvedValue({
+        baseRefName: "main",
+        headRefName: "feature-x",
+      });
+
+      const result = await prCommand(["create", "--title", "T"], ctx);
+
+      expect(result).toContain("number: 42");
+      expect(result).toContain("base: main");
+      expect(result).toContain("head: feature-x");
+    });
+
+    it("reports an explicit --base and --head without a follow-up lookup", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
+
+      const result = await prCommand(
+        ["create", "--title", "T", "--base", "stack-a", "--head", "stack-b"],
+        ctx,
+      );
+
+      expect(result).toContain("base: stack-a");
+      expect(result).toContain("head: stack-b");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("still reports the created PR when the ref lookup fails", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
+      mockedGhJson.mockRejectedValue(new Error("boom"));
+
+      const result = await prCommand(["create", "--title", "T"], ctx);
+
+      expect(result).toContain("number: 42");
+      expect(result).toContain("base: null");
+    });
+  });
+
   describe("create with repeatable flags", () => {
     it("passes all repeated --assignee and --reviewer flags to gh pr create", async () => {
       mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");

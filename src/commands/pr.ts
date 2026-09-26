@@ -605,10 +605,30 @@ async function prCreate(
   const num = urlMatch ? Number(urlMatch[1]) : undefined;
   const url = stdout.trim().split("\n").pop()?.trim() ?? "";
 
+  // Report the merge target: omitting --base silently opens against the
+  // default branch, so surface the base (and head) the PR was created with.
+  let baseRef = base;
+  let headRef = head;
+  if (num !== undefined && (!baseRef || !headRef)) {
+    try {
+      const refs = await ghJson<{
+        baseRefName?: string;
+        headRefName?: string;
+      }>(["pr", "view", String(num), "--json", "baseRefName,headRefName"], ctx);
+      baseRef = baseRef ?? refs.baseRefName;
+      headRef = headRef ?? refs.headRefName;
+    } catch {
+      // Best effort only - the PR was created, so never fail the command
+      // because the follow-up ref lookup did not work.
+    }
+  }
+
   const blocks = [
-    renderDetail("created", { number: num ?? url, url }, [
+    renderDetail("created", { number: num ?? url, url, base: baseRef, head: headRef }, [
       field("number"),
       field("url"),
+      field("base"),
+      field("head"),
     ]),
   ];
   if (attachments.length > 0 && num !== undefined) {
