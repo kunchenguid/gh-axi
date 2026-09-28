@@ -266,28 +266,38 @@ const VIEW_JSON_FIELDS =
  * Hints for `mergeStateStatus` values that need action. CLEAN, HAS_HOOKS and
  * DRAFT read clearly on their own.
  */
-const MERGE_STATE_HINTS: Record<string, string> = {
-  DIRTY: "merge conflicts with the base branch",
-  BEHIND:
-    "head branch is behind the base branch; gh-axi pr update-branch brings it up to date",
-  BLOCKED: "blocked by branch protection (e.g. required reviews or checks)",
-  UNSTABLE: "mergeable, but some non-required checks are failing",
-  UNKNOWN: "GitHub is still computing mergeability; retry shortly",
-};
-
-const mergeStateField = custom("merge_state", (item: PrItem) => {
-  const status = (item.mergeStateStatus ?? "UNKNOWN").toUpperCase();
-  const hint = MERGE_STATE_HINTS[status];
-  const label = status.toLowerCase();
-  return hint ? `${label} — ${hint}` : label;
-});
+function mergeStateHint(
+  status: string,
+  pr: PrItem,
+  ctx?: RepoContext,
+): string | undefined {
+  const repoFlag = ctx && ctx.source !== "git" ? ` -R ${ctx.nwo}` : "";
+  const hints: Record<string, string> = {
+    DIRTY: "merge conflicts with the base branch",
+    BEHIND: `head branch is behind the base branch; gh-axi pr update-branch ${pr.number}${repoFlag} brings it up to date`,
+    BLOCKED: "blocked by branch protection (e.g. required reviews or checks)",
+    UNSTABLE: "mergeable, but some non-required checks are failing",
+    UNKNOWN: "GitHub is still computing mergeability; retry shortly",
+  };
+  return hints[status];
+}
 
 /**
  * Place `merge_state` after `checks` for open PRs. GitHub reports UNKNOWN for
  * merged and closed PRs, so they omit the field rather than show a stale value.
  */
-function withMergeState(schema: FieldDef[], pr: PrItem): FieldDef[] {
+function withMergeState(
+  schema: FieldDef[],
+  pr: PrItem,
+  ctx?: RepoContext,
+): FieldDef[] {
   if ((pr.state ?? "").toUpperCase() !== "OPEN") return [...schema];
+  const mergeStateField = custom("merge_state", (item: PrItem) => {
+    const status = (item.mergeStateStatus ?? "UNKNOWN").toUpperCase();
+    const hint = mergeStateHint(status, item, ctx);
+    const label = status.toLowerCase();
+    return hint ? `${label} — ${hint}` : label;
+  });
   return schema.flatMap((f) =>
     "as" in f && f.as === "checks" ? [f, mergeStateField] : [f],
   );
@@ -496,7 +506,7 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["pr", "view", String(num), "--json", VIEW_JSON_FIELDS];
   const pr = await ghJson<PrItem>(ghArgs, ctx);
 
-  const schema = withMergeState(full ? viewSchemaFull : viewSchema, pr);
+  const schema = withMergeState(full ? viewSchemaFull : viewSchema, pr, ctx);
   if (includeComments && Array.isArray(pr.comments)) {
     schema.push(
       custom("comments", (item: PrItem) =>

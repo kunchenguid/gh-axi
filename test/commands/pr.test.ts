@@ -407,6 +407,17 @@ describe("prCommand", () => {
         );
       });
 
+      it("points a behind PR at a runnable update-branch command", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          mergeStateStatus: "BEHIND",
+        });
+
+        const result = await prCommand(["view", "42"], ctx);
+
+        expect(result).toContain("gh-axi pr update-branch 42 -R octo/repo");
+      });
+
       it("reports unknown with a retry hint while GitHub is computing", async () => {
         mockedGhJson.mockResolvedValue(openPr);
 
