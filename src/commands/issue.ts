@@ -429,6 +429,10 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const schema: FieldDef[] = [...baseSchema];
   const augmented: Record<string, unknown> = { ...item };
+  if (ctx) {
+    augmented._repo = ctx.nwo;
+    schema.splice(1, 0, field("_repo", "repo"));
+  }
   if (childNums.length > 0) {
     augmented._subissues = childNums.map((n) => `#${n}`);
     schema.push(custom("subissues", (it) => it._subissues));
@@ -950,7 +954,11 @@ async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   const ghArgs = ["issue", "close", String(num)];
-  if (reason) ghArgs.push("--reason", reason);
+  if (reason) {
+    // gh accepts only "completed" or "not planned"; normalize the documented form.
+    const nativeReason = reason === "not_planned" ? "not planned" : reason;
+    ghArgs.push("--reason", nativeReason);
+  }
   if (comment) ghArgs.push("--comment", comment);
 
   await ghExec(ghArgs, ctx);

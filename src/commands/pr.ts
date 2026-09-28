@@ -25,6 +25,7 @@ import { fetchListTotal, type ListFilter } from "../totals.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   takeFlag,
+  takeSingleRequiredFlag,
   takeBoolFlag,
   takeNumber,
   takeAllFlags,
@@ -123,19 +124,24 @@ interface RevertResult {
 // ---------------------------------------------------------------------------
 
 /** Classify a status check into a simple status category. */
-function classifyCheck(c: StatusCheck): "pass" | "fail" | "skip" | "pending" {
+function classifyCheck(
+  c: StatusCheck,
+): "pass" | "fail" | "skip" | "pending" | "cancel" {
   const conc = (c.conclusion ?? "").toUpperCase();
   if (conc === "SUCCESS" || conc === "NEUTRAL") return "pass";
   if (
     conc === "FAILURE" ||
     conc === "TIMED_OUT" ||
     conc === "ACTION_REQUIRED" ||
-    conc === "STARTUP_FAILURE" ||
-    conc === "STALE" ||
-    conc === "CANCELLED"
+    conc === "STARTUP_FAILURE"
   )
     return "fail";
   if (conc === "SKIPPED") return "skip";
+  // gh pr checks buckets CANCELLED separately from failures: a cancelled run
+  // delivered no verdict about the code, so it is not a failure.
+  if (conc === "CANCELLED") return "cancel";
+  // STALE (and anything else unrecognized) means the result does not apply to
+  // the current head yet - pending, matching gh's default bucket.
   if (conc) return "pending";
 
   // No conclusion: either a StatusContext, whose verdict lives in `state`, or a
@@ -216,6 +222,10 @@ const PR_LIST_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
     def: pluck("milestone", "title", "milestone"),
   },
   mergedAt: { jsonKey: "mergedAt", def: relativeTime("mergedAt", "merged_at") },
+  updatedAt: {
+    jsonKey: "updatedAt",
+    def: relativeTime("updatedAt", "updated_at"),
+  },
   url: { jsonKey: "url", def: field("url") },
 };
 
@@ -243,8 +253,14 @@ const viewSchema: FieldDef[] = [
     const skipped = checks.filter(
       (c: StatusCheck) => classifyCheck(c) === "skip",
     ).length;
+    const cancelled = checks.filter(
+      (c: StatusCheck) => classifyCheck(c) === "cancel",
+    ).length;
+    const pending = checks.length - passed - failed - skipped - cancelled;
     const parts = [`${passed} passed`, `${failed} failed`];
     if (skipped > 0) parts.push(`${skipped} skipped`);
+    if (cancelled > 0) parts.push(`${cancelled} cancelled`);
+    if (pending > 0) parts.push(`${pending} pending`);
     parts.push(`${checks.length} total`);
     return parts.join(", ");
   }),
@@ -323,7 +339,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--reviews", "--full"],
+  view: ["--comments", "--reviews", "--checks", "--full"],
   create: [
     "--title",
     "--body",
@@ -364,6 +380,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--body",
     "--body-file",
     "--subject",
+    "--match-head-commit",
   ],
   review: [
     "--approve",
@@ -372,8 +389,8 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--body",
     "--body-file",
   ],
-  checks: [],
-  diff: ["--full"],
+  checks: ["--failed"],
+  diff: ["--full", "--patch"],
   checkout: [],
   ready: [],
   reopen: [],
@@ -388,7 +405,7 @@ subcommands[15]:
 flags{list}:
   --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --reviews (show review submissions and inline review comments), --full (show complete body without truncation)
+  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation)
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
 flags{edit}:
@@ -396,15 +413,15 @@ flags{edit}:
 flags{close}:
   --comment <text>
 flags{merge}:
-  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject
+  --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject, --match-head-commit <SHA> (require the PR head to match before merging)
 flags{review}:
   --approve, --request-changes, --comment, --body <text> or --body-file <path>
 flags{comment}:
   --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{checks}:
-  (none)
+  --failed (show only failing checks)
 flags{diff}:
-  --full (show complete diff without truncation)
+  --full (show complete diff without truncation), --patch (accepted for gh compatibility; output is already patch format)
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
@@ -499,6 +516,7 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
 async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   const includeComments = takeBoolFlag(args, "--comments");
   const includeReviews = takeBoolFlag(args, "--reviews");
+  const includeChecks = takeBoolFlag(args, "--checks");
   const full = takeBoolFlag(args, "--full");
   const num = takeNumber(args, "PR");
 
@@ -582,7 +600,15 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
     );
   }
 
-  return renderOutput([renderDetail("pull_request", pr, schema)]);
+  const blocks = [renderDetail("pull_request", pr, schema)];
+  if (includeChecks) {
+    const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
+      ? pr.statusCheckRollup
+      : [];
+    blocks.push(...checksBlocks(checks));
+  }
+
+  return renderOutput(blocks);
 }
 
 async function prCreate(
@@ -633,10 +659,30 @@ async function prCreate(
   const num = urlMatch ? Number(urlMatch[1]) : undefined;
   const url = stdout.trim().split("\n").pop()?.trim() ?? "";
 
+  // Report the merge target: omitting --base silently opens against the
+  // default branch, so surface the base (and head) the PR was created with.
+  let baseRef = base;
+  let headRef = head;
+  if (num !== undefined && (!baseRef || !headRef)) {
+    try {
+      const refs = await ghJson<{
+        baseRefName?: string;
+        headRefName?: string;
+      }>(["pr", "view", String(num), "--json", "baseRefName,headRefName"], ctx);
+      baseRef = baseRef ?? refs.baseRefName;
+      headRef = headRef ?? refs.headRefName;
+    } catch {
+      // Best effort only - the PR was created, so never fail the command
+      // because the follow-up ref lookup did not work.
+    }
+  }
+
   const blocks = [
-    renderDetail("created", { number: num ?? url, url }, [
+    renderDetail("created", { number: num ?? url, url, base: baseRef, head: headRef }, [
       field("number"),
       field("url"),
+      field("base"),
+      field("head"),
     ]),
   ];
   if (attachments.length > 0 && num !== undefined) {
@@ -823,6 +869,9 @@ function rejectValuedMergeSwitches(args: string[]): void {
 
 async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   rejectValuedMergeSwitches(args);
+  // Extract before positional/body/subject parsing can swallow the condition.
+  // Pass the value unchanged to gh, which enforces the head match.
+  const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
   const num = takeNumber(args, "PR");
   const explicitMethod = takeFlag(args, "--method");
   const shorthandMethods = ["merge", "squash", "rebase"].filter((candidate) =>
@@ -898,6 +947,7 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   if (deleteBranch) ghArgs.push("--delete-branch");
   if (body !== undefined) ghArgs.push("--body", body);
   if (subject) ghArgs.push("--subject", subject);
+  if (matchHeadCommit) ghArgs.push("--match-head-commit", matchHeadCommit);
 
   await ghExec(ghArgs, ctx);
 
@@ -944,25 +994,15 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
-async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = takeNumber(args, "PR");
-
-  // Use pr view --json statusCheckRollup instead of pr checks --json which
-  // can error on PRs with unusual check data
-  const pr = await ghJson<Pick<PrItem, "statusCheckRollup">>(
-    ["pr", "view", String(num), "--json", "statusCheckRollup"],
-    ctx,
-  );
-  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
-    ? pr.statusCheckRollup
-    : [];
-
+// Summary line plus per-check rows, shared by `pr checks` and `pr view --checks`.
+// Counts always describe the full rollup so a filtered list keeps its context.
+function checksBlocks(checks: StatusCheck[], onlyFailed = false): string[] {
   if (checks.length === 0) {
-    return renderOutput([
+    return [
       encode({
         checks: "0 passed, 0 failed — this PR has no CI checks configured",
       }),
-    ]);
+    ];
   }
 
   // Pre-compute summary counts so agents don't have to count rows
@@ -975,10 +1015,14 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
   const skipped = checks.filter(
     (c: StatusCheck) => classifyCheck(c) === "skip",
   ).length;
-  const pending = checks.length - passed - failed - skipped;
+  const cancelled = checks.filter(
+    (c: StatusCheck) => classifyCheck(c) === "cancel",
+  ).length;
+  const pending = checks.length - passed - failed - skipped - cancelled;
 
   const summaryParts = [`${passed} passed`, `${failed} failed`];
   if (skipped > 0) summaryParts.push(`${skipped} skipped`);
+  if (cancelled > 0) summaryParts.push(`${cancelled} cancelled`);
   if (pending > 0) summaryParts.push(`${pending} pending`);
   summaryParts.push(`${checks.length} total`);
 
@@ -987,9 +1031,32 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
     custom("conclusion", (c: StatusCheck) => classifyCheck(c)),
   ];
 
-  return renderOutput([
+  const visible = onlyFailed
+    ? checks.filter((c: StatusCheck) => classifyCheck(c) === "fail")
+    : checks;
+
+  return [
     encode({ summary: summaryParts.join(", ") }),
-    renderList("checks", checks, checksSchema),
+    renderList("checks", visible, checksSchema),
+  ];
+}
+
+async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
+  const onlyFailed = takeBoolFlag(args, "--failed");
+  const num = takeNumber(args, "PR");
+
+  // Use pr view --json statusCheckRollup instead of pr checks --json which
+  // can error on PRs with unusual check data
+  const pr = await ghJson<Pick<PrItem, "statusCheckRollup">>(
+    ["pr", "view", String(num), "--json", "statusCheckRollup"],
+    ctx,
+  );
+  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
+    ? pr.statusCheckRollup
+    : [];
+
+  return renderOutput([
+    ...checksBlocks(checks, onlyFailed),
     renderHelp(
       getSuggestions({ domain: "pr", action: "checks", id: num, repo: ctx }),
     ),
@@ -999,6 +1066,8 @@ async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
 const DIFF_TRUNCATE_LIMIT = 4000;
 
 async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
+  // Accepted for gh compatibility: gh-axi's diff output is already patch format
+  takeBoolFlag(args, "--patch");
   const full = takeBoolFlag(args, "--full");
   const num = takeNumber(args, "PR");
   const diff = await ghExec(["pr", "diff", String(num)], ctx);
@@ -1020,9 +1089,12 @@ async function prDiff(args: string[], ctx?: RepoContext): Promise<string> {
     repo: ctx,
   });
   if (shouldTruncate) {
+    // Flags go after the command in AXI output (see normalizeRepoFlagLine);
+    // this line is unshifted after suggestion normalization, so emit it
+    // already normalized.
     const repoArg = ctx && ctx.source !== "git" ? ` -R ${ctx.nwo}` : "";
     suggestions.unshift(
-      `Run \`gh-axi${repoArg} pr diff ${num} --full\` to see the complete diff`,
+      `Run \`gh-axi pr diff ${num} --full${repoArg}\` to see the complete diff`,
     );
   }
 

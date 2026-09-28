@@ -95,6 +95,7 @@ describe("main CLI", () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    runAxiCli.mockResolvedValue(undefined);
     process.argv = [...originalArgv];
     vi.mocked(homeCommand).mockResolvedValue("home output");
     vi.mocked(issueCommand).mockResolvedValue("issue output");

@@ -11,6 +11,12 @@ vi.mock("../../src/gh.js", () => ({
   ghRaw: vi.fn(),
 }));
 
+vi.mock("../../src/stdin.js", () => ({
+  readStdin: vi.fn(),
+  readStdinSync: vi.fn(),
+  isStdinTTY: vi.fn(),
+}));
+
 import {
   ghJson,
   ghExec,
@@ -18,6 +24,7 @@ import {
   ensureAttachmentSupport,
   ghRaw,
 } from "../../src/gh.js";
+import { isStdinTTY, readStdinSync } from "../../src/stdin.js";
 import { prCommand, PR_HELP } from "../../src/commands/pr.js";
 import { AttachmentMutationError, AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
@@ -310,6 +317,27 @@ describe("prCommand", () => {
       expect(result).toContain("PR body text");
     });
 
+    it("supports updatedAt in --fields", async () => {
+      mockedGhJson.mockResolvedValue([
+        {
+          number: 1,
+          title: "Fix",
+          state: "OPEN",
+          author: { login: "alice" },
+          isDraft: false,
+          reviewDecision: "APPROVED",
+          updatedAt: "2024-01-02T00:00:00Z",
+        },
+      ]);
+
+      const result = await prCommand(["list", "--fields", "updatedAt"], ctx);
+
+      const callArgs = mockedGhJson.mock.calls[0][0] as string[];
+      const jsonIdx = callArgs.indexOf("--json");
+      expect(callArgs[jsonIdx + 1]).toContain("updatedAt");
+      expect(result).toContain("updated_at");
+    });
+
     it("throws VALIDATION_ERROR for unknown --fields", async () => {
       await expect(
         prCommand(["list", "--fields", "fakeField"], ctx),
@@ -344,6 +372,77 @@ describe("prCommand", () => {
       expect(result).toContain("My PR");
       expect(result).toContain("open");
       expect(result).toContain("alice");
+    });
+
+    it("appends the detailed check rollup with --checks", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "lint", conclusion: "FAILURE" },
+        ],
+        body: "PR description here",
+        comments: [],
+        reviews: [],
+      });
+
+      const result = await prCommand(["view", "42", "--checks"], ctx);
+
+      expect(result).toContain("My PR");
+      expect(result).toContain("1 passed, 1 failed");
+      expect(result).toContain("lint,fail");
+    });
+    it("shows a pending count in the view summary when checks are unfinished", async () => {
+      // The view summary field (no --checks) previously hid pending checks:
+      // a PR with only queued checks read "0 passed, 0 failed, 1 total".
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "e2e", status: "QUEUED", conclusion: null },
+        ],
+        body: "PR description here",
+        comments: [],
+        reviews: [],
+      });
+
+      const result = await prCommand(["view", "42"], ctx);
+
+      expect(result).toContain("1 passed, 0 failed, 1 pending, 2 total");
+    });
+
+
+    it("omits the detailed check rollup without --checks", async () => {
+      mockedGhJson.mockResolvedValue({
+        number: 42,
+        title: "My PR",
+        state: "OPEN",
+        author: { login: "alice" },
+        isDraft: false,
+        mergedAt: null,
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "lint", conclusion: "FAILURE" },
+        ],
+        body: "PR description here",
+        comments: [],
+        reviews: [],
+      });
+
+      const result = await prCommand(["view", "42"], ctx);
+
+      expect(result).toContain("My PR");
+      expect(result).not.toContain("lint,fail");
     });
 
     it("omits help suggestions from detail view", async () => {
@@ -886,6 +985,51 @@ describe("prCommand", () => {
     });
   });
 
+  describe("create base/head output", () => {
+    it("reports the base and head the PR was created with", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
+      mockedGhJson.mockResolvedValue({
+        baseRefName: "main",
+        headRefName: "feature-x",
+      });
+
+      const result = await prCommand(["create", "--title", "T"], ctx);
+
+      expect(result).toContain("number: 42");
+      expect(result).toContain("base: main");
+      expect(result).toContain("head: feature-x");
+      // The ref lookup must target the PR number parsed from the created URL
+      // and request exactly the fields the output renders.
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["pr", "view", "42", "--json", "baseRefName,headRefName"],
+        ctx,
+      );
+    });
+
+    it("reports an explicit --base and --head without a follow-up lookup", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
+
+      const result = await prCommand(
+        ["create", "--title", "T", "--base", "stack-a", "--head", "stack-b"],
+        ctx,
+      );
+
+      expect(result).toContain("base: stack-a");
+      expect(result).toContain("head: stack-b");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("still reports the created PR when the ref lookup fails", async () => {
+      mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
+      mockedGhJson.mockRejectedValue(new Error("boom"));
+
+      const result = await prCommand(["create", "--title", "T"], ctx);
+
+      expect(result).toContain("number: 42");
+      expect(result).toContain("base: null");
+    });
+  });
+
   describe("create with repeatable flags", () => {
     it("passes all repeated --assignee and --reviewer flags to gh pr create", async () => {
       mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
@@ -1042,6 +1186,66 @@ describe("prCommand", () => {
         ],
         ctx,
       );
+    });
+
+    it("forwards an exact head commit condition with the selected merge options", async () => {
+      const head = "0123456789abcdef0123456789abcdef01234567";
+      mockedGhJson.mockResolvedValue({ state: "OPEN" });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        [
+          "merge",
+          "10",
+          "--squash",
+          "--delete-branch",
+          "--match-head-commit",
+          head,
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        [
+          "pr",
+          "merge",
+          "10",
+          "--squash",
+          "--delete-branch",
+          "--match-head-commit",
+          head,
+        ],
+        ctx,
+      );
+    });
+
+    it.each([
+      ["--match-head-commit"],
+      ["--match-head-commit="],
+      ["--match-head-commit", "--auto"],
+    ])("rejects a head commit condition without a value", async (...flags) => {
+      await expect(prCommand(["merge", "10", ...flags], ctx)).rejects.toThrow(
+        "--match-head-commit requires a value",
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects a repeated head commit condition instead of silently choosing one", async () => {
+      await expect(
+        prCommand(
+          [
+            "merge",
+            "10",
+            "--match-head-commit",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--match-head-commit=fedcba9876543210fedcba9876543210fedcba987",
+          ],
+          ctx,
+        ),
+      ).rejects.toThrow("--match-head-commit may only be given once");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
     it("still rejects an unknown merge flag", async () => {
@@ -1244,6 +1448,29 @@ describe("prCommand", () => {
         expect(mockedGhExec).not.toHaveBeenCalled();
       });
     });
+
+    it("reads piped stdin for --body-file - through the router", async () => {
+      vi.mocked(isStdinTTY).mockReturnValue(false);
+      vi.mocked(readStdinSync).mockReturnValue(markdownBody);
+      mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/123\n");
+
+      await prCommand(["create", "--title", "New PR", "--body-file", "-"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "create", "--title", "New PR", "--body", markdownBody],
+        ctx,
+      );
+    });
+
+    it("refuses --body-file - on an interactive TTY before calling gh", async () => {
+      vi.mocked(isStdinTTY).mockReturnValue(true);
+
+      await expect(
+        prCommand(["comment", "123", "--body-file", "-"], ctx),
+      ).rejects.toThrow("--body-file - requires content piped via stdin");
+      expect(vi.mocked(readStdinSync)).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe("checks", () => {
@@ -1270,6 +1497,30 @@ describe("prCommand", () => {
       expect(result).toContain("1 failed");
       expect(result).toContain("1 skipped");
       expect(result).toContain("3 total");
+    });
+
+    it("rejects a --failed value form instead of silently ignoring it", async () => {
+      await expect(
+        prCommand(["checks", "42", "--failed=true"], ctx),
+      ).rejects.toThrow(/--failed does not take a value/);
+    });
+
+    it("shows only failing checks with --failed but keeps the full summary", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "lint", conclusion: "FAILURE" },
+          { name: "test", conclusion: "SKIPPED" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5", "--failed"], ctx);
+
+      expect(result).toContain("1 passed, 1 failed");
+      expect(result).toContain("3 total");
+      expect(result).toContain("lint,fail");
+      expect(result).not.toContain("build,pass");
+      expect(result).not.toContain("test,skip");
     });
 
     it("keeps an unfinished check run pending", async () => {
@@ -1343,27 +1594,26 @@ describe("prCommand", () => {
       expect(result).not.toContain("pending");
     });
 
-    it("classifies a stale check run as failing", async () => {
+    it("keeps a stale check run pending", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [{ name: "build", conclusion: "STALE" }],
       });
 
       const result = await prCommand(["checks", "5"], ctx);
 
-      expect(result).toContain("build,fail");
-      expect(result).toContain("0 passed, 1 failed");
-      expect(result).not.toContain("pending");
+      expect(result).toContain("build,pending");
+      expect(result).toContain("0 passed, 0 failed, 1 pending");
     });
 
-    it("classifies a cancelled check run as failing", async () => {
+    it("classifies a cancelled check run as cancelled, not failing", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [{ name: "build", conclusion: "CANCELLED" }],
       });
 
       const result = await prCommand(["checks", "5"], ctx);
 
-      expect(result).toContain("build,fail");
-      expect(result).toContain("0 passed, 1 failed");
+      expect(result).toContain("build,cancel");
+      expect(result).toContain("0 passed, 0 failed, 1 cancelled");
       expect(result).not.toContain("pending");
     });
 
@@ -1396,6 +1646,18 @@ describe("prCommand", () => {
   });
 
   describe("diff", () => {
+    it("accepts --patch as a gh-compatible alias", async () => {
+      mockedGhExec.mockResolvedValue("diff --git a/file.ts b/file.ts\n");
+
+      const result = await prCommand(["diff", "7", "--patch"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "diff", "7"],
+        expect.anything(),
+      );
+      expect(result).toContain("diff --git");
+    });
+
     it("wraps diff output in TOON envelope", async () => {
       mockedGhExec.mockResolvedValue(
         "diff --git a/file.ts b/file.ts\n+added line\n",
@@ -1420,6 +1682,9 @@ describe("prCommand", () => {
       expect(result).toContain("original_length: 25000");
       expect(result).toContain("pr diff 7 --full");
       expect(result).toContain("to see the complete diff");
+      // AXI form: flags after the command, never `gh-axi -R ... pr diff`.
+      expect(result).toContain("`gh-axi pr diff 7 --full -R octo/repo`");
+      expect(result).not.toContain("gh-axi -R octo/repo pr diff");
     });
 
     it("skips truncation with --full flag", async () => {

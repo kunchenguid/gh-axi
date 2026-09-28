@@ -166,6 +166,51 @@ describe("ghExec", () => {
     }
   });
 
+  it("surfaces stdout diagnostics when stderr is empty on failure", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(error, "X trunk failed - run 123 completed with 'failure'", "");
+    try {
+      await ghExec(["run", "watch", "123", "--exit-status"]);
+      expect.unreachable("ghExec should throw");
+    } catch (e) {
+      expect((e as AxiError).message).toContain(
+        "X trunk failed - run 123 completed with 'failure'",
+      );
+    }
+  });
+
+  it("takes the last non-empty stdout line when the fallback stream has progress lines", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(
+      error,
+      "Watching run 123...\n✓ build (ubuntu-latest)\nX trunk failed - run 123 completed with 'failure'\n",
+      "",
+    );
+    try {
+      await ghExec(["run", "watch", "123", "--exit-status"]);
+      expect.unreachable("ghExec should throw");
+    } catch (e) {
+      expect((e as AxiError).message).toContain(
+        "X trunk failed - run 123 completed with 'failure'",
+      );
+      expect((e as AxiError).message).not.toContain("Watching run 123");
+    }
+  });
+
+  it("prefers stderr over stdout when both are present on failure", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(error, "stdout noise", "HTTP 403: Forbidden");
+    try {
+      await ghExec(["issue", "create"]);
+      expect.unreachable("ghExec should throw");
+    } catch (e) {
+      expect((e as AxiError).code).toBe("FORBIDDEN");
+    }
+  });
+
   it("throws ghNotInstalledError on ENOENT", async () => {
     mockExecFileEnoent();
     await expect(ghExec(["version"])).rejects.toThrow(AxiError);

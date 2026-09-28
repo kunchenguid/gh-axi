@@ -117,11 +117,13 @@ gh-axi update                   # upgrade a global install
 
 For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` on the relevant command.
 For releases, `--body` and `--body-file` are aliases for release notes, alongside `--notes` and `--notes-file`.
+Any of these file flags also accepts `-` to read the Markdown from piped stdin (`cat body.md | gh-axi pr comment 42 --body-file -`); an interactive terminal or empty pipe is rejected instead of waited on.
 For multi-line variable values, pipe stdin to `gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
 
 `--attach <path>` is repeatable on `issue` and `pr` `create`, `edit`, and `comment` (not `pr review`). It uploads a local image or video through the same `gh --attach` mechanism (requires **gh >= 2.99.0**) and inlines it in the Markdown body. If the body already references the local path, `gh` replaces that reference with the uploaded URL; otherwise it appends the attachment. Alt text is `path#alt` for images; videos cannot take alt text. Supported types: PNG, JPEG, GIF, WebP, SVG, MP4, MOV, WebM. Size limits match GitHub's web upload: 10 MB for images and GIFs, 10 MB for video on Free, 100 MB for video on paid plans. GitHub Enterprise Server is not supported in this gh release. Successful output names each attached file and only the `user-attachments` asset URLs uploaded by that invocation. Override the wrapped `gh` binary with `GH_BIN`.
 
 The label, assignee, reviewer, and project flags of `issue create`/`edit` and `pr create`/`edit` are repeatable: pass the flag once per value and every value reaches `gh`.
+`gh-axi pr create` reports the `base` and `head` the PR was created with, so omitting `--base` surfaces that the PR targets the default branch; if the follow-up ref lookup fails, `base` prints as `null` and the branch name is unavailable.
 `issue list` and `pr list` accept repeated `--label` filters the same way.
 A repeated flag with a missing or empty value (`--add-label` with nothing after it, or `--add-label=`) fails with a validation error instead of being silently dropped.
 
@@ -133,19 +135,24 @@ Long `run view --log` and `run view --log-failed` output shows the last 20,000 c
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
 `gh-axi run` manages existing workflow runs; use `gh-axi workflow run <name> --ref <ref>` to trigger (dispatch) a workflow.
 
-`gh-axi pr checks <number>` and the `checks` summary of `gh-axi pr view <number>` bucket every entry of the PR's status-check rollup as `pass`, `fail`, `skip`, or `pending`, covering both check runs (GitHub Actions and similar) and legacy commit statuses (Vercel, `ci/circleci`, and similar).
-Cancelled, stale, timed-out, action-required, and startup-failure check runs count as failed, so a red PR is never reported as merely unfinished.
+`gh-axi pr checks <number>` and the `checks` summary of `gh-axi pr view <number>` bucket every entry of the PR's status-check rollup as `pass`, `fail`, `skip`, `pending`, or `cancel`, covering both check runs (GitHub Actions and similar) and legacy commit statuses (Vercel, `ci/circleci`, and similar).
+Matching `gh pr checks`: a cancelled check run gets its own `cancelled` count instead of counting as failed (a cancelled run delivered no verdict about the code), and a stale check run counts as pending because its result no longer applies to the head commit. Timed-out, action-required, and startup-failure check runs still count as failed, so a red PR is never reported as merely unfinished.
 For an open PR, `gh-axi pr view <number>` also prints `merge_state` right after `checks`: GitHub's merge state lowercased (`clean`, `dirty`, `behind`, `blocked`, ...), with a short hint on states that need action. Merged and closed PRs omit it, since GitHub no longer reports a meaningful value for them.
+
+`gh-axi pr checks <number> --failed` lists only the failing checks; the summary line still counts the full rollup. `gh-axi pr view <number> --checks` appends the same detailed rollup to the PR detail, `gh-axi pr list --fields updatedAt` adds a relative `updated_at` column, and `gh-axi pr diff` accepts `--patch` as a no-op for `gh` compatibility since its output is already patch format.
 
 `gh-axi stack` is a strict, non-interactive adapter over the official `github/gh-stack` extension. It supports `view`, `init`, `add`, `checkout`, `push`, `submit`, `sync`, `rebase`, `link`, `unstack`, `merge`, and branch navigation. It intentionally excludes the interactive `modify` and `switch` TUIs and the human-only `alias` and `feedback` utilities.
 Stack commands operate on local branches and `.git/gh-stack`, so run them from the target repository's working directory. They reject `-R`, `--repo`, and `GH_REPO` rather than pretending a remote repository is enough. `--hostname` remains available for authenticated GitHub Enterprise hosts.
 Agent-safe behavior is automatic: `stack view` requests JSON, `stack submit` adds `--auto`, and `stack merge` requires an explicit stack or PR target and adds `--yes`. Rebase conflicts and other extension exits retain their original exit codes and include recovery guidance.
 
 `gh-axi secret set <name>` reads the value only from piped stdin because secret flags would be visible in the `gh-axi` process argv.
+It rejects `--body`/`-b`. An interactive terminal with no value throws immediately instead of waiting. Secret values never appear in argv, stdout, or error text: an unknown flag is echoed by name only, with any `=value` stripped.
 `gh-axi secret list` never prints values, matching `gh secret list`.
+`gh secret list` and `gh variable list` have no `--limit` or other pagination flag, so `gh-axi secret list` and `gh-axi variable list` return every result in one call.
 `gh-axi secret list`, `set`, and `delete` accept `--env`/`-e <environment>` to scope a secret to a deployment environment; without it the repository scope is used.
-Other `gh secret` scopes (`--org`, `--user`, `--app`) are rejected with a clear error rather than silently falling back to the repository scope.
+A missing or empty `--env`, conflicting `--env` flags, `--env-file`, other `gh secret` scopes (`--org`, `--user`, `--app`), and any unknown flag are rejected rather than silently falling back to the repository scope.
 `gh-axi variable` accepts `--body`/`-b` or piped stdin, and variable values are shown in `list` output because variables are not secret.
+A `variable set --body` value is visible in the `gh-axi` process argv, but it is piped to `gh variable set` so the child process does not receive it in argv.
 `gh-axi project` wraps GitHub Projects (v2) and requires the `project` (or `read:project`) OAuth scope; if a call fails on a missing scope, gh-axi tells you the `gh auth refresh -s <scope>` command to run.
 `--owner` defaults to the current repo's owner, falling back to explicit `@me` for the authenticated user.
 
@@ -159,6 +166,7 @@ Use `--input <file>` to send a raw JSON request body, or `--input -` to relay pi
 `--input -` rejects an interactive terminal instead of waiting for input.
 Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
+When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output limit, it is clamped and ends with `... (truncated)` so the cut is visible; pass `--full` to lift the cap.
 `--full` is an explicit opt-in escape hatch: it keeps every field and every complete value, and it also returns non-JSON response bodies without the length cap. `--full` is a gh-axi flag only, and gh-axi does not send it to `gh`. Compact output stays the default without `--full`.
 
 ### Commands
@@ -186,7 +194,7 @@ JSON responses are normally stripped of noisy fields before TOON encoding, but a
 
 - `--help` — show help for any command
 - `-v`, `-V`, `--version` — show the installed `gh-axi` version
-- `--hostname <host>` / `--hostname=<host>` — target a custom GitHub host; explicit flags win over `GH_HOST`
+- `--hostname <host>` / `--hostname=<host>` - target a custom GitHub host; explicit flags win over `GH_HOST`. The flag must follow the command. gh-axi strips it before invoking `gh` and sets `GH_HOST` for that child only when the flag is present, leaving an existing `GH_HOST` untouched otherwise. `src/host.ts` `resolveHost()` (flag, then `GH_HOST`, then `github.com`) is the host used when building or parsing URLs.
 
 Repository and host targeting are command-first too:
 
@@ -216,6 +224,8 @@ pnpm run test:watch  # Run tests in watch mode
 
 The committed `skills/gh-axi/SKILL.md` is generated from `src/skill.ts` by `pnpm run build:skill`; `pnpm test` fails if the generated file drifts.
 The generated skill intentionally defers all command guidance to the CLI dashboard and help output so installed copies do not duplicate stale instructions.
+`gh-axi update` is not implemented in this repo. `axi-sdk-js` registers it as a built-in and resolves the npm package name from the nearest `package.json`. The SDK also appends a `built-in:` section to top-level `--help` at runtime, so `TOP_HELP` in `src/cli.ts` is only a prefix of the help users see.
+`src/version.ts` imports Node builtins only. `bin/gh-axi.ts` answers a bare `-v`, `-V`, or `--version` from that leaf module and loads the command graph only for every other invocation. Do not add a wall-clock timing assertion to `test/version-fast-path.test.ts`. Compiled CLI tests share `dist`; `test/global-setup.ts` builds it, including on watch reruns. Do not rebuild from an individual suite while other workers may be running those tests.
 The npm package includes `skills/gh-axi/`, so published releases ship the same installable Agent Skill documented in Quick Start.
 
 ## License

@@ -146,8 +146,23 @@ export async function ghExec(
 ): Promise<string> {
   const result = await run(buildArgs(args, ctx));
   if (result.stderr === "ENOENT") throw missingGhError();
-  if (result.exitCode !== 0) throw mapGhError(result.stderr, result.exitCode);
+  if (result.exitCode !== 0) {
+    // Some gh subcommands (e.g. `run watch --exit-status` on a completed
+    // failed run) write their failure diagnostics to stdout and leave stderr
+    // empty, so fall back to stdout to keep the actionable output visible.
+    // gh writes progress lines first and the failure summary at the end of
+    // the stream, so the fallback takes the last non-empty stdout line.
+    throw mapGhError(
+      result.stderr || lastNonEmptyLine(result.stdout),
+      result.exitCode,
+    );
+  }
   return result.stdout;
+}
+
+function lastNonEmptyLine(text: string): string {
+  const lines = text.split("\n").filter((line) => line.trim() !== "");
+  return lines[lines.length - 1] ?? "";
 }
 
 export async function ghExecWithAttachmentState(

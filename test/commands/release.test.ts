@@ -9,7 +9,14 @@ vi.mock("../../src/gh.js", () => ({
   ghRaw: vi.fn(),
 }));
 
+vi.mock("../../src/stdin.js", () => ({
+  readStdin: vi.fn(),
+  readStdinSync: vi.fn(),
+  isStdinTTY: vi.fn(),
+}));
+
 import { ghJson, ghExec } from "../../src/gh.js";
+import { isStdinTTY, readStdinSync } from "../../src/stdin.js";
 import { releaseCommand, RELEASE_HELP } from "../../src/commands/release.js";
 import { AxiError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
@@ -366,6 +373,66 @@ describe("releaseCommand", () => {
       ).rejects.toThrow("--body requires text");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
+  });
+
+  describe("notes file from piped stdin", () => {
+    beforeEach(() => {
+      mockedGhExec.mockResolvedValue("");
+    });
+
+    it.each([
+      [
+        ["create", "v1.0.0", "--notes-file", "-", "dist/app.zip"],
+        [
+          "release",
+          "create",
+          "v1.0.0",
+          "--notes",
+          "piped\nnotes\n",
+          "dist/app.zip",
+        ],
+      ],
+      [
+        ["create", "v1.0.0", "-F", "-"],
+        ["release", "create", "v1.0.0", "--notes", "piped\nnotes\n"],
+      ],
+      [
+        ["edit", "v1.0.0", "--notes-file", "-"],
+        ["release", "edit", "v1.0.0", "--notes", "piped\nnotes\n"],
+      ],
+      [
+        ["edit", "v1.0.0", "-F", "-"],
+        ["release", "edit", "v1.0.0", "--notes", "piped\nnotes\n"],
+      ],
+    ])(
+      "reads %j from stdin and forwards it as --notes",
+      async (args, expected) => {
+        vi.mocked(isStdinTTY).mockReturnValue(false);
+        vi.mocked(readStdinSync).mockReturnValue("piped\nnotes\n");
+
+        await releaseCommand(args, ctx);
+
+        expect(mockedGhExec).toHaveBeenCalledWith(expected, ctx);
+      },
+    );
+
+    it.each([
+      [["create", "v1.0.0", "--notes-file", "-"], "--notes-file"],
+      [["create", "v1.0.0", "-F", "-"], "-F"],
+      [["edit", "v1.0.0", "--notes-file", "-"], "--notes-file"],
+      [["edit", "v1.0.0", "-F", "-"], "-F"],
+    ])(
+      "refuses %j on an interactive TTY before calling gh",
+      async (args, flag) => {
+        vi.mocked(isStdinTTY).mockReturnValue(true);
+
+        await expect(releaseCommand(args, ctx)).rejects.toThrow(
+          `${flag} - requires content piped via stdin`,
+        );
+        expect(vi.mocked(readStdinSync)).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("edit boolean-with-value validation", () => {

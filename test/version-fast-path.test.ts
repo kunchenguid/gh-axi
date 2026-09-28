@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const builtBin = join(repoRoot, "dist", "bin", "gh-axi.js");
@@ -45,10 +45,6 @@ function runBin(args: string[]): Run {
 }
 
 describe("--version fast path", () => {
-  beforeAll(() => {
-    execFileSync("npm", ["run", "build"], { cwd: repoRoot, stdio: "ignore" });
-  }, 120_000);
-
   it.each(["-v", "-V", "--version"])(
     "prints the package version for %s and exits 0",
     (flag) => {

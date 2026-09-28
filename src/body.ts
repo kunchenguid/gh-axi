@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { AxiError } from "./errors.js";
+import { isStdinTTY, readStdinSync } from "./stdin.js";
 
 /**
  * Shared body input, cleaning, and truncation for all entity types.
@@ -84,11 +85,50 @@ function takeFlagMatches(
   return matches;
 }
 
+/**
+ * Read a body from piped stdin for the `-` sentinel (gh's own convention).
+ * AXI commands must never hang waiting for input, so an interactive TTY is
+ * refused before any read.
+ */
+export function readBodyStdin(flag: string, suggestions: string[]): string {
+  const pipeExample = `Example: cat body.md | gh-axi <command> ${flag} -`;
+  if (isStdinTTY()) {
+    throw new AxiError(
+      `${flag} - requires content piped via stdin; no pipe was detected`,
+      "VALIDATION_ERROR",
+      [pipeExample, ...suggestions],
+    );
+  }
+  let content: string;
+  try {
+    content = readStdinSync();
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? String((error as NodeJS.ErrnoException).code)
+        : "UNKNOWN";
+    throw new AxiError(
+      `Could not read ${flag} - from stdin (${code})`,
+      "VALIDATION_ERROR",
+      suggestions,
+    );
+  }
+  if (content === "") {
+    throw new AxiError(
+      `${flag} -: no content received on stdin; nothing was piped`,
+      "VALIDATION_ERROR",
+      [pipeExample, ...suggestions],
+    );
+  }
+  return content;
+}
+
 function readBodyFile(
   flag: string,
   path: string,
   suggestions: string[],
 ): string {
+  if (path === "-") return readBodyStdin(flag, suggestions);
   try {
     return readFileSync(path, "utf8");
   } catch (error) {
@@ -119,7 +159,8 @@ function readBodyFile(
 }
 
 /**
- * Resolve a command body from inline text or a UTF-8 file and remove the flags.
+ * Resolve a command body from inline text, a UTF-8 file, or piped stdin (a
+ * file flag value of `-`) and remove the flags.
  *
  * Optional bodies accept at most one source. Required bodies enforce exactly
  * one source and raise validation errors for missing, conflicting, or

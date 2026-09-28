@@ -3,6 +3,7 @@ import {
   getFlag,
   takeFlag,
   takeRequiredFlag,
+  takeSingleRequiredFlag,
   hasFlag,
   takeBoolFlag,
   getAllFlags,
@@ -112,6 +113,23 @@ describe("takeRequiredFlag", () => {
   });
 });
 
+describe("takeSingleRequiredFlag", () => {
+  it("rejects a repeated option instead of silently discarding one value", () => {
+    const args = ["--head", "one", "--head=two"];
+
+    expect(() => takeSingleRequiredFlag(args, "--head")).toThrow(
+      new AxiError("--head may only be given once", "VALIDATION_ERROR"),
+    );
+  });
+
+  it("keeps the sole value and removes it", () => {
+    const args = ["--head=one", "--push"];
+
+    expect(takeSingleRequiredFlag(args, "--head")).toBe("one");
+    expect(args).toEqual(["--push"]);
+  });
+});
+
 describe("hasFlag", () => {
   it("returns true when flag is present", () => {
     expect(hasFlag(["--full", "--json"], "--full")).toBe(true);
@@ -137,6 +155,14 @@ describe("takeBoolFlag", () => {
     const args = ["--json"];
     expect(takeBoolFlag(args, "--full")).toBe(false);
     expect(args).toEqual(["--json"]);
+  });
+
+  it("rejects value forms instead of silently ignoring them", () => {
+    for (const tok of ["--full=true", "--full=false", "--full=banana"]) {
+      expect(() => takeBoolFlag([tok], "--full")).toThrow(
+        /--full does not take a value/,
+      );
+    }
   });
 });
 
@@ -408,6 +434,17 @@ describe("requireNumber", () => {
     it("stops scanning after a -- separator", () => {
       expect(() =>
         rejectUnknownFlags(["--", "--not-a-flag"], [], "repo", "view"),
+      ).not.toThrow();
+    });
+
+    it("treats a bare - as the stdin sentinel positional, not a flag", () => {
+      expect(() =>
+        rejectUnknownFlags(
+          ["42", "--body-file", "-"],
+          ["--body-file"],
+          "pr",
+          "comment",
+        ),
       ).not.toThrow();
     });
   });

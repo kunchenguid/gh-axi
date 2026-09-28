@@ -9,7 +9,7 @@ import {
   takeFlag,
   rejectUnknownFlags,
 } from "../args.js";
-import { takeBody, truncateBody } from "../body.js";
+import { readBodyStdin, takeBody, truncateBody } from "../body.js";
 import {
   field,
   boolYesNo,
@@ -179,6 +179,26 @@ function findProvidedFlags(args: string[], flags: string[]): string[] {
 
 const RELEASE_NOTES_FLAGS = ["--notes", "-n", "--notes-file", "-F"];
 
+// `--notes-file -` must never reach gh: the child's stdin is an unconnected
+// pipe, so gh would block forever. Read our own stdin and forward it as --notes.
+function appendNotesFileFlag(ghArgs: string[], args: string[]): void {
+  for (const flag of ["--notes-file", "-F"]) {
+    const value = takeFlag(args, flag);
+    if (value === undefined) continue;
+    if (value === "-") {
+      ghArgs.push(
+        "--notes",
+        readBodyStdin(flag, [
+          'Use --notes "..." for inline release notes, or --notes-file <path> for markdown from a file',
+        ]),
+      );
+    } else {
+      ghArgs.push("--notes-file", value);
+    }
+    return;
+  }
+}
+
 function takeReleaseBodyAlias(args: string[]): string | undefined {
   return takeBody(args, {
     label: "release notes",
@@ -272,10 +292,7 @@ async function createRelease(
 
   appendValueFlag(optionArgs, remaining, "--title", ["--title", "-t"]);
   appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
-  appendValueFlag(optionArgs, remaining, "--notes-file", [
-    "--notes-file",
-    "-F",
-  ]);
+  appendNotesFileFlag(optionArgs, remaining);
   appendValueFlag(optionArgs, remaining, "--target");
   appendValueFlag(optionArgs, remaining, "--discussion-category");
   appendValueFlag(optionArgs, remaining, "--notes-start-tag");
@@ -324,10 +341,7 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
   appendValueFlag(optionArgs, remaining, "--title");
   if (body !== undefined) optionArgs.push("--notes", body);
   appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
-  appendValueFlag(optionArgs, remaining, "--notes-file", [
-    "--notes-file",
-    "-F",
-  ]);
+  appendNotesFileFlag(optionArgs, remaining);
   // gh accepts --flag=false to unset these; takeBoolFlag would drop that form
   // and the edit would silently no-op (prints the tag, changes nothing).
   appendOptionalValueBoolFlag(optionArgs, remaining, "--draft");

@@ -20,6 +20,7 @@ import { stackCommand, STACK_HELP } from "./commands/stack.js";
 import { resolveHost, type HostContext } from "./host.js";
 import { VERSION } from "./version.js";
 import { withSuggestionHost } from "./suggestions.js";
+import { takeSingleRequiredFlag } from "./args.js";
 import {
   AxiError,
   exitCodeForError,
@@ -100,6 +101,37 @@ const COMMANDS: Record<string, WrappedCommandFn> = {
   stack: withLocalRepoContext(stackCommand),
 };
 
+function formatCliError(error: unknown) {
+  const axiError =
+    error instanceof AxiError
+      ? error
+      : new AxiError(
+          error instanceof Error ? error.message : String(error),
+          "UNKNOWN",
+        );
+  // Preserve the SDK's error/help shape, adding operation outcomes and asset
+  // URLs to distinguish partial success, and retain StackError's upstream exit.
+  return {
+    output: `${encode({
+      error: axiError.message,
+      code: axiError.code,
+      ...(error instanceof OperationOutcomeError
+        ? {
+            ...error.operationOutcomes,
+            ...(error.assetUrls.length > 0
+              ? { asset_urls: error.assetUrls }
+              : {}),
+          }
+        : {}),
+      ...(axiError.suggestions.length > 0
+        ? { help: axiError.suggestions }
+        : {}),
+    })}\n`,
+    exitCode:
+      error instanceof StackError ? error.exitCode : exitCodeForError(axiError),
+  };
+}
+
 export async function main(options: MainOptions = {}): Promise<void> {
   await runAxiCli<CliContext | undefined>({
     ...(options.argv ? { argv: options.argv } : {}),
@@ -110,38 +142,7 @@ export async function main(options: MainOptions = {}): Promise<void> {
     home: withRepoContext(undefined, homeCommand),
     commands: COMMANDS,
     getCommandHelp: (command) => COMMAND_HELP[command],
-    formatError: (error) => {
-      const axiError =
-        error instanceof AxiError
-          ? error
-          : new AxiError(
-              error instanceof Error ? error.message : String(error),
-              "UNKNOWN",
-            );
-      // Mirrors the SDK's defaultFormatError output byte-for-byte; the only
-      // difference this hook introduces is StackError's upstream exit code.
-      return {
-        output: `${encode({
-          error: axiError.message,
-          code: axiError.code,
-          ...(error instanceof OperationOutcomeError
-            ? {
-                ...error.operationOutcomes,
-                ...(error.assetUrls.length > 0
-                  ? { asset_urls: error.assetUrls }
-                  : {}),
-              }
-            : {}),
-          ...(axiError.suggestions.length > 0
-            ? { help: axiError.suggestions }
-            : {}),
-        })}\n`,
-        exitCode:
-          error instanceof StackError
-            ? error.exitCode
-            : exitCodeForError(axiError),
-      };
-    },
+    formatError: formatCliError,
     resolveContext: ({ command, args }) => {
       const { repoFlag, hostFlag } = parseRepoContextArgs(command, args);
       // Explicit --hostname wins over the GH_HOST env var. Setting GH_HOST here
@@ -159,6 +160,12 @@ export async function main(options: MainOptions = {}): Promise<void> {
       }
       return repo ?? (host ? { host } : undefined);
     },
+  }).catch((error) => {
+    // The SDK resolves context outside its handler error boundary, so context
+    // validation failures need the same structured output and exit-code mapping.
+    const formatted = formatCliError(error);
+    (options.stdout ?? process.stdout).write(formatted.output);
+    process.exitCode = formatted.exitCode;
   });
 }
 
@@ -201,6 +208,10 @@ function resolveHostContext(
   return { value: resolveHost(hostFlag), source: "flag" };
 }
 
+/**
+ * Preserve a supplied merge-head condition or reject it if context stripping
+ * consumes it as a repository/hostname value; handler-only validation is too late.
+ */
 function parseRepoContextArgs(
   command: string | undefined,
   args: string[],
@@ -215,7 +226,12 @@ function parseRepoContextArgs(
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
-    if (arg === "-R" && index + 1 < args.length) {
+    if (arg === "--") {
+      stripped.push(...args.slice(index));
+      break;
+    }
+
+    if (arg === "-R" && index + 1 < args.length && args[index + 1] !== "--") {
       repoFlag = args[index + 1];
       index++;
       continue;
@@ -226,7 +242,11 @@ function parseRepoContextArgs(
       continue;
     }
 
-    if (arg === "--repo" && index + 1 < args.length) {
+    if (
+      arg === "--repo" &&
+      index + 1 < args.length &&
+      args[index + 1] !== "--"
+    ) {
       const value = args[index + 1];
 
       repoFlag = value;
@@ -251,7 +271,11 @@ function parseRepoContextArgs(
 
     // --hostname routes to GH_HOST for the child gh process; it is never a
     // subcommand flag, so strip it for every command.
-    if (arg === "--hostname" && index + 1 < args.length) {
+    if (
+      arg === "--hostname" &&
+      index + 1 < args.length &&
+      args[index + 1] !== "--"
+    ) {
       hostFlag = args[index + 1];
       index++;
       continue;
@@ -263,6 +287,24 @@ function parseRepoContextArgs(
     }
 
     stripped.push(arg);
+  }
+
+  if (command === "pr" && stripped[0] === "merge") {
+    // Check the original options first, so context stripping cannot hide a
+    // missing or duplicate condition. Non-merge flags belong to their handler.
+    const matchHeadCommit = takeSingleRequiredFlag(
+      [...args],
+      "--match-head-commit",
+    );
+    if (
+      takeSingleRequiredFlag([...stripped], "--match-head-commit") !==
+      matchHeadCommit
+    ) {
+      throw new AxiError(
+        "--match-head-commit cannot be used as a repository or hostname value",
+        "VALIDATION_ERROR",
+      );
+    }
   }
 
   return { repoFlag, hostFlag, strippedArgs: stripped };
