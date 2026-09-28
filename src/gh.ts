@@ -61,19 +61,8 @@ function toExecResult(
   };
 }
 
-function run(args: string[]): Promise<ExecResult> {
-  return new Promise((resolve) => {
-    execFile(
-      resolveGhBin(),
-      args,
-      { maxBuffer: MAX_BUFFER_BYTES },
-      toExecResult(resolve),
-    );
-  });
-}
-
-/** Run gh, writing `input` to the child process's stdin instead of the CLI's own. */
-function runWithStdin(args: string[], input: string): Promise<ExecResult> {
+/** Stream gh diagnostics live while retaining both streams for result handling. */
+function run(args: string[], input?: string): Promise<ExecResult> {
   return new Promise((resolve) => {
     const child = execFile(
       resolveGhBin(),
@@ -81,8 +70,16 @@ function runWithStdin(args: string[], input: string): Promise<ExecResult> {
       { maxBuffer: MAX_BUFFER_BYTES },
       toExecResult(resolve),
     );
-    child.stdin?.end(input);
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      process.stderr.write(chunk);
+    });
+    if (input !== undefined) child.stdin?.end(input);
   });
+}
+
+/** Run gh, writing `input` to the child process's stdin instead of the CLI's own. */
+function runWithStdin(args: string[], input: string): Promise<ExecResult> {
+  return run(args, input);
 }
 
 /** Execute gh and return parsed JSON. */
