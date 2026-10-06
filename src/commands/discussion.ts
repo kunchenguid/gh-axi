@@ -5,7 +5,6 @@ import { getSuggestions } from "../suggestions.js";
 import {
   hasFlag,
   getAllFlags,
-  getFlag,
   getPositional,
   pushRepeated,
   takeBoolFlag,
@@ -167,6 +166,21 @@ function parseTarget(
   );
 }
 
+/**
+ * The repo a discussion/comment URL points at, so follow-up hints scope to it
+ * instead of the checkout. Falls back to ctx when there is no URL.
+ */
+function repoOfUrl(
+  url: string | undefined,
+  ctx?: RepoContext,
+): RepoContext | undefined {
+  const m = url?.match(/^https?:\/\/[^/]+\/([^/]+)\/([^/]+)\/discussions\/\d+/);
+  if (!m) return ctx;
+  const nwo = `${m[1]}/${m[2]}`;
+  if (ctx?.nwo.toLowerCase() === nwo.toLowerCase()) return ctx;
+  return { owner: m[1], name: m[2], nwo, source: "flag", host: ctx?.host };
+}
+
 /** The discussion number from a discussion/comment URL, or the number itself. */
 function discussionNumberOf(target: string): string | undefined {
   if (/^\d+$/.test(target)) return target;
@@ -198,11 +212,11 @@ async function listDiscussions(
   args: string[],
   ctx?: RepoContext,
 ): Promise<string> {
-  const state = getFlag(args, "--state");
-  const category = getFlag(args, "--category");
-  const author = getFlag(args, "--author");
+  const state = takeRequiredFlag(args, "--state");
+  const category = takeRequiredFlag(args, "--category");
+  const author = takeRequiredFlag(args, "--author");
   const labels = getAllFlags(args, "--label");
-  const limit = parseLimit(getFlag(args, "--limit")) ?? 30;
+  const limit = parseLimit(takeRequiredFlag(args, "--limit")) ?? 30;
 
   const ghArgs = [
     "discussion",
@@ -293,13 +307,14 @@ async function viewDiscussion(
   if (order) ghArgs.push("--order", order);
 
   const item = await ghJson<DiscussionView>(ghArgs, ctx);
+  const repo = repoOfUrl(item.url ?? target, ctx);
   const number = item.number ?? discussionNumberOf(target);
   const comments = item.comments?.nodes ?? [];
   const commentCount = item.comments?.totalCount ?? comments.length;
 
   const detail: Record<string, unknown> = {
     number: item.number ?? null,
-    ...(ctx ? { repo: ctx.nwo } : {}),
+    ...(repo ? { repo: repo.nwo } : {}),
     title: item.title ?? null,
     state: typeof item.state === "string" ? item.state.toLowerCase() : null,
     category: item.category?.name ?? null,
@@ -332,7 +347,7 @@ async function viewDiscussion(
           action: "comments-hidden",
           id: target,
           count: commentCount,
-          repo: ctx,
+          repo,
         }),
       );
     }
@@ -343,7 +358,7 @@ async function viewDiscussion(
           action: isComment ? "thread-replies-hidden" : "replies-hidden",
           id: typeof c.url === "string" ? c.url : target,
           count: c.reply_count as number,
-          repo: ctx,
+          repo,
         }),
       );
     }
@@ -355,7 +370,7 @@ async function viewDiscussion(
       action: withComments ? "view-comments" : "view",
       id: number,
       count: commentCount,
-      repo: ctx,
+      repo,
     }),
   );
 
@@ -384,7 +399,7 @@ async function commentOnDiscussion(
     domain: "discussion",
     action: "comment",
     id: discussionNumberOf(url) ?? discussionNumberOf(target),
-    repo: ctx,
+    repo: repoOfUrl(url, repoOfUrl(target, ctx)),
   });
   return renderOutput([
     encode({

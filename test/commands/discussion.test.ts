@@ -174,6 +174,16 @@ describe("discussionCommand", () => {
         discussionCommand(["list", "--limit", "lots"], ctx),
       ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
     });
+
+    it.each(["--state", "--category", "--author", "--limit"])(
+      "rejects %s with no value instead of using a default",
+      async (flag) => {
+        await expect(
+          discussionCommand(["list", flag], ctx),
+        ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("view", () => {
@@ -354,6 +364,21 @@ describe("discussionCommand", () => {
       ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
+    it("scopes repo and follow-ups to the URL's repo, not the checkout", async () => {
+      const other = "https://github.com/acme/widgets/discussions/7";
+      mockedGhJson.mockResolvedValue(
+        discussionFixture({ number: 7, url: other }),
+      );
+      const gitCtx: RepoContext = { ...ctx, source: "git" };
+
+      const result = await discussionCommand(["view", other], gitCtx);
+
+      expect(result).toContain("repo: acme/widgets");
+      expect(result).toContain(
+        'gh-axi discussion comment 7 --body "..." -R acme/widgets',
+      );
+      expect(result).not.toContain("octo/repo");
+    });
   });
 
   describe("comment", () => {
@@ -390,6 +415,20 @@ describe("discussionCommand", () => {
       );
       expect(result).toContain("created: reply");
       expect(result).toContain(commentUrl(201));
+    });
+
+    it("scopes the follow-up to the commented discussion's repo", async () => {
+      const other = "https://github.com/acme/widgets/discussions/7";
+      mockedGhExec.mockResolvedValue(`${other}#discussioncomment-9\n`);
+
+      const result = await discussionCommand(
+        ["comment", other, "--body", "Hi"],
+        { ...ctx, source: "git" },
+      );
+
+      expect(result).toContain(
+        "gh-axi discussion view 7 --comments -R acme/widgets",
+      );
     });
 
     it("reads the body from --body-file", async () => {
