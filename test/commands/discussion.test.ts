@@ -240,6 +240,19 @@ describe("discussionCommand", () => {
       );
     });
 
+    it("adds --limit to the hidden-reply hint when a comment has more than 30 replies", async () => {
+      const fixture = discussionFixture();
+      fixture.comments.nodes[0].replies.totalCount = 120;
+      mockedGhJson.mockResolvedValue(fixture);
+
+      const result = await discussionCommand(["view", "66", "--comments"], ctx);
+
+      expect(result).toContain("replies_hidden: 116");
+      expect(result).toContain(
+        `Run \`gh-axi discussion view '${commentUrl(100)}' --limit 120 -R octo/repo\` to see all 120 replies to that comment`,
+      );
+    });
+
     it("shows hidden top-level comments and the --limit that shows them all", async () => {
       const fixture = discussionFixture();
       fixture.comments.totalCount = 45;

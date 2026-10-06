@@ -554,7 +554,7 @@ const table: SuggestionEntry[] = [
   {
     match: (c) => c.domain === "discussion" && c.action === "replies-hidden",
     lines: (c) => [
-      `Run \`gh-axi${repoFlag(c)} discussion view ${quoteTarget(c.id)}\` to see all ${c.count} replies to that comment`,
+      `Run \`gh-axi${repoFlag(c)} discussion view ${quoteTarget(c.id)}${(c.count ?? 0) > 30 ? ` --limit ${c.count}` : ""}\` to see all ${c.count} replies to that comment`,
     ],
   },
   {
