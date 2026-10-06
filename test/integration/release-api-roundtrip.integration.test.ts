@@ -130,4 +130,17 @@ describe("CLI release and API state round-trips", () => {
     expect(release).toContain("name: Version 1 stable");
     expect(release).toContain("prerelease: false");
   });
+
+  it("lets gh default a method-less --field call to POST and persists it", () => {
+    runCli(
+      "api",
+      "/repos/octo/repo/releases/1",
+      "--field",
+      "name=Version 1 posted",
+    );
+
+    expect(runCli("api", "/repos/octo/repo/releases/1")).toContain(
+      "name: Version 1 posted",
+    );
+  });
 });
