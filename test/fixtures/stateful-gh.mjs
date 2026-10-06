@@ -87,18 +87,39 @@ if (args[0] === "api") {
     (optionValues("--field").length > 0 || optionValue("--input") !== undefined
       ? "POST"
       : "GET");
+  const fields = optionValues("--field").map((field) => {
+    const separator = field.indexOf("=");
+    const raw = field.slice(separator + 1);
+    const value = raw === "true" ? true : raw === "false" ? false : raw;
+    return [field.slice(0, separator), value];
+  });
+
+  // POST to the collection creates a release, as GitHub's "create a release".
+  if (path === "/repos/octo/repo/releases" && method === "POST") {
+    const release = {
+      id: Math.max(...state.releases.map((r) => r.id)) + 1,
+      tag_name: "",
+      name: "",
+      prerelease: false,
+      draft: false,
+      ...Object.fromEntries(fields),
+    };
+    state.releases.push(release);
+    save();
+    console.log(JSON.stringify(release));
+    process.exit(0);
+  }
+
   const release = releaseByPath(path);
   if (!release) {
-    console.error("release not found");
+    console.error("gh: Not Found (HTTP 404)");
     process.exit(1);
   }
 
-  if (method === "PATCH" || method === "POST") {
-    for (const field of optionValues("--field")) {
-      const separator = field.indexOf("=");
-      const key = field.slice(0, separator);
-      const raw = field.slice(separator + 1);
-      const value = raw === "true" ? true : raw === "false" ? false : raw;
+  // GitHub updates a release only with PATCH; it has no POST on a single
+  // release, so reject it instead of treating it as an update.
+  if (method === "PATCH") {
+    for (const [key, value] of fields) {
       if (key === "make_latest") {
         if (value === true) state.latestTag = release.tag_name;
         if (value === false && state.latestTag === release.tag_name) {
@@ -109,6 +130,9 @@ if (args[0] === "api") {
       }
     }
     save();
+  } else if (method !== "GET") {
+    console.error("gh: Not Found (HTTP 404)");
+    process.exit(1);
   }
 
   console.log(JSON.stringify(release));
