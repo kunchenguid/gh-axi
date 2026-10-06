@@ -164,7 +164,7 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
-`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--raw-field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
+`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--raw-field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`. With no method given, gh-axi forwards no `--method`, so `gh` chooses as `gh api` does: GET normally, POST once `--field`, `--raw-field` or `--input` is present (`gh-axi api graphql --field query=...` runs the query).
 `-R`/`--repo` (or `GH_REPO`) fills the `{owner}` and `{repo}` placeholders; `gh api` has no `--repo`, so gh-axi hands that repository to it as `GH_REPO`.
 Use `--input <file>` to send a raw JSON request body, or `--input -` to relay piped stdin byte for byte.
 `--input -` rejects an interactive terminal instead of waiting for input.
