@@ -12,6 +12,8 @@ interface SuggestionContext {
   host?: HostContext;
   /** Resolved --owner for owner-scoped domains (e.g. project) */
   owner?: string;
+  /** A total for count-bearing hints (e.g. hidden discussion replies) */
+  count?: number;
 }
 
 type SuggestionEntry = {
@@ -24,6 +26,12 @@ function repoFlag(ctx: SuggestionContext): string {
     return ` -R ${ctx.repo.nwo}`;
   }
   return "";
+}
+
+/** Single-quote a URL target so its `#fragment` survives the shell. */
+function quoteTarget(id: string | number | undefined): string {
+  const value = String(id ?? "<number>");
+  return /^[\w-]+$/.test(value) ? value : `'${value}'`;
 }
 
 function ownerFlag(ctx: SuggestionContext): string {
@@ -517,6 +525,74 @@ const table: SuggestionEntry[] = [
     match: (c) => c.domain === "label" && c.action === "delete",
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} label list\` to see remaining labels`,
+    ],
+  },
+
+  // Discussion list
+  {
+    match: (c) =>
+      c.domain === "discussion" && c.action === "list" && !c.isEmpty,
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion view <number> --comments\` to read a thread`,
+    ],
+  },
+  {
+    match: (c) =>
+      c.domain === "discussion" && c.action === "list" && c.isEmpty === true,
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion list --state all\` to include closed discussions`,
+    ],
+  },
+
+  // Discussion view: hidden comments or replies
+  {
+    match: (c) => c.domain === "discussion" && c.action === "comments-hidden",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion view ${quoteTarget(c.id)} --comments --limit ${c.count}\` to see all ${c.count} comments`,
+    ],
+  },
+  {
+    match: (c) => c.domain === "discussion" && c.action === "replies-hidden",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion view ${quoteTarget(c.id)}\` to see all ${c.count} replies to that comment`,
+    ],
+  },
+  {
+    match: (c) =>
+      c.domain === "discussion" && c.action === "thread-replies-hidden",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion view ${quoteTarget(c.id)} --limit ${c.count}\` to see all ${c.count} replies`,
+    ],
+  },
+
+  // Discussion view
+  {
+    match: (c) =>
+      c.domain === "discussion" && c.action === "view" && c.count !== 0,
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion view ${c.id} --comments\` to read ${c.count} comment${c.count === 1 ? "" : "s"} with replies nested`,
+      `Run \`gh-axi${repoFlag(c)} discussion comment ${c.id} --body "..."\` to add a top-level comment`,
+    ],
+  },
+  {
+    match: (c) =>
+      c.domain === "discussion" &&
+      (c.action === "view" || c.action === "view-comments"),
+    lines: (c) => [
+      ...(c.action === "view-comments" && c.count !== 0
+        ? [
+            `Run \`gh-axi${repoFlag(c)} discussion comment '<comment-url>' --body "..."\` to reply under a comment`,
+          ]
+        : []),
+      `Run \`gh-axi${repoFlag(c)} discussion comment ${c.id} --body "..."\` to add a top-level comment`,
+    ],
+  },
+
+  // Discussion comment
+  {
+    match: (c) => c.domain === "discussion" && c.action === "comment",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} discussion view ${c.id ?? "<number>"} --comments\` to see the thread`,
     ],
   },
 

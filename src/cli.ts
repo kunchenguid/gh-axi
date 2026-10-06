@@ -9,6 +9,7 @@ import { workflowCommand, WORKFLOW_HELP } from "./commands/workflow.js";
 import { releaseCommand, RELEASE_HELP } from "./commands/release.js";
 import { repoCommand, REPO_HELP } from "./commands/repo.js";
 import { labelCommand, LABEL_HELP } from "./commands/label.js";
+import { discussionCommand, DISCUSSION_HELP } from "./commands/discussion.js";
 import { projectCommand, PROJECT_HELP } from "./commands/project.js";
 import { secretCommand, SECRET_HELP } from "./commands/secret.js";
 import { variableCommand, VARIABLE_HELP } from "./commands/variable.js";
@@ -39,8 +40,8 @@ type MainOptions = {
 };
 
 export const TOP_HELP = `usage: gh-axi [command] [args] [flags]
-commands[16]:
-  (none)=dashboard, issue, pr, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
+commands[17]:
+  (none)=dashboard, issue, pr, discussion, stack, run, workflow, release, repo, label, gist, project, secret, variable, search, api, setup
 flags[4]:
   -R/--repo <OWNER/NAME> (after command), --hostname <host> (after command) or GH_HOST env, both flags accept space or equals form, --help, -v/-V/--version
 requires:
@@ -52,6 +53,7 @@ examples:
   gh-axi issue list --repo=owner/name
   gh-axi issue list --hostname git.example.com
   gh-axi pr view 42
+  gh-axi discussion view 66 --comments
   gh-axi stack view
   gh-axi secret list
   gh-axi setup hooks
@@ -60,6 +62,7 @@ examples:
 const COMMAND_HELP: Record<string, string> = {
   issue: ISSUE_HELP,
   pr: PR_HELP,
+  discussion: DISCUSSION_HELP,
   run: RUN_HELP,
   workflow: WORKFLOW_HELP,
   release: RELEASE_HELP,
@@ -83,6 +86,7 @@ type WrappedCommandFn = (args: string[], ctx?: CliContext) => Promise<string>;
 const COMMANDS: Record<string, WrappedCommandFn> = {
   issue: withRepoContext("issue", issueCommand),
   pr: withRepoContext("pr", prCommand),
+  discussion: withRepoContext("discussion", discussionCommand),
   run: withRepoContext("run", runCommand),
   workflow: withRepoContext("workflow", workflowCommand),
   release: withRepoContext("release", releaseCommand),

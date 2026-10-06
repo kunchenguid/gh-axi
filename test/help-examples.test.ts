@@ -12,6 +12,10 @@ import { VARIABLE_FLAGS, VARIABLE_HELP } from "../src/commands/variable.js";
 import { SEARCH_FLAGS, SEARCH_HELP } from "../src/commands/search.js";
 import { API_HELP } from "../src/commands/api.js";
 import { GIST_HELP } from "../src/commands/gist.js";
+import {
+  DISCUSSION_FLAGS,
+  DISCUSSION_HELP,
+} from "../src/commands/discussion.js";
 import { TOP_HELP } from "../src/cli.js";
 
 /**
@@ -59,11 +63,13 @@ describe("Help output includes examples for every command family", () => {
   assertHelpHasExamples("SEARCH_HELP", SEARCH_HELP);
   assertHelpHasExamples("API_HELP", API_HELP);
   assertHelpHasExamples("GIST_HELP", GIST_HELP);
+  assertHelpHasExamples("DISCUSSION_HELP", DISCUSSION_HELP);
 });
 
 describe("--body-file discoverability", () => {
   it("documents --body-file in body-accepting command help", () => {
     expect(ISSUE_HELP).toContain("--body-file <path>");
+    expect(DISCUSSION_HELP).toContain("--body-file <path>");
     expect(PR_HELP).toContain("--body-file <path>");
     expect(RELEASE_HELP).toContain("--body-file");
   });
@@ -184,6 +190,7 @@ describe("every accepted flag is documented in its family's help", () => {
     ["project", PROJECT_FLAGS, PROJECT_HELP],
     ["variable", VARIABLE_FLAGS, VARIABLE_HELP],
     ["search", SEARCH_FLAGS, SEARCH_HELP],
+    ["discussion", DISCUSSION_FLAGS, DISCUSSION_HELP],
   ];
 
   for (const [family, flags, help] of families) {

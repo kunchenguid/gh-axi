@@ -87,6 +87,7 @@ gh-axi                          # dashboard - live state, no args needed
 gh-axi issue list               # list issues in current repo
 gh-axi issue subissue list 16   # list sub-issues for issue #16
 gh-axi pr view 42               # view pull request #42
+gh-axi discussion view 66 --comments  # read a discussion with replies nested under each comment
 gh-axi stack init model api ui  # create or adopt a stack of branches
 gh-axi stack submit --open      # create ready-for-review stacked PRs without prompts
 gh-axi stack view               # inspect the current stack as token-efficient TOON
@@ -171,24 +172,25 @@ When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output l
 
 ### Commands
 
-| Command    | Description                                                                 |
-| ---------- | --------------------------------------------------------------------------- |
-| `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue         |
-| `pr`       | Pull requests — list, view, create, merge, review, checks                   |
-| `stack`    | Stacked branches and PRs - create, submit, sync, rebase, merge, navigate    |
-| `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
-| `workflow` | Workflows - list, view, run (trigger), enable, disable                      |
-| `release`  | Releases — list, view, create, edit, delete                                 |
-| `repo`     | Repositories — list, view, create, edit, clone, fork                        |
-| `label`    | Labels — list, create, edit, delete                                         |
-| `gist`     | Gists — list, view, edit, rename, create, delete, clone                     |
-| `project`  | Projects (v2) - list, view, create, edit, close, copy, items, fields        |
-| `secret`   | Actions secrets — list, set, delete                                         |
-| `variable` | Actions variables — list, set, delete                                       |
-| `search`   | Search issues, PRs, repos, commits, code                                    |
-| `api`      | Raw GitHub API access                                                       |
-| `setup`    | Install optional agent session hooks                                        |
-| `update`   | Built-in self-update command inherited from `axi-sdk-js`                    |
+| Command      | Description                                                                 |
+| ------------ | --------------------------------------------------------------------------- |
+| `issue`      | Issues — list, view, create, edit, close, reopen, comment, subissue         |
+| `pr`         | Pull requests — list, view, create, merge, review, checks                   |
+| `discussion` | Discussions (gh preview) - list, view with nested replies, comment or reply |
+| `stack`      | Stacked branches and PRs - create, submit, sync, rebase, merge, navigate    |
+| `run`        | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
+| `workflow`   | Workflows - list, view, run (trigger), enable, disable                      |
+| `release`    | Releases — list, view, create, edit, delete                                 |
+| `repo`       | Repositories — list, view, create, edit, clone, fork                        |
+| `label`      | Labels — list, create, edit, delete                                         |
+| `gist`       | Gists — list, view, edit, rename, create, delete, clone                     |
+| `project`    | Projects (v2) - list, view, create, edit, close, copy, items, fields        |
+| `secret`     | Actions secrets — list, set, delete                                         |
+| `variable`   | Actions variables — list, set, delete                                       |
+| `search`     | Search issues, PRs, repos, commits, code                                    |
+| `api`        | Raw GitHub API access                                                       |
+| `setup`      | Install optional agent session hooks                                        |
+| `update`     | Built-in self-update command inherited from `axi-sdk-js`                    |
 
 ### Global flags
 

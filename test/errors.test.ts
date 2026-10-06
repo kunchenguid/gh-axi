@@ -27,6 +27,30 @@ describe("AxiError", () => {
 });
 
 describe("mapGhError", () => {
+  it("maps disabled discussions to a validation error naming the repo", () => {
+    const err = mapGhError(
+      "the 'octo/repo' repository has discussions disabled",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe("Discussions are disabled for octo/repo");
+  });
+
+  it("maps an unknown discussion category to a validation error", () => {
+    const err = mapGhError(
+      'unknown category: "nope"; must be one of: general, ideas',
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("must be one of: general, ideas");
+  });
+
+  it("explains a gh without the discussion command", () => {
+    const err = mapGhError('unknown command "discussion" for "gh"', 1);
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("gh discussion");
+  });
+
   it("matches repo not found pattern", () => {
     const err = mapGhError(
       "Could not resolve to a Repository with the name 'cli/cli'",
