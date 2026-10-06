@@ -81,7 +81,12 @@ if (args[0] === "release" && args[1] === "edit") {
 
 if (args[0] === "api") {
   const path = args[1];
-  const method = optionValue("--method") ?? "GET";
+  // Mirror gh api: GET normally, POST once a request body is added.
+  const method =
+    optionValue("--method") ??
+    (optionValues("--field").length > 0 || optionValue("--input") !== undefined
+      ? "POST"
+      : "GET");
   const release = releaseByPath(path);
   if (!release) {
     console.error("release not found");

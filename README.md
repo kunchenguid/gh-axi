@@ -161,7 +161,7 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
-`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
+`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`. With no method given, gh-axi forwards no `--method`, so `gh` chooses as `gh api` does: GET normally, POST once `--field` or `--input` is present (`gh-axi api graphql --field query=...` runs the query).
 Use `--input <file>` to send a raw JSON request body, or `--input -` to relay piped stdin byte for byte.
 `--input -` rejects an interactive terminal instead of waiting for input.
 Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.

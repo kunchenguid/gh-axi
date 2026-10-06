@@ -39,15 +39,95 @@ describe("apiCommand", () => {
     expect(result).toBe(API_HELP);
   });
 
-  it("defaults to GET method", async () => {
+  it("forwards no --method when none is given, so gh defaults to GET", async () => {
     mockedGhExec.mockResolvedValue("{}");
 
     await apiCommand(["/repos/octo/repo"]);
 
     expect(mockedGhExec).toHaveBeenCalledWith(
-      expect.arrayContaining(["api", "/repos/octo/repo", "--method", "GET"]),
+      ["api", "/repos/octo/repo"],
       undefined,
     );
+  });
+
+  it("lets gh pick POST for graphql --field instead of forcing GET (#180)", async () => {
+    mockedGhExec.mockResolvedValue('{"data":{"viewer":{"login":"octo"}}}');
+
+    await apiCommand(["graphql", "--field", "query=query{viewer{login}}"]);
+
+    // A forced `--method GET` makes GitHub answer with the schema, not the query.
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs).toEqual([
+      "api",
+      "graphql",
+      "--field",
+      "query=query{viewer{login}}",
+    ]);
+    expect(ghArgs).not.toContain("--method");
+  });
+
+  it("forwards no --method for a REST --field call with no method", async () => {
+    mockedGhExec.mockResolvedValue("{}");
+
+    await apiCommand(["/repos/octo/repo/issues", "--field", "title=Bug"]);
+
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs).not.toContain("--method");
+    expect(ghArgs).toEqual(expect.arrayContaining(["--field", "title=Bug"]));
+  });
+
+  it("forwards no --method for --input with no method", async () => {
+    mockedGhExec.mockResolvedValue("{}");
+
+    await apiCommand(["/repos/octo/repo/issues", "--input", "body.json"]);
+
+    expect(mockedGhExec.mock.calls[0][0]).not.toContain("--method");
+  });
+
+  it("still forwards an explicit GET with --field", async () => {
+    mockedGhExec.mockResolvedValue("[]");
+
+    await apiCommand(["GET", "/search/issues", "--field", "q=repo:octo/repo"]);
+
+    expect(mockedGhExec).toHaveBeenCalledWith(
+      [
+        "api",
+        "/search/issues",
+        "--method",
+        "GET",
+        "--field",
+        "q=repo:octo/repo",
+      ],
+      undefined,
+    );
+  });
+
+  it("still forwards -X with graphql --field", async () => {
+    mockedGhExec.mockResolvedValue("{}");
+
+    await apiCommand([
+      "-X",
+      "POST",
+      "graphql",
+      "--field",
+      "query=query{viewer{login}}",
+    ]);
+
+    expect(mockedGhExec).toHaveBeenCalledWith(
+      [
+        "api",
+        "graphql",
+        "--method",
+        "POST",
+        "--field",
+        "query=query{viewer{login}}",
+      ],
+      undefined,
+    );
+  });
+
+  it("shows a graphql example in help", () => {
+    expect(API_HELP).toContain("gh-axi api graphql --field query=");
   });
 
   it("uses explicit method when provided", async () => {
@@ -207,7 +287,9 @@ describe("apiCommand", () => {
   });
 
   it("prints a multi-line --jq selection as bare lines", async () => {
-    mockedGhExec.mockResolvedValue("autorelease: pending\nbug\ndocumentation\n");
+    mockedGhExec.mockResolvedValue(
+      "autorelease: pending\nbug\ndocumentation\n",
+    );
 
     const result = await apiCommand([
       "/repos/octo/repo/labels",
