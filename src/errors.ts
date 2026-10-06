@@ -143,6 +143,25 @@ const patterns: ErrorPattern[] = [
     suggestions: () => [],
   },
   {
+    pattern: /the '([^']+)' repository has discussions disabled/i,
+    code: "VALIDATION_ERROR",
+    message: (m) => `Discussions are disabled for ${m[1]}`,
+    suggestions: () => [],
+  },
+  {
+    pattern: /^unknown category: .+$/m,
+    code: "VALIDATION_ERROR",
+    message: (m) => m[0],
+    suggestions: () => [],
+  },
+  {
+    pattern: /unknown command "discussion" for "gh"/i,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "The installed gh has no `gh discussion` command; upgrade gh (checked on gh 2.100.0)",
+    suggestions: () => [],
+  },
+  {
     pattern: /issue (\d+) not found/i,
     code: "NOT_FOUND",
     message: (m) => `Issue #${m[1]} does not exist`,
