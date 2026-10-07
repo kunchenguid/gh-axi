@@ -87,6 +87,7 @@ gh-axi                          # dashboard - live state, no args needed
 gh-axi issue list               # list issues in current repo
 gh-axi issue subissue list 16   # list sub-issues for issue #16
 gh-axi pr view 42               # view pull request #42
+gh-axi discussion view 66 --comments  # read a discussion with replies nested under each comment
 gh-axi stack init model api ui  # create or adopt a stack of branches
 gh-axi stack submit --open      # create ready-for-review stacked PRs without prompts
 gh-axi stack view               # inspect the current stack as token-efficient TOON
@@ -161,9 +162,10 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
-`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`. With no method given, gh-axi forwards no `--method`, so `gh` chooses as `gh api` does: GET normally, POST once `--field` or `--input` is present (`gh-axi api graphql --field query=...` runs the query).
+`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--raw-field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`. With no method given, gh-axi forwards no `--method`, so `gh` chooses as `gh api` does: GET normally, POST once `--field`, `--raw-field` or `--input` is present (`gh-axi api graphql --field query=...` runs the query).
 Use `--input <file>` to send a raw JSON request body, or `--input -` to relay piped stdin byte for byte.
 `--input -` rejects an interactive terminal instead of waiting for input.
+`--raw-field <key=value>` (repeatable) forwards to `gh api --raw-field` and always sends the value as a JSON string, while `--field` is typed like `gh api -F` and turns numbers, `true`, `false` and `null` into JSON values. Use `--raw-field content=+1` for a value such as a `+1` reaction that must stay a string.
 Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
 When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output limit, it is clamped and ends with `... (truncated)` so the cut is visible; pass `--full` to lift the cap.
@@ -171,24 +173,25 @@ When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output l
 
 ### Commands
 
-| Command    | Description                                                                 |
-| ---------- | --------------------------------------------------------------------------- |
-| `issue`    | Issues — list, view, create, edit, close, reopen, comment, subissue         |
-| `pr`       | Pull requests — list, view, create, merge, review, checks                   |
-| `stack`    | Stacked branches and PRs - create, submit, sync, rebase, merge, navigate    |
-| `run`      | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
-| `workflow` | Workflows - list, view, run (trigger), enable, disable                      |
-| `release`  | Releases — list, view, create, edit, delete                                 |
-| `repo`     | Repositories — list, view, create, edit, clone, fork                        |
-| `label`    | Labels — list, create, edit, delete                                         |
-| `gist`     | Gists — list, view, edit, rename, create, delete, clone                     |
-| `project`  | Projects (v2) - list, view, create, edit, close, copy, items, fields        |
-| `secret`   | Actions secrets — list, set, delete                                         |
-| `variable` | Actions variables — list, set, delete                                       |
-| `search`   | Search issues, PRs, repos, commits, code                                    |
-| `api`      | Raw GitHub API access                                                       |
-| `setup`    | Install optional agent session hooks                                        |
-| `update`   | Built-in self-update command inherited from `axi-sdk-js`                    |
+| Command      | Description                                                                 |
+| ------------ | --------------------------------------------------------------------------- |
+| `issue`      | Issues — list, view, create, edit, close, reopen, comment, subissue         |
+| `pr`         | Pull requests — list, view, create, merge, review, checks                   |
+| `discussion` | Discussions (gh preview) - list, view with nested replies, comment or reply |
+| `stack`      | Stacked branches and PRs - create, submit, sync, rebase, merge, navigate    |
+| `run`        | Existing workflow runs - list, view, watch, rerun, cancel, delete, download |
+| `workflow`   | Workflows - list, view, run (trigger), enable, disable                      |
+| `release`    | Releases — list, view, create, edit, delete                                 |
+| `repo`       | Repositories — list, view, create, edit, clone, fork                        |
+| `label`      | Labels — list, create, edit, delete                                         |
+| `gist`       | Gists — list, view, edit, rename, create, delete, clone                     |
+| `project`    | Projects (v2) - list, view, create, edit, close, copy, items, fields        |
+| `secret`     | Actions secrets — list, set, delete                                         |
+| `variable`   | Actions variables — list, set, delete                                       |
+| `search`     | Search issues, PRs, repos, commits, code                                    |
+| `api`        | Raw GitHub API access                                                       |
+| `setup`      | Install optional agent session hooks                                        |
+| `update`     | Built-in self-update command inherited from `axi-sdk-js`                    |
 
 ### Global flags
 
