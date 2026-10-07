@@ -64,6 +64,24 @@ describe("mapGhError", () => {
     );
   });
 
+  it("quotes apostrophes in the split-query suggestion", () => {
+    const err = mapGhError(
+      'Invalid search query "( author:\\"missing-user O\'Brien\\" )".',
+      1,
+    );
+    expect(err.suggestions[0]).toContain("'author:missing-user' 'O'\\''Brien'");
+  });
+
+  it("keeps GitHub's error for a single quoted qualifier value", () => {
+    const err = mapGhError(
+      'Invalid search query "( author:\\"missing-user\\" ) type:pr".\n' +
+        "The listed users cannot be searched.",
+      1,
+    );
+    expect(err.message).not.toContain("swallowed");
+    expect(err.message).toContain("Invalid search query");
+  });
+
   it("matches repo not found pattern", () => {
     const err = mapGhError(
       "Could not resolve to a Repository with the name 'cli/cli'",

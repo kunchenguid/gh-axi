@@ -311,12 +311,12 @@ const patterns: ErrorPattern[] = [
     // gh quotes a multi-word query argument whose first token is a qualifier,
     // so `"review-requested:@me created:>=2026-01-01"` becomes
     // `review-requested:"@me created:>=2026-01-01"` and GitHub rejects it.
-    pattern: /Invalid search query "\( ([\w-]+):\\"([^"]*)\\" \)/,
+    pattern: /Invalid search query "\( ([\w-]+):\\"([^"\s]+\s[^"]*)\\" \)/,
     code: "VALIDATION_ERROR",
     message: (m) =>
       `The \`${m[1]}:\` qualifier swallowed the rest of the query ("${m[2]}"): gh quotes a multi-word query argument that starts with a qualifier`,
     suggestions: (m) => [
-      `Pass each term as its own argument: ${[`${m[1]}:${m[2].split(/\s+/)[0]}`, ...m[2].split(/\s+/).slice(1)].map((t) => `'${t}'`).join(" ")}`,
+      `Pass each term as its own argument: ${[`${m[1]}:${m[2].split(/\s+/)[0]}`, ...m[2].split(/\s+/).slice(1)].map((t) => `'${t.replace(/'/g, "'\\''")}'`).join(" ")}`,
       "Or move filters to flags (--repo, --owner, --author, --state, --label)",
     ],
   },

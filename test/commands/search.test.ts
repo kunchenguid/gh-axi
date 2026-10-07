@@ -47,6 +47,16 @@ describe("searchCommand", () => {
       await expect(searchCommand(["issues"])).rejects.toThrow(AxiError);
     });
 
+    it.each(["issues", "prs", "repos", "commits", "code"])(
+      "rejects a blank %s query without calling gh",
+      async (type) => {
+        await expect(searchCommand([type, "", " "])).rejects.toThrow(
+          "Search query or filters required",
+        );
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
     it("returns results with count", async () => {
       mockedGhJson.mockResolvedValue([
         {

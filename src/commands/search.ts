@@ -126,7 +126,7 @@ function extractQuery(args: string[]): string[] {
     if (args[i].startsWith("--")) {
       i += args[i].includes("=") || !SEARCH_VALUE_FLAGS.has(args[i]) ? 1 : 2;
     } else {
-      positionals.push(args[i]);
+      if (args[i].trim() !== "") positionals.push(args[i]);
       i++;
     }
   }
