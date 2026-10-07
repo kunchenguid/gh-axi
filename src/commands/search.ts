@@ -115,8 +115,11 @@ const commitSchema: FieldDef[] = [
   }),
 ];
 
-function extractQuery(args: string[]): string {
-  // Collect positional args (not flags and not the subcommand)
+function extractQuery(args: string[]): string[] {
+  // Collect positional args (not flags and not the subcommand). Forward them to
+  // gh as separate argv entries: gh quotes a multi-word argument whose first
+  // token is a qualifier (`"a:b c:d"` -> `a:"b c:d"`), so joining
+  // `review-requested:@me created:>=2026-01-01` into one string breaks it.
   const positionals: string[] = [];
   let i = 1; // skip subcommand (issues/prs/repos/commits/code)
   while (i < args.length) {
@@ -127,7 +130,7 @@ function extractQuery(args: string[]): string {
       i++;
     }
   }
-  return positionals.join(" ");
+  return positionals;
 }
 
 function getSearchRepo(args: string[], ctx?: RepoContext): string | undefined {
@@ -154,7 +157,7 @@ async function searchIssues(
   ctx?: RepoContext,
 ): Promise<string> {
   const query = extractQuery(args);
-  if (!query && !hasSearchFilters(args))
+  if (query.length === 0 && !hasSearchFilters(args))
     throw new AxiError(
       "Search query or filters required: gh-axi search issues <query> [--assignee x] [--state open] ...",
       "VALIDATION_ERROR",
@@ -162,7 +165,7 @@ async function searchIssues(
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "issues"];
-  if (query) ghArgs.push(query);
+  ghArgs.push(...query);
   ghArgs.push(
     "--json",
     "number,title,repository,state,author,labels,createdAt",
@@ -207,7 +210,7 @@ async function searchIssues(
 
 async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   const query = extractQuery(args);
-  if (!query && !hasSearchFilters(args, ["--draft", "--review"]))
+  if (query.length === 0 && !hasSearchFilters(args, ["--draft", "--review"]))
     throw new AxiError(
       "Search query or filters required: gh-axi search prs <query> [--assignee x] [--state open] ...",
       "VALIDATION_ERROR",
@@ -215,7 +218,7 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "prs"];
-  if (query) ghArgs.push(query);
+  ghArgs.push(...query);
   ghArgs.push(
     "--json",
     "number,title,repository,state,author,createdAt",
@@ -263,7 +266,7 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function searchRepos(args: string[], ctx?: RepoContext): Promise<string> {
   const query = extractQuery(args);
-  if (!query && !hasSearchFilters(args, ["--language", "--stars"]))
+  if (query.length === 0 && !hasSearchFilters(args, ["--language", "--stars"]))
     throw new AxiError(
       "Search query or filters required: gh-axi search repos <query> [--owner x] [--language y] ...",
       "VALIDATION_ERROR",
@@ -271,7 +274,7 @@ async function searchRepos(args: string[], ctx?: RepoContext): Promise<string> {
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "repos"];
-  if (query) ghArgs.push(query);
+  ghArgs.push(...query);
   ghArgs.push(
     "--json",
     "fullName,description,stargazersCount,forksCount,language,updatedAt",
@@ -313,7 +316,7 @@ async function searchCommits(
   ctx?: RepoContext,
 ): Promise<string> {
   const query = extractQuery(args);
-  if (!query && !hasSearchFilters(args))
+  if (query.length === 0 && !hasSearchFilters(args))
     throw new AxiError(
       "Search query or filters required: gh-axi search commits <query> [--repo x] [--author y] ...",
       "VALIDATION_ERROR",
@@ -321,7 +324,7 @@ async function searchCommits(
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "commits"];
-  if (query) ghArgs.push(query);
+  ghArgs.push(...query);
   ghArgs.push("--json", "sha,commit,repository,author", "--limit", limit);
   const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push("--repo", repo);
@@ -365,7 +368,7 @@ const codeSchema: FieldDef[] = [
 
 async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
   const query = extractQuery(args);
-  if (!query && !hasSearchFilters(args, ["--language"]))
+  if (query.length === 0 && !hasSearchFilters(args, ["--language"]))
     throw new AxiError(
       "Search query or filters required: gh-axi search code <query> [--repo x] [--language y] ...",
       "VALIDATION_ERROR",
@@ -373,7 +376,7 @@ async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "code"];
-  if (query) ghArgs.push(query);
+  ghArgs.push(...query);
   ghArgs.push("--json", "path,repository,textMatches", "--limit", limit);
   const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push("--repo", repo);

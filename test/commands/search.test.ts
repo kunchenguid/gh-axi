@@ -94,6 +94,26 @@ describe("searchCommand", () => {
       ]);
     });
 
+    it("forwards each positional as its own gh argument", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand([
+        "prs",
+        "review-requested:@me",
+        "created:>=2026-01-01",
+        "--state",
+        "open",
+      ]);
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs.slice(0, 4)).toEqual([
+        "search",
+        "prs",
+        "review-requested:@me",
+        "created:>=2026-01-01",
+      ]);
+    });
+
     it("keeps query after boolean filters", async () => {
       mockedGhJson.mockResolvedValue([]);
 
