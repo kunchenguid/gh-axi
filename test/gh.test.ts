@@ -169,7 +169,11 @@ describe("ghExec", () => {
   it("surfaces stdout diagnostics when stderr is empty on failure", async () => {
     const error = new Error("exit 1") as Error & { code: number };
     error.code = 1;
-    mockExecFileResult(error, "X trunk failed - run 123 completed with 'failure'", "");
+    mockExecFileResult(
+      error,
+      "X trunk failed - run 123 completed with 'failure'",
+      "",
+    );
     try {
       await ghExec(["run", "watch", "123", "--exit-status"]);
       expect.unreachable("ghExec should throw");
