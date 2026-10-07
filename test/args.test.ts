@@ -3,6 +3,7 @@ import {
   getFlag,
   takeFlag,
   takeRequiredFlag,
+  getRequiredFlag,
   takeSingleRequiredFlag,
   hasFlag,
   takeBoolFlag,
@@ -70,6 +71,27 @@ describe("takeFlag", () => {
     const val = takeFlag(args, "--flag");
     expect(val).toBe("val");
     expect(args).toEqual(["--other"]);
+  });
+});
+
+describe("getRequiredFlag", () => {
+  it("returns the value without modifying args", () => {
+    const args = ["--assignee=octocat", "--author", "hubot"];
+    expect(getRequiredFlag(args, "--assignee")).toBe("octocat");
+    expect(getRequiredFlag(args, "--author")).toBe("hubot");
+    expect(args).toEqual(["--assignee=octocat", "--author", "hubot"]);
+  });
+
+  it("returns undefined when the flag is absent", () => {
+    expect(getRequiredFlag(["--state", "open"], "--assignee")).toBeUndefined();
+  });
+
+  it("throws VALIDATION_ERROR on an empty, blank, or dangling value", () => {
+    for (const args of [["--assignee="], ["--assignee=  "], ["--assignee"]]) {
+      expect(() => getRequiredFlag(args, "--assignee")).toThrow(
+        "--assignee requires a value",
+      );
+    }
   });
 });
 

@@ -107,6 +107,14 @@ export function takeRequiredFlag(
   return undefined;
 }
 
+/** Like takeRequiredFlag, but leaves args unchanged (the getFlag counterpart). */
+export function getRequiredFlag(
+  args: string[],
+  flag: string,
+): string | undefined {
+  return takeRequiredFlag([...args], flag);
+}
+
 /** Like takeRequiredFlag, but rejects repeats and only scans before `--`. */
 export function takeSingleRequiredFlag(
   args: string[],
