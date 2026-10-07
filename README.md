@@ -162,7 +162,7 @@ Gist visibility is fixed at creation; a secret gist is unlisted (anyone with the
 Two file-on-disk input forms are available: positional paths (`gist create a.py b.py`) or repeatable `--file` flags (`gist create --file a.py --file b.py`); mixing the two is an error.
 To create a gist from piped content, use `--filename <name>` together with a pipe (`echo "..." | gh-axi gist create --filename foo.txt --public`).
 
-`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
+`gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--raw-field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
 Use `--input <file>` to send a raw JSON request body, or `--input -` to relay piped stdin byte for byte.
 `--input -` rejects an interactive terminal instead of waiting for input.
 `--raw-field <key=value>` (repeatable) forwards to `gh api --raw-field` and always sends the value as a JSON string, while `--field` is typed like `gh api -F` and turns numbers, `true`, `false` and `null` into JSON values. Use `--raw-field content=+1` for a value such as a `+1` reaction that must stay a string.

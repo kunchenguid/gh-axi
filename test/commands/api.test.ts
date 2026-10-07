@@ -273,7 +273,9 @@ describe("apiCommand", () => {
   });
 
   it("prints a multi-line --jq selection as bare lines", async () => {
-    mockedGhExec.mockResolvedValue("autorelease: pending\nbug\ndocumentation\n");
+    mockedGhExec.mockResolvedValue(
+      "autorelease: pending\nbug\ndocumentation\n",
+    );
 
     const result = await apiCommand([
       "/repos/octo/repo/labels",
