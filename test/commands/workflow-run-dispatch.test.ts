@@ -137,5 +137,8 @@ describe("workflow run dispatch", () => {
 
     expect(err).toBeInstanceOf(AxiError);
     expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe(
+      "Workflow does not have 'workflow_dispatch' trigger",
+    );
   });
 });

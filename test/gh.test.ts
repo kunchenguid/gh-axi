@@ -199,6 +199,25 @@ describe("ghExec", () => {
     }
   });
 
+  it("surfaces GitHub's 422 message from gh api's stderr, not the stdout body", async () => {
+    const error = new Error("exit 1") as Error & { code: number };
+    error.code = 1;
+    mockExecFileResult(
+      error,
+      '{"message":"Invalid request.","errors":["1 is not a string."],"status":"422"}',
+      "gh: Invalid request.\n\nFor 'properties/content', 1 is not a string. (HTTP 422)\n",
+    );
+    try {
+      await ghExec(["api", "repos/octo/repo/issues/1/reactions"]);
+      expect.unreachable("ghExec should throw");
+    } catch (e) {
+      expect((e as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((e as AxiError).message).toBe(
+        "Invalid request. For 'properties/content', 1 is not a string.",
+      );
+    }
+  });
+
   it("prefers stderr over stdout when both are present on failure", async () => {
     const error = new Error("exit 1") as Error & { code: number };
     error.code = 1;

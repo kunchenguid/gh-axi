@@ -166,6 +166,42 @@ describe("mapGhError", () => {
     expect(err.message).toBe("Validation Failed");
   });
 
+  it("surfaces gh api's multi-line 422 message instead of the fallback", () => {
+    const stderr =
+      'gh: Invalid request.\n\n1 is not a member of ["+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"].\nFor \'properties/content\', 1 is not a string. (HTTP 422)\n';
+    const err = mapGhError(stderr, 1);
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe(
+      'Invalid request. 1 is not a member of ["+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"]. For \'properties/content\', 1 is not a string.',
+    );
+  });
+
+  it("surfaces gh api's single-line 422 message", () => {
+    const err = mapGhError("gh: Validation Failed (HTTP 422)\n", 1);
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe("Validation Failed");
+  });
+
+  it("surfaces the go-gh HTTPError 422 message without the request URL", () => {
+    const err = mapGhError(
+      "could not create workflow dispatch event: HTTP 422: Workflow does not have 'workflow_dispatch' trigger (https://api.github.com/repos/octo/repo/actions/workflows/1/dispatches)\n",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe(
+      "Workflow does not have 'workflow_dispatch' trigger",
+    );
+  });
+
+  it("keeps the go-gh HTTPError 422 detail lines", () => {
+    const err = mapGhError(
+      "HTTP 422: Validation Failed (https://api.github.com/repos/octo/repo/labels)\nLabel name already exists\n",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe("Validation Failed Label name already exists");
+  });
+
   it("matches validation error pattern without extractable message", () => {
     const err = mapGhError("HTTP 422", 1);
     expect(err.code).toBe("VALIDATION_ERROR");

@@ -315,13 +315,48 @@ const patterns: ErrorPattern[] = [
   {
     pattern: /HTTP 422/,
     code: "VALIDATION_ERROR",
-    message: (_m, stderr) => {
-      // Try to extract a meaningful message from the 422 body
-      const msgMatch = stderr.match(/"message"\s*:\s*"([^"]+)"/);
-      return msgMatch ? msgMatch[1] : "Validation error";
-    },
+    message: (_m, stderr) => validationMessage(stderr) ?? "Validation error",
   },
 ];
+
+/** Collapse a possibly multi-line gh message into one line. */
+function joinLines(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .join(" ");
+}
+
+/**
+ * Extract GitHub's explanation from a 422 failure. gh reports it in one of
+ * three shapes, tried in order:
+ * - a raw JSON body carrying `"message": "..."`;
+ * - `gh api`'s formatted form, `gh: <message>\n\n<errors...> (HTTP 422)`,
+ *   where the message and per-field errors can span several lines;
+ * - the go-gh HTTPError form used by other commands,
+ *   `HTTP 422: <message> (<url>)` followed by optional error lines.
+ */
+function validationMessage(stderr: string): string | undefined {
+  const json = stderr.match(/"message"\s*:\s*"([^"]+)"/);
+  if (json) return json[1];
+
+  const ghApi = stderr.match(/(?:^|\n)gh: ([\s\S]*?)\s*\(HTTP 422\)/);
+  if (ghApi) {
+    const text = joinLines(ghApi[1]);
+    if (text) return text;
+  }
+
+  const httpError = stderr.match(
+    /HTTP 422: ([^\n]*?)(?: \(https?:\/\/[^\s)]+\))?(\n[\s\S]*)?$/,
+  );
+  if (httpError) {
+    const text = joinLines(`${httpError[1]}\n${httpError[2] ?? ""}`);
+    if (text) return text;
+  }
+
+  return undefined;
+}
 
 function firstErrorLine(stderr: string): string {
   return stderr.trim().split("\n")[0] ?? "";
