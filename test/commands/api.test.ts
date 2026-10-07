@@ -157,6 +157,72 @@ describe("apiCommand", () => {
     );
   });
 
+  it("forwards --raw-field as gh's string --raw-field, not the typed --field (#182)", async () => {
+    mockedGhExec.mockResolvedValue('{"content":"+1"}');
+
+    await apiCommand([
+      "POST",
+      "/repos/octo/repo/issues/1/reactions",
+      "--raw-field",
+      "content=+1",
+    ]);
+
+    // gh's --field would send `+1` as the number 1 and GitHub answers 422.
+    expect(mockedGhExec).toHaveBeenCalledWith(
+      [
+        "api",
+        "/repos/octo/repo/issues/1/reactions",
+        "--method",
+        "POST",
+        "--raw-field",
+        "content=+1",
+      ],
+      undefined,
+    );
+  });
+
+  it("repeats --raw-field, accepts --raw-field=<key=value>, and keeps --field typed", async () => {
+    mockedGhExec.mockResolvedValue("{}");
+
+    await apiCommand([
+      "PATCH",
+      "/repos/octo/repo/issues/1",
+      "--raw-field",
+      "title=1",
+      "--field",
+      "locked=true",
+      "--raw-field=body=null",
+    ]);
+
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs).toEqual([
+      "api",
+      "/repos/octo/repo/issues/1",
+      "--method",
+      "PATCH",
+      "--field",
+      "locked=true",
+      "--raw-field",
+      "title=1",
+      "--raw-field",
+      "body=null",
+    ]);
+  });
+
+  it("rejects --raw-field with no value", async () => {
+    await expect(
+      apiCommand(["POST", "/repos/octo/repo/issues", "--raw-field"]),
+    ).rejects.toThrow("--raw-field requires a value");
+    expect(mockedGhExec).not.toHaveBeenCalled();
+  });
+
+  it("documents --raw-field next to --field in help", () => {
+    expect(API_HELP).toContain("--raw-field <key=value> (repeatable;");
+    expect(API_HELP).toContain("always sent as a string");
+    expect(API_HELP).toMatch(/--field <key=value> \(repeatable; typed/);
+    expect(API_HELP).toContain("--raw-field content=+1");
+  });
+
   it("cleans JSON output by stripping noisy fields", async () => {
     mockedGhExec.mockResolvedValue(
       JSON.stringify({

@@ -9,8 +9,8 @@ export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
-flags[8]:
-  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
+flags[9]:
+  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; typed: numbers, true, false and null become JSON values), --raw-field <key=value> (repeatable; always sent as a string, e.g. content=+1), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
@@ -18,7 +18,8 @@ examples:
   gh-axi api /repos/{owner}/{repo}/pulls --paginate
   gh-axi api /repos/{owner}/{repo}/issues/1 --jq '[.labels[].name]'
   gh-axi api PUT /repos/{owner}/{repo}/branches/main/protection --input body.json
-  cat body.json | gh-axi api PUT /repos/{owner}/{repo}/branches/main/protection --input -`;
+  cat body.json | gh-axi api PUT /repos/{owner}/{repo}/branches/main/protection --input -
+  gh-axi api POST /repos/{owner}/{repo}/issues/1/reactions --raw-field content=+1`;
 
 const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
 
@@ -26,7 +27,7 @@ const HTTP_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]);
 const METHOD_FLAG = "-X";
 
 /** Value flags that may be given more than once, each occurrence forwarded to gh. */
-const REPEATABLE_VALUE_FLAGS = new Set(["--field", "--header"]);
+const REPEATABLE_VALUE_FLAGS = new Set(["--field", "--raw-field", "--header"]);
 
 /** Value flags that gh accepts only one of, so a repeat is a caller mistake. */
 const SINGLE_VALUE_FLAGS = new Set(["--jq", "--template", "--input"]);
@@ -61,6 +62,7 @@ function flagName(arg: string): string {
 interface ParsedApiArgs {
   positionals: string[];
   fields: string[];
+  rawFields: string[];
   headers: string[];
   jq?: string;
   template?: string;
@@ -89,6 +91,7 @@ function parseArgs(args: string[]): ParsedApiArgs {
   const parsed: ParsedApiArgs = {
     positionals: [],
     fields: [],
+    rawFields: [],
     headers: [],
     paginate: false,
     full: false,
@@ -152,6 +155,8 @@ function parseArgs(args: string[]): ParsedApiArgs {
       parsed.method = upper;
     } else if (name === "--field") {
       parsed.fields.push(value);
+    } else if (name === "--raw-field") {
+      parsed.rawFields.push(value);
     } else if (name === "--header") {
       parsed.headers.push(value);
     } else {
@@ -191,6 +196,7 @@ export async function apiCommand(
   const {
     positionals,
     fields,
+    rawFields,
     headers,
     jq,
     template,
@@ -231,6 +237,12 @@ export async function apiCommand(
 
   for (const f of fields) {
     ghArgs.push("--field", f);
+  }
+
+  // gh's --field is typed (`+1` becomes the number 1); --raw-field keeps the
+  // value a string, which is the only way to send e.g. a `+1` reaction.
+  for (const f of rawFields) {
+    ghArgs.push("--raw-field", f);
   }
 
   for (const h of headers) {

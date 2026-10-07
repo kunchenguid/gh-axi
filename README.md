@@ -165,6 +165,7 @@ To create a gist from piped content, use `--filename <name>` together with a pip
 `gh-axi api` accepts `-X <method>` and `-X=<method>` as alternatives to the positional HTTP method, plus `--field`, `--header`, `--input <file>`, `--paginate`, `--jq <expression>`, `--template <format>`, and `--full`.
 Use `--input <file>` to send a raw JSON request body, or `--input -` to relay piped stdin byte for byte.
 `--input -` rejects an interactive terminal instead of waiting for input.
+`--raw-field <key=value>` (repeatable) forwards to `gh api --raw-field` and always sends the value as a JSON string, while `--field` is typed like `gh api -F` and turns numbers, `true`, `false` and `null` into JSON values. Use `--raw-field content=+1` for a value such as a `+1` reaction that must stay a string.
 Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.
 JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
 When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output limit, it is clamped and ends with `... (truncated)` so the cut is visible; pass `--full` to lift the cap.
