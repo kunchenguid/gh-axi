@@ -76,6 +76,16 @@ describe("apiCommand", () => {
     expect(ghArgs).toEqual(expect.arrayContaining(["--field", "title=Bug"]));
   });
 
+  it("forwards no --method for a --raw-field call with no method", async () => {
+    mockedGhExec.mockResolvedValue("{}");
+
+    await apiCommand(["/repos/octo/repo/issues", "--raw-field", "title=+1"]);
+
+    const ghArgs = mockedGhExec.mock.calls[0][0];
+    expect(ghArgs).not.toContain("--method");
+    expect(ghArgs).toEqual(expect.arrayContaining(["--raw-field", "title=+1"]));
+  });
+
   it("forwards no --method for --input with no method", async () => {
     mockedGhExec.mockResolvedValue("{}");
 

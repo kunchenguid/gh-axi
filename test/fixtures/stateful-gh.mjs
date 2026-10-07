@@ -84,15 +84,24 @@ if (args[0] === "api") {
   // Mirror gh api: GET normally, POST once a request body is added.
   const method =
     optionValue("--method") ??
-    (optionValues("--field").length > 0 || optionValue("--input") !== undefined
+    (optionValues("--field").length > 0 ||
+    optionValues("--raw-field").length > 0 ||
+    optionValue("--input") !== undefined
       ? "POST"
       : "GET");
-  const fields = optionValues("--field").map((field) => {
-    const separator = field.indexOf("=");
-    const raw = field.slice(separator + 1);
-    const value = raw === "true" ? true : raw === "false" ? false : raw;
-    return [field.slice(0, separator), value];
-  });
+  const fields = [
+    ...optionValues("--field").map((field) => {
+      const separator = field.indexOf("=");
+      const raw = field.slice(separator + 1);
+      const value = raw === "true" ? true : raw === "false" ? false : raw;
+      return [field.slice(0, separator), value];
+    }),
+    // --raw-field always sends a string, like gh api -f.
+    ...optionValues("--raw-field").map((field) => {
+      const separator = field.indexOf("=");
+      return [field.slice(0, separator), field.slice(separator + 1)];
+    }),
+  ];
 
   // POST to the collection creates a release, as GitHub's "create a release".
   if (path === "/repos/octo/repo/releases" && method === "POST") {
