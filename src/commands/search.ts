@@ -165,7 +165,6 @@ async function searchIssues(
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "issues"];
-  ghArgs.push(...query);
   ghArgs.push(
     "--json",
     "number,title,repository,state,author,labels,createdAt",
@@ -187,6 +186,7 @@ async function searchIssues(
   const sort = getFlag(args, "--sort");
   if (sort) ghArgs.push("--sort", sort);
 
+  if (query.length > 0) ghArgs.push("--", ...query);
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);
@@ -218,7 +218,6 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "prs"];
-  ghArgs.push(...query);
   ghArgs.push(
     "--json",
     "number,title,repository,state,author,createdAt",
@@ -243,6 +242,7 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   const review = getFlag(args, "--review");
   if (review) ghArgs.push("--review", review);
 
+  if (query.length > 0) ghArgs.push("--", ...query);
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);
@@ -274,7 +274,6 @@ async function searchRepos(args: string[], ctx?: RepoContext): Promise<string> {
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "repos"];
-  ghArgs.push(...query);
   ghArgs.push(
     "--json",
     "fullName,description,stargazersCount,forksCount,language,updatedAt",
@@ -290,6 +289,7 @@ async function searchRepos(args: string[], ctx?: RepoContext): Promise<string> {
   const sort = getFlag(args, "--sort");
   if (sort) ghArgs.push("--sort", sort);
 
+  if (query.length > 0) ghArgs.push("--", ...query);
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);
@@ -324,7 +324,6 @@ async function searchCommits(
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "commits"];
-  ghArgs.push(...query);
   ghArgs.push("--json", "sha,commit,repository,author", "--limit", limit);
   const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push("--repo", repo);
@@ -335,6 +334,7 @@ async function searchCommits(
   const sort = getFlag(args, "--sort");
   if (sort) ghArgs.push("--sort", sort);
 
+  if (query.length > 0) ghArgs.push("--", ...query);
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);
@@ -376,7 +376,6 @@ async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
 
   const limit = getFlag(args, "--limit") ?? DEFAULT_SEARCH_LIMIT;
   const ghArgs = ["search", "code"];
-  ghArgs.push(...query);
   ghArgs.push("--json", "path,repository,textMatches", "--limit", limit);
   const repo = getSearchRepo(args, ctx);
   if (repo) ghArgs.push("--repo", repo);
@@ -385,6 +384,7 @@ async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
   const language = getFlag(args, "--language");
   if (language) ghArgs.push("--language", language);
 
+  if (query.length > 0) ghArgs.push("--", ...query);
   const results = await ghJson<Record<string, unknown>[]>(ghArgs);
   const limitNum = parseInt(limit, 10);
   const displayed = results.slice(0, DISPLAY_LIMIT);

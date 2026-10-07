@@ -84,14 +84,24 @@ describe("searchCommand", () => {
       expect(mockedGhJson).toHaveBeenCalledWith([
         "search",
         "issues",
-        "bug",
         "--json",
         "number,title,repository,state,author,labels,createdAt",
         "--limit",
         "1000",
         "--repo",
         "owner/repo",
+        "--",
+        "bug",
       ]);
+    });
+
+    it("forwards a negated qualifier behind --", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(["issues", "bug", "--", "-label:wontfix"]);
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs.slice(-3)).toEqual(["--", "bug", "-label:wontfix"]);
     });
 
     it("forwards each positional as its own gh argument", async () => {
@@ -106,9 +116,8 @@ describe("searchCommand", () => {
       ]);
 
       const ghArgs = mockedGhJson.mock.calls[0][0];
-      expect(ghArgs.slice(0, 4)).toEqual([
-        "search",
-        "prs",
+      expect(ghArgs.slice(-3)).toEqual([
+        "--",
         "review-requested:@me",
         "created:>=2026-01-01",
       ]);
