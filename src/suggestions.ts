@@ -257,6 +257,22 @@ const table: SuggestionEntry[] = [
 
   // PR checks
   {
+    match: (c) =>
+      c.domain === "pr" && c.action === "checks" && c.state === "pending",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} pr checks ${c.id} --watch\` to wait until no check is pending`,
+      `Run \`gh-axi${repoFlag(c)} pr view ${c.id}\` to see PR details`,
+    ],
+  },
+  {
+    match: (c) =>
+      c.domain === "pr" && c.action === "checks" && c.state === "empty",
+    lines: (c) => [
+      `Checks can take a few seconds to register after a push; rerun \`gh-axi${repoFlag(c)} pr checks ${c.id}\` shortly`,
+      `Run \`gh-axi${repoFlag(c)} run list --commit <head-sha>\` to see workflow runs for the head commit`,
+    ],
+  },
+  {
     match: (c) => c.domain === "pr" && c.action === "checks",
     lines: (c) => [
       `Run \`gh-axi${repoFlag(c)} pr view ${c.id}\` to see PR details`,

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({
   ghJson: vi.fn(),
@@ -420,7 +420,6 @@ describe("prCommand", () => {
 
       expect(result).toContain("1 passed, 0 failed, 1 pending, 2 total");
     });
-
 
     it("omits the detailed check rollup without --checks", async () => {
       mockedGhJson.mockResolvedValue({
@@ -1385,12 +1384,200 @@ describe("prCommand", () => {
   });
 
   describe("checks", () => {
-    it("returns message when no checks configured", async () => {
+    afterEach(() => {
+      process.exitCode = undefined;
+      vi.useRealTimers();
+    });
+
+    it("reports an empty rollup without claiming CI is not configured", async () => {
       mockedGhJson.mockResolvedValue({ statusCheckRollup: [] });
 
       const result = await prCommand(["checks", "5"], ctx);
 
-      expect(result).toContain("no CI checks configured");
+      expect(result).toContain(
+        "no check results reported for the PR head commit",
+      );
+      expect(result).not.toContain("no CI checks configured");
+      expect(result).toContain("run list --commit <head-sha>");
+      // gh pr checks fails when no checks are reported.
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("exits 0 when every check passed or was skipped", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "docs", conclusion: "SKIPPED" },
+          { name: "flaky", conclusion: "CANCELLED" },
+        ],
+      });
+
+      await prCommand(["checks", "5"], ctx);
+
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it("exits 1 when a check failed, even with another pending", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "lint", conclusion: "FAILURE" },
+          { name: "test", conclusion: null, status: "IN_PROGRESS" },
+        ],
+      });
+
+      await prCommand(["checks", "5"], ctx);
+
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("exits 8 and suggests --watch when a check is pending", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "build", conclusion: "SUCCESS" },
+          { name: "test", conclusion: null, status: "QUEUED" },
+        ],
+      });
+
+      const result = await prCommand(["checks", "5"], ctx);
+
+      expect(process.exitCode).toBe(8);
+      expect(result).toContain("pr checks 5 --watch");
+    });
+
+    it("--watch polls until no check is pending", async () => {
+      vi.useFakeTimers();
+      mockedGhJson
+        .mockResolvedValueOnce({
+          statusCheckRollup: [
+            { name: "build", conclusion: null, status: "IN_PROGRESS" },
+          ],
+        })
+        .mockResolvedValueOnce({
+          statusCheckRollup: [
+            { name: "build", conclusion: null, status: "IN_PROGRESS" },
+          ],
+        })
+        .mockResolvedValueOnce({
+          statusCheckRollup: [{ name: "build", conclusion: "SUCCESS" }],
+        });
+
+      const pending = prCommand(["checks", "5", "--watch"], ctx);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(mockedGhJson).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const result = await pending;
+
+      expect(mockedGhJson).toHaveBeenCalledTimes(3);
+      expect(result).toContain("1 passed, 0 failed, 1 total");
+      expect(result).not.toContain("pending");
+      expect(process.exitCode).toBeUndefined();
+    });
+
+    it("--watch exits 1 when a check finished failing", async () => {
+      vi.useFakeTimers();
+      mockedGhJson
+        .mockResolvedValueOnce({
+          statusCheckRollup: [
+            { name: "build", conclusion: null, status: "IN_PROGRESS" },
+          ],
+        })
+        .mockResolvedValueOnce({
+          statusCheckRollup: [{ name: "build", conclusion: "FAILURE" }],
+        });
+
+      const pending = prCommand(["checks", "5", "--watch"], ctx);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const result = await pending;
+
+      expect(result).toContain("build,fail");
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("--watch --interval sets the poll interval in seconds", async () => {
+      vi.useFakeTimers();
+      mockedGhJson
+        .mockResolvedValueOnce({
+          statusCheckRollup: [
+            { name: "build", conclusion: null, status: "IN_PROGRESS" },
+          ],
+        })
+        .mockResolvedValueOnce({
+          statusCheckRollup: [{ name: "build", conclusion: "SUCCESS" }],
+        });
+
+      // --interval comes before the PR number: its value must not be read as
+      // the PR.
+      const pending = prCommand(
+        ["checks", "--interval", "3", "5", "--watch"],
+        ctx,
+      );
+      await vi.advanceTimersByTimeAsync(2_999);
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+
+      expect(mockedGhJson).toHaveBeenCalledTimes(2);
+      expect(mockedGhJson.mock.calls[0]?.[0]).toEqual([
+        "pr",
+        "view",
+        "5",
+        "--json",
+        "statusCheckRollup",
+      ]);
+    });
+
+    it("--watch --fail-fast stops at the first failure while others are pending", async () => {
+      mockedGhJson.mockResolvedValue({
+        statusCheckRollup: [
+          { name: "lint", conclusion: "FAILURE" },
+          { name: "test", conclusion: null, status: "IN_PROGRESS" },
+        ],
+      });
+
+      const result = await prCommand(
+        ["checks", "5", "--watch", "--fail-fast"],
+        ctx,
+      );
+
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+      expect(result).toContain("1 pending");
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("--watch ends on an empty rollup instead of waiting, like gh", async () => {
+      mockedGhJson.mockResolvedValue({ statusCheckRollup: [] });
+
+      const result = await prCommand(["checks", "5", "--watch"], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+      expect(result).toContain("no check results reported");
+      expect(process.exitCode).toBe(1);
+    });
+
+    it("rejects --fail-fast and --interval without --watch", async () => {
+      await expect(
+        prCommand(["checks", "5", "--fail-fast"], ctx),
+      ).rejects.toThrow(/--fail-fast requires --watch/);
+      await expect(
+        prCommand(["checks", "5", "--interval", "5"], ctx),
+      ).rejects.toThrow(/--interval requires --watch/);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects a missing or invalid --interval value", async () => {
+      await expect(
+        prCommand(["checks", "5", "--watch", "--interval"], ctx),
+      ).rejects.toThrow(/--interval requires a value/);
+      await expect(
+        prCommand(["checks", "5", "--interval", "--watch"], ctx),
+      ).rejects.toThrow(/--interval requires a value/);
+      await expect(
+        prCommand(["checks", "5", "--watch", "--interval=0"], ctx),
+      ).rejects.toThrow(/whole number of seconds/);
+      await expect(
+        prCommand(["checks", "5", "--watch", "--interval=1.5"], ctx),
+      ).rejects.toThrow(/whole number of seconds/);
+      expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
     it("returns check summary with checks", async () => {

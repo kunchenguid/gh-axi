@@ -26,6 +26,7 @@ import { getSuggestions } from "../suggestions.js";
 import {
   takeFlag,
   takeSingleRequiredFlag,
+  takeRequiredFlag,
   takeBoolFlag,
   takeNumber,
   takeAllFlags,
@@ -152,6 +153,50 @@ function classifyCheck(
   return "pending";
 }
 
+interface CheckCounts {
+  passed: number;
+  failed: number;
+  skipped: number;
+  cancelled: number;
+  pending: number;
+  total: number;
+}
+
+function countChecks(checks: StatusCheck[]): CheckCounts {
+  const counts: CheckCounts = {
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    cancelled: 0,
+    pending: 0,
+    total: checks.length,
+  };
+  for (const c of checks) {
+    const bucket = classifyCheck(c);
+    if (bucket === "pass") counts.passed++;
+    else if (bucket === "fail") counts.failed++;
+    else if (bucket === "skip") counts.skipped++;
+    else if (bucket === "cancel") counts.cancelled++;
+    else counts.pending++;
+  }
+  return counts;
+}
+
+function checksSummary(counts: CheckCounts): string {
+  const parts = [`${counts.passed} passed`, `${counts.failed} failed`];
+  if (counts.skipped > 0) parts.push(`${counts.skipped} skipped`);
+  if (counts.cancelled > 0) parts.push(`${counts.cancelled} cancelled`);
+  if (counts.pending > 0) parts.push(`${counts.pending} pending`);
+  parts.push(`${counts.total} total`);
+  return parts.join(", ");
+}
+
+// An empty rollup only says GitHub has no check results for the head commit
+// yet. Workflows may still be queued or awaiting approval, so do not claim the
+// repo has no CI configured.
+const NO_CHECKS_SUMMARY =
+  "0 passed, 0 failed, no check results reported for the PR head commit";
+
 function prRestPath(
   ctx: RepoContext | undefined,
   num: number,
@@ -240,27 +285,8 @@ const viewSchema: FieldDef[] = [
   }),
   custom("checks", (item: PrItem) => {
     const checks = item.statusCheckRollup;
-    if (!Array.isArray(checks) || checks.length === 0)
-      return "0 passed, 0 failed — this PR has no CI checks configured";
-    const passed = checks.filter(
-      (c: StatusCheck) => classifyCheck(c) === "pass",
-    ).length;
-    const failed = checks.filter(
-      (c: StatusCheck) => classifyCheck(c) === "fail",
-    ).length;
-    const skipped = checks.filter(
-      (c: StatusCheck) => classifyCheck(c) === "skip",
-    ).length;
-    const cancelled = checks.filter(
-      (c: StatusCheck) => classifyCheck(c) === "cancel",
-    ).length;
-    const pending = checks.length - passed - failed - skipped - cancelled;
-    const parts = [`${passed} passed`, `${failed} failed`];
-    if (skipped > 0) parts.push(`${skipped} skipped`);
-    if (cancelled > 0) parts.push(`${cancelled} cancelled`);
-    if (pending > 0) parts.push(`${pending} pending`);
-    parts.push(`${checks.length} total`);
-    return parts.join(", ");
+    if (!Array.isArray(checks) || checks.length === 0) return NO_CHECKS_SUMMARY;
+    return checksSummary(countChecks(checks));
   }),
   custom("body", (item: PrItem) => truncateBody(item.body, 500)),
 ];
@@ -346,7 +372,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--body",
     "--body-file",
   ],
-  checks: ["--failed"],
+  checks: ["--failed", "--watch", "--interval", "--fail-fast"],
   diff: ["--full", "--patch"],
   checkout: [],
   ready: [],
@@ -376,13 +402,14 @@ flags{review}:
 flags{comment}:
   --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{checks}:
-  --failed (show only failing checks)
+  --failed (show only failing checks), --watch (wait until no check is pending), --interval <seconds> (poll interval for --watch, default 10), --fail-fast (with --watch, stop at the first failing check); exits 1 when a check failed or none are reported, 8 when a check is still pending (like gh pr checks)
 flags{diff}:
   --full (show complete diff without truncation), --patch (accepted for gh compatibility; output is already patch format)
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
   gh-axi pr view 42 --reviews
+  gh-axi pr checks 42 --watch --fail-fast
   gh-axi pr create --title "Fix login" --attach './before.png#Before'
   gh-axi pr comment 42 --body-file review.md
   gh-axi pr comment 42 --attach ./after.png
@@ -955,33 +982,8 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
 // Counts always describe the full rollup so a filtered list keeps its context.
 function checksBlocks(checks: StatusCheck[], onlyFailed = false): string[] {
   if (checks.length === 0) {
-    return [
-      encode({
-        checks: "0 passed, 0 failed — this PR has no CI checks configured",
-      }),
-    ];
+    return [encode({ checks: NO_CHECKS_SUMMARY })];
   }
-
-  // Pre-compute summary counts so agents don't have to count rows
-  const passed = checks.filter(
-    (c: StatusCheck) => classifyCheck(c) === "pass",
-  ).length;
-  const failed = checks.filter(
-    (c: StatusCheck) => classifyCheck(c) === "fail",
-  ).length;
-  const skipped = checks.filter(
-    (c: StatusCheck) => classifyCheck(c) === "skip",
-  ).length;
-  const cancelled = checks.filter(
-    (c: StatusCheck) => classifyCheck(c) === "cancel",
-  ).length;
-  const pending = checks.length - passed - failed - skipped - cancelled;
-
-  const summaryParts = [`${passed} passed`, `${failed} failed`];
-  if (skipped > 0) summaryParts.push(`${skipped} skipped`);
-  if (cancelled > 0) summaryParts.push(`${cancelled} cancelled`);
-  if (pending > 0) summaryParts.push(`${pending} pending`);
-  summaryParts.push(`${checks.length} total`);
 
   const checksSchema: FieldDef[] = [
     custom("name", (c: StatusCheck) => c.name ?? c.context ?? "check"),
@@ -993,29 +995,100 @@ function checksBlocks(checks: StatusCheck[], onlyFailed = false): string[] {
     : checks;
 
   return [
-    encode({ summary: summaryParts.join(", ") }),
+    encode({ summary: checksSummary(countChecks(checks)) }),
     renderList("checks", visible, checksSchema),
   ];
 }
 
-async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
-  const onlyFailed = takeBoolFlag(args, "--failed");
-  const num = takeNumber(args, "PR");
+// Exit codes match `gh pr checks`: 1 when a check failed (or none were
+// reported), 8 when a check is still pending, 0 otherwise.
+export const CHECKS_EXIT_FAILED = 1;
+export const CHECKS_EXIT_PENDING = 8;
+const DEFAULT_WATCH_INTERVAL_SECONDS = 10;
 
+function checksExitCode(checks: StatusCheck[]): number {
+  if (checks.length === 0) return CHECKS_EXIT_FAILED;
+  const counts = countChecks(checks);
+  if (counts.failed > 0) return CHECKS_EXIT_FAILED;
+  if (counts.pending > 0) return CHECKS_EXIT_PENDING;
+  return 0;
+}
+
+function takeWatchInterval(args: string[]): number | undefined {
+  const raw = takeRequiredFlag(args, "--interval");
+  if (raw === undefined) return undefined;
+  if (!/^\d+$/.test(raw) || Number(raw) < 1) {
+    throw new AxiError(
+      `--interval must be a whole number of seconds (1 or more), got "${raw}"`,
+      "VALIDATION_ERROR",
+    );
+  }
+  return Number(raw);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchChecks(
+  num: number,
+  ctx?: RepoContext,
+): Promise<StatusCheck[]> {
   // Use pr view --json statusCheckRollup instead of pr checks --json which
   // can error on PRs with unusual check data
   const pr = await ghJson<Pick<PrItem, "statusCheckRollup">>(
     ["pr", "view", String(num), "--json", "statusCheckRollup"],
     ctx,
   );
-  const checks: StatusCheck[] = Array.isArray(pr.statusCheckRollup)
-    ? pr.statusCheckRollup
-    : [];
+  return Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup : [];
+}
 
+async function prChecks(args: string[], ctx?: RepoContext): Promise<string> {
+  // Take --interval first: its value must not be read as the PR number, and a
+  // following flag (`--interval --watch`) is a missing value, not a value.
+  const interval = takeWatchInterval(args);
+  const onlyFailed = takeBoolFlag(args, "--failed");
+  const watch = takeBoolFlag(args, "--watch");
+  const failFast = takeBoolFlag(args, "--fail-fast");
+  if (failFast && !watch) {
+    throw new AxiError("--fail-fast requires --watch", "VALIDATION_ERROR");
+  }
+  if (interval !== undefined && !watch) {
+    throw new AxiError("--interval requires --watch", "VALIDATION_ERROR");
+  }
+  const num = takeNumber(args, "PR");
+  const intervalMs = (interval ?? DEFAULT_WATCH_INTERVAL_SECONDS) * 1000;
+
+  let checks = await fetchChecks(num, ctx);
+  // Like gh, watch mode stops as soon as nothing is pending. An empty rollup
+  // ends the watch too: gh reports it as an error instead of waiting.
+  while (watch && checks.length > 0) {
+    const counts = countChecks(checks);
+    if (counts.pending === 0) break;
+    if (failFast && counts.failed > 0) break;
+    await sleep(intervalMs);
+    checks = await fetchChecks(num, ctx);
+  }
+
+  const exitCode = checksExitCode(checks);
+  if (exitCode !== 0) process.exitCode = exitCode;
+
+  const state =
+    checks.length === 0
+      ? "empty"
+      : exitCode === CHECKS_EXIT_PENDING
+        ? "pending"
+        : undefined;
   return renderOutput([
     ...checksBlocks(checks, onlyFailed),
     renderHelp(
-      getSuggestions({ domain: "pr", action: "checks", id: num, repo: ctx }),
+      getSuggestions({
+        domain: "pr",
+        action: "checks",
+        id: num,
+        repo: ctx,
+        ...(state ? { state } : {}),
+      }),
     ),
   ]);
 }
