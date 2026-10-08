@@ -1,10 +1,17 @@
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { installSessionStartHooks, runAxiCli } = vi.hoisted(() => ({
+const { installSessionStartHooks, runAxiCli, ghJson } = vi.hoisted(() => ({
   installSessionStartHooks: vi.fn(),
   runAxiCli: vi.fn(),
+  ghJson: vi.fn(),
 }));
+
+vi.mock("../src/gh.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("../src/gh.js")>("../src/gh.js");
+  return { ...actual, ghJson };
+});
 
 vi.mock("axi-sdk-js", async () => {
   const actual =
@@ -496,6 +503,34 @@ describe("main CLI", () => {
       ctx,
     );
   });
+
+  it.each([
+    ["all checks pass", "SUCCESS", "COMPLETED", 0],
+    ["a check failed", "FAILURE", "COMPLETED", 1],
+    ["a check is pending", null, "IN_PROGRESS", 8],
+  ])(
+    "pr checks exits like gh when %s, through the real runtime",
+    async (_label, conclusion, status, expected) => {
+      const sdk =
+        await vi.importActual<typeof import("axi-sdk-js")>("axi-sdk-js");
+      const pr = await vi.importActual<typeof import("../src/commands/pr.js")>(
+        "../src/commands/pr.js",
+      );
+      runAxiCli.mockImplementation(sdk.runAxiCli);
+      vi.mocked(prCommand).mockImplementation(pr.prCommand);
+      ghJson.mockResolvedValue({
+        statusCheckRollup: [{ name: "build", conclusion, status }],
+      });
+      const stdout = { write: vi.fn() };
+
+      await main({ argv: ["pr", "checks", "5"], stdout });
+
+      expect(stdout.write).toHaveBeenCalledWith(
+        expect.stringContaining("build"),
+      );
+      expect(process.exitCode ?? 0).toBe(expected);
+    },
+  );
 
   describe("--hostname / GH_HOST", () => {
     const originalHost = process.env.GH_HOST;
