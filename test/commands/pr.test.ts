@@ -421,7 +421,6 @@ describe("prCommand", () => {
       expect(result).toContain("1 passed, 0 failed, 1 pending, 2 total");
     });
 
-
     it("omits the detailed check rollup without --checks", async () => {
       mockedGhJson.mockResolvedValue({
         number: 42,
