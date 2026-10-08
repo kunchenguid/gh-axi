@@ -1004,6 +1004,9 @@ function checksBlocks(checks: StatusCheck[], onlyFailed = false): string[] {
 export const CHECKS_EXIT_FAILED = 1;
 export const CHECKS_EXIT_PENDING = 8;
 const DEFAULT_WATCH_INTERVAL_SECONDS = 10;
+// Node clamps a setTimeout delay above 2147483647 ms to 1 ms, which would turn
+// a long --interval into a tight polling loop.
+const MAX_WATCH_INTERVAL_SECONDS = 2147483;
 
 function checksExitCode(checks: StatusCheck[]): number {
   if (checks.length === 0) return CHECKS_EXIT_FAILED;
@@ -1016,9 +1019,13 @@ function checksExitCode(checks: StatusCheck[]): number {
 function takeWatchInterval(args: string[]): number | undefined {
   const raw = takeRequiredFlag(args, "--interval");
   if (raw === undefined) return undefined;
-  if (!/^\d+$/.test(raw) || Number(raw) < 1) {
+  if (
+    !/^\d+$/.test(raw) ||
+    Number(raw) < 1 ||
+    Number(raw) > MAX_WATCH_INTERVAL_SECONDS
+  ) {
     throw new AxiError(
-      `--interval must be a whole number of seconds (1 or more), got "${raw}"`,
+      `--interval must be a whole number of seconds from 1 to ${MAX_WATCH_INTERVAL_SECONDS}, got "${raw}"`,
       "VALIDATION_ERROR",
     );
   }

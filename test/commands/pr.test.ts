@@ -1580,6 +1580,35 @@ describe("prCommand", () => {
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
+    it("caps --interval at the largest delay Node's setTimeout honors", async () => {
+      await expect(
+        prCommand(["checks", "5", "--watch", "--interval", "2147484"], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhJson).not.toHaveBeenCalled();
+
+      vi.useFakeTimers();
+      mockedGhJson
+        .mockResolvedValueOnce({
+          statusCheckRollup: [
+            { name: "build", conclusion: null, status: "IN_PROGRESS" },
+          ],
+        })
+        .mockResolvedValueOnce({
+          statusCheckRollup: [{ name: "build", conclusion: "SUCCESS" }],
+        });
+
+      const pending = prCommand(
+        ["checks", "5", "--watch", "--interval", "2147483"],
+        ctx,
+      );
+      await vi.advanceTimersByTimeAsync(2_147_482_999);
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+
+      expect(mockedGhJson).toHaveBeenCalledTimes(2);
+    });
+
     it("returns check summary with checks", async () => {
       mockedGhJson.mockResolvedValue({
         statusCheckRollup: [
