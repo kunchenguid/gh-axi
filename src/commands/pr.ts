@@ -662,12 +662,11 @@ async function prCreate(
   }
 
   const blocks = [
-    renderDetail("created", { number: num ?? url, url, base: baseRef, head: headRef }, [
-      field("number"),
-      field("url"),
-      field("base"),
-      field("head"),
-    ]),
+    renderDetail(
+      "created",
+      { number: num ?? url, url, base: baseRef, head: headRef },
+      [field("number"), field("url"), field("base"), field("head")],
+    ),
   ];
   if (attachments.length > 0 && num !== undefined) {
     let created: { body?: string };
