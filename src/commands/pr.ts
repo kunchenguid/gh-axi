@@ -22,7 +22,7 @@ import {
 } from "../attach.js";
 import { formatCountLine } from "../format.js";
 import { fetchListTotal, type ListFilter } from "../totals.js";
-import { getSuggestions } from "../suggestions.js";
+import { getSuggestions, repoTargetFlags } from "../suggestions.js";
 import {
   takeFlag,
   takeSingleRequiredFlag,
@@ -287,10 +287,9 @@ function mergeStateHint(
   pr: PrItem,
   ctx?: RepoContext,
 ): string | undefined {
-  const repoFlag = ctx && ctx.source !== "git" ? ` -R ${ctx.nwo}` : "";
   const hints: Record<string, string> = {
     DIRTY: "merge conflicts with the base branch",
-    BEHIND: `head branch is behind the base branch; gh-axi pr update-branch ${pr.number}${repoFlag} brings it up to date`,
+    BEHIND: `head branch is behind the base branch; gh-axi pr update-branch ${pr.number}${repoTargetFlags(ctx)} brings it up to date`,
     BLOCKED: "blocked by branch protection (e.g. required reviews or checks)",
     UNSTABLE: "mergeable, but some non-required checks are failing",
     UNKNOWN: "GitHub is still computing mergeability; retry shortly",
@@ -678,12 +677,11 @@ async function prCreate(
   }
 
   const blocks = [
-    renderDetail("created", { number: num ?? url, url, base: baseRef, head: headRef }, [
-      field("number"),
-      field("url"),
-      field("base"),
-      field("head"),
-    ]),
+    renderDetail(
+      "created",
+      { number: num ?? url, url, base: baseRef, head: headRef },
+      [field("number"), field("url"), field("base"), field("head")],
+    ),
   ];
   if (attachments.length > 0 && num !== undefined) {
     let created: { body?: string };

@@ -516,6 +516,39 @@ describe("prCommand", () => {
         expect(result).toContain("gh-axi pr update-branch 42 -R octo/repo");
       });
 
+      it("prints a bare update-branch command for a git-source repo", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          mergeStateStatus: "BEHIND",
+        });
+
+        const result = await prCommand(["view", "42"], {
+          ...ctx,
+          source: "git",
+        });
+
+        expect(result).toContain(
+          "gh-axi pr update-branch 42 brings it up to date",
+        );
+        expect(result).not.toContain("update-branch 42 -R");
+      });
+
+      it("keeps an explicit --hostname on the update-branch command", async () => {
+        mockedGhJson.mockResolvedValue({
+          ...openPr,
+          mergeStateStatus: "BEHIND",
+        });
+
+        const result = await prCommand(["view", "42"], {
+          ...ctx,
+          host: { value: "ghe.example.com", source: "flag" },
+        });
+
+        expect(result).toContain(
+          "gh-axi pr update-branch 42 -R octo/repo --hostname ghe.example.com brings",
+        );
+      });
+
       it("reports unknown with a retry hint while GitHub is computing", async () => {
         mockedGhJson.mockResolvedValue(openPr);
 
