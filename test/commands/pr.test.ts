@@ -1085,20 +1085,18 @@ describe("prCommand", () => {
           ["pr", "view", "10", "--json", "headRefOid"],
           ctx,
         );
-        expect(mockedGhExec).toHaveBeenCalledWith(
-          [
-            "api",
-            reviewPath,
-            "--method",
-            "POST",
-            "--raw-field",
-            `event=${event}`,
-            "--raw-field",
-            `commit_id=${head}`,
-            "--raw-field",
-            "body=looks good",
-          ],
-        );
+        expect(mockedGhExec).toHaveBeenCalledWith([
+          "api",
+          reviewPath,
+          "--method",
+          "POST",
+          "--raw-field",
+          `event=${event}`,
+          "--raw-field",
+          `commit_id=${head}`,
+          "--raw-field",
+          "body=looks good",
+        ]);
         expect(result).toContain(`action: ${action}`);
       },
     );
