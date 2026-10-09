@@ -1101,6 +1101,33 @@ describe("prCommand", () => {
       },
     );
 
+    it("accepts an uppercase SHA and posts the returned head", async () => {
+      mockedGhJson.mockResolvedValue({ headRefOid: head });
+      mockedGhExec.mockResolvedValue("");
+
+      await prCommand(
+        [
+          "review",
+          "10",
+          "--approve",
+          "--match-head-commit",
+          head.toUpperCase(),
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith([
+        "api",
+        reviewPath,
+        "--method",
+        "POST",
+        "--raw-field",
+        "event=APPROVE",
+        "--raw-field",
+        `commit_id=${head}`,
+      ]);
+    });
+
     it("refuses and names the present head when it differs", async () => {
       const present = "fedcba9876543210fedcba9876543210fedcba98";
       mockedGhJson.mockResolvedValue({ headRefOid: present });
