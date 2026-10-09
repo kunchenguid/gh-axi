@@ -18,6 +18,7 @@ import { getSuggestions } from "../suggestions.js";
 import {
   hasFlag,
   getFlag,
+  getRequiredFlag,
   getAllFlags,
   pushRepeated,
   getPositional,
@@ -312,9 +313,9 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
   );
   const state = getFlag(args, "--state");
   const labels = getAllFlags(args, "--label");
-  const assignee = getFlag(args, "--assignee");
-  const author = getFlag(args, "--author");
-  const milestone = getFlag(args, "--milestone");
+  const assignee = getRequiredFlag(args, "--assignee");
+  const author = getRequiredFlag(args, "--author");
+  const milestone = getRequiredFlag(args, "--milestone");
   const sort = getFlag(args, "--sort");
   const limitRaw = getFlag(args, "--limit");
   const limit = limitRaw ? parseInt(limitRaw, 10) : 30;

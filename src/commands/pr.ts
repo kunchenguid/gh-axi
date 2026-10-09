@@ -25,6 +25,7 @@ import { fetchListTotal, type ListFilter } from "../totals.js";
 import { getSuggestions } from "../suggestions.js";
 import {
   takeFlag,
+  takeRequiredFlag,
   takeSingleRequiredFlag,
   takeBoolFlag,
   takeNumber,
@@ -406,10 +407,10 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
   );
   const state = takeFlag(args, "--state") ?? "open";
   const labels = takeAllFlags(args, "--label");
-  const assignee = takeFlag(args, "--assignee");
-  const author = takeFlag(args, "--author");
-  const base = takeFlag(args, "--base");
-  const head = takeFlag(args, "--head");
+  const assignee = takeRequiredFlag(args, "--assignee");
+  const author = takeRequiredFlag(args, "--author");
+  const base = takeRequiredFlag(args, "--base");
+  const head = takeRequiredFlag(args, "--head");
   const draft = takeBoolFlag(args, "--draft");
   const limit = takeFlag(args, "--limit") ?? "30";
 

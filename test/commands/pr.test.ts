@@ -783,6 +783,54 @@ describe("prCommand", () => {
       );
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
+
+    it.each(["--assignee", "--author", "--base", "--head"])(
+      "rejects an empty %s filter instead of listing unfiltered",
+      async (flag) => {
+        for (const argv of [
+          ["list", `${flag}=`],
+          ["list", `${flag}=  `],
+          ["list", flag],
+        ]) {
+          const err = await prCommand(argv, ctx).catch((e: unknown) => e);
+          expect(err).toBeInstanceOf(AxiError);
+          expect((err as AxiError).code).toBe("VALIDATION_ERROR");
+          expect((err as AxiError).message).toBe(`${flag} requires a value`);
+        }
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
+    it("still forwards non-empty single-value list filters", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await prCommand(
+        [
+          "list",
+          "--assignee=octocat",
+          "--author",
+          "hubot",
+          "--base=main",
+          "--head",
+          "feature",
+        ],
+        ctx,
+      );
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs).toEqual(
+        expect.arrayContaining([
+          "--assignee",
+          "octocat",
+          "--author",
+          "hubot",
+          "--base",
+          "main",
+          "--head",
+          "feature",
+        ]),
+      );
+    });
   });
 
   describe("edit with repeatable flags", () => {

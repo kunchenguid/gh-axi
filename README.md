@@ -128,6 +128,7 @@ The label, assignee, reviewer, and project flags of `issue create`/`edit` and `p
 `gh-axi pr create` reports the `base` and `head` the PR was created with, so omitting `--base` surfaces that the PR targets the default branch; if the follow-up ref lookup fails, `base` prints as `null` and the branch name is unavailable.
 `issue list` and `pr list` accept repeated `--label` filters the same way.
 A repeated flag with a missing or empty value (`--add-label` with nothing after it, or `--add-label=`) fails with a validation error instead of being silently dropped.
+The single-value list filters do the same: an empty `--assignee` or `--author` on `issue list` and `pr list`, `--milestone` on `issue list`, or `--base` or `--head` on `pr list`, fails with the same validation error as `--label=` rather than returning an unfiltered list.
 
 In `gh-axi issue list` and `gh-axi pr list`, the `count: N of M total` line counts only what the filters you passed (`--label`, `--assignee`, `--author`, and the other list filters) match, not every issue or PR in the repository.
 When a total cannot be expressed faithfully — a numeric `--milestone`, since search matches milestone titles only, or a filter value containing a double quote, which search has no way to escape — gh-axi omits it and falls back to `showing first N` rather than printing a number that does not match the query.
