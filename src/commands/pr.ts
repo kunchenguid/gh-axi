@@ -921,12 +921,6 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
-const REVIEW_EVENTS = [
-  ["--approve", "APPROVE"],
-  ["--request-changes", "REQUEST_CHANGES"],
-  ["--comment", "COMMENT"],
-] as const;
-
 async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
   const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
   const num = takeNumber(args, "PR");
@@ -976,14 +970,18 @@ async function submitReviewOnHead(
   body: string | undefined,
   ctx?: RepoContext,
 ): Promise<void> {
-  const flags = [chosen.approve, chosen.requestChanges, chosen.comment];
-  if (flags.filter(Boolean).length !== 1) {
+  const picked = [chosen.approve, chosen.requestChanges, chosen.comment];
+  if (picked.filter(Boolean).length !== 1) {
     throw new AxiError(
       "--match-head-commit needs exactly one of --approve, --request-changes, --comment",
       "VALIDATION_ERROR",
     );
   }
-  const event = REVIEW_EVENTS[flags.indexOf(true)][1];
+  const event = chosen.approve
+    ? "APPROVE"
+    : chosen.requestChanges
+      ? "REQUEST_CHANGES"
+      : "COMMENT";
 
   const pr = await ghJson<{ headRefOid: string }>(
     ["pr", "view", String(num), "--json", "headRefOid"],
@@ -1007,7 +1005,7 @@ async function submitReviewOnHead(
     `commit_id=${pr.headRefOid}`,
   ];
   if (body !== undefined) ghArgs.push("--raw-field", `body=${body}`);
-  await ghExec(ghArgs, ctx);
+  await ghExec(ghArgs);
 }
 
 // Summary line plus per-check rows, shared by `pr checks` and `pr view --checks`.

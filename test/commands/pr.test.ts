@@ -1098,7 +1098,6 @@ describe("prCommand", () => {
             "--raw-field",
             "body=looks good",
           ],
-          ctx,
         );
         expect(result).toContain(`action: ${action}`);
       },
