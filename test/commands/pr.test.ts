@@ -421,7 +421,6 @@ describe("prCommand", () => {
       expect(result).toContain("1 passed, 0 failed, 1 pending, 2 total");
     });
 
-
     it("omits the detailed check rollup without --checks", async () => {
       mockedGhJson.mockResolvedValue({
         number: 42,
@@ -1035,6 +1034,114 @@ describe("prCommand", () => {
 
       expect(result).toContain("closed");
       expect(result).toContain("already");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("review", () => {
+    const head = "0123456789abcdef0123456789abcdef01234567";
+    const reviewPath = "repos/octo/repo/pulls/10/reviews";
+
+    it("keeps the plain gh pr review call without --match-head-commit", async () => {
+      mockedGhExec.mockResolvedValue("");
+
+      const result = await prCommand(
+        ["review", "10", "--approve", "--body", "ok"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "review", "10", "--approve", "--body", "ok"],
+        ctx,
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(result).toContain("action: approved");
+    });
+
+    it.each([
+      ["--approve", "APPROVE", "approved"],
+      ["--request-changes", "REQUEST_CHANGES", "changes_requested"],
+      ["--comment", "COMMENT", "commented"],
+    ])(
+      "sends %s on the matched head commit through the reviews API",
+      async (flag, event, action) => {
+        mockedGhJson.mockResolvedValue({ headRefOid: head });
+        mockedGhExec.mockResolvedValue("");
+
+        const result = await prCommand(
+          [
+            "review",
+            "10",
+            flag,
+            "--body",
+            "looks good",
+            "--match-head-commit",
+            head,
+          ],
+          ctx,
+        );
+
+        expect(mockedGhJson).toHaveBeenCalledWith(
+          ["pr", "view", "10", "--json", "headRefOid"],
+          ctx,
+        );
+        expect(mockedGhExec).toHaveBeenCalledWith(
+          [
+            "api",
+            reviewPath,
+            "--method",
+            "POST",
+            "--raw-field",
+            `event=${event}`,
+            "--raw-field",
+            `commit_id=${head}`,
+            "--raw-field",
+            "body=looks good",
+          ],
+          ctx,
+        );
+        expect(result).toContain(`action: ${action}`);
+      },
+    );
+
+    it("refuses and names the present head when it differs", async () => {
+      const present = "fedcba9876543210fedcba9876543210fedcba98";
+      mockedGhJson.mockResolvedValue({ headRefOid: present });
+
+      await expect(
+        prCommand(
+          ["review", "10", "--approve", "--match-head-commit", head],
+          ctx,
+        ),
+      ).rejects.toThrow(present);
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("requires exactly one review action with --match-head-commit", async () => {
+      await expect(
+        prCommand(["review", "10", "--match-head-commit", head], ctx),
+      ).rejects.toThrow("exactly one of");
+      await expect(
+        prCommand(
+          [
+            "review",
+            "10",
+            "--approve",
+            "--comment",
+            "--match-head-commit",
+            head,
+          ],
+          ctx,
+        ),
+      ).rejects.toThrow("exactly one of");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("rejects a head commit condition without a value", async () => {
+      await expect(
+        prCommand(["review", "10", "--approve", "--match-head-commit"], ctx),
+      ).rejects.toThrow("--match-head-commit requires a value");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });

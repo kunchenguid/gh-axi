@@ -346,6 +346,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--comment",
     "--body",
     "--body-file",
+    "--match-head-commit",
   ],
   checks: ["--failed"],
   diff: ["--full", "--patch"],
@@ -373,7 +374,7 @@ flags{close}:
 flags{merge}:
   --method <merge|squash|rebase>, --merge, --squash, --rebase, --auto, --admin (use administrator privileges to bypass merge requirements; cannot combine with --auto), --delete-branch, --body <text> or --body-file <path>, --subject, --match-head-commit <SHA> (require the PR head to match before merging)
 flags{review}:
-  --approve, --request-changes, --comment, --body <text> or --body-file <path>
+  --approve, --request-changes, --comment, --body <text> or --body-file <path>, --match-head-commit <SHA> (require the PR head to match before reviewing; the review is recorded on that commit; give exactly one of --approve, --request-changes, --comment)
 flags{comment}:
   --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{checks}:
@@ -636,12 +637,11 @@ async function prCreate(
   }
 
   const blocks = [
-    renderDetail("created", { number: num ?? url, url, base: baseRef, head: headRef }, [
-      field("number"),
-      field("url"),
-      field("base"),
-      field("head"),
-    ]),
+    renderDetail(
+      "created",
+      { number: num ?? url, url, base: baseRef, head: headRef },
+      [field("number"), field("url"), field("base"), field("head")],
+    ),
   ];
   if (attachments.length > 0 && num !== undefined) {
     let created: { body?: string };
@@ -921,20 +921,37 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
   ]);
 }
 
+const REVIEW_EVENTS = [
+  ["--approve", "APPROVE"],
+  ["--request-changes", "REQUEST_CHANGES"],
+  ["--comment", "COMMENT"],
+] as const;
+
 async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
+  const matchHeadCommit = takeSingleRequiredFlag(args, "--match-head-commit");
   const num = takeNumber(args, "PR");
   const approve = takeBoolFlag(args, "--approve");
   const requestChanges = takeBoolFlag(args, "--request-changes");
   const commentFlag = takeBoolFlag(args, "--comment");
   const body = takeBody(args);
 
-  const ghArgs = ["pr", "review", String(num)];
-  if (approve) ghArgs.push("--approve");
-  else if (requestChanges) ghArgs.push("--request-changes");
-  else if (commentFlag) ghArgs.push("--comment");
-  if (body !== undefined) ghArgs.push("--body", body);
+  if (matchHeadCommit) {
+    await submitReviewOnHead(
+      num,
+      matchHeadCommit,
+      { approve, requestChanges, comment: commentFlag },
+      body,
+      ctx,
+    );
+  } else {
+    const ghArgs = ["pr", "review", String(num)];
+    if (approve) ghArgs.push("--approve");
+    else if (requestChanges) ghArgs.push("--request-changes");
+    else if (commentFlag) ghArgs.push("--comment");
+    if (body !== undefined) ghArgs.push("--body", body);
 
-  await ghExec(ghArgs, ctx);
+    await ghExec(ghArgs, ctx);
+  }
 
   const action = approve
     ? "approved"
@@ -950,6 +967,47 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
       getSuggestions({ domain: "pr", action: "review", id: num, repo: ctx }),
     ),
   ]);
+}
+
+async function submitReviewOnHead(
+  num: number,
+  expectedHead: string,
+  chosen: { approve: boolean; requestChanges: boolean; comment: boolean },
+  body: string | undefined,
+  ctx?: RepoContext,
+): Promise<void> {
+  const flags = [chosen.approve, chosen.requestChanges, chosen.comment];
+  if (flags.filter(Boolean).length !== 1) {
+    throw new AxiError(
+      "--match-head-commit needs exactly one of --approve, --request-changes, --comment",
+      "VALIDATION_ERROR",
+    );
+  }
+  const event = REVIEW_EVENTS[flags.indexOf(true)][1];
+
+  const pr = await ghJson<{ headRefOid: string }>(
+    ["pr", "view", String(num), "--json", "headRefOid"],
+    ctx,
+  );
+  if (pr.headRefOid.toLowerCase() !== expectedHead.toLowerCase()) {
+    throw new AxiError(
+      `PR #${num} head is ${pr.headRefOid}, not ${expectedHead}; no review was sent`,
+      "VALIDATION_ERROR",
+    );
+  }
+
+  const ghArgs = [
+    "api",
+    prRestPath(ctx, num, "reviews"),
+    "--method",
+    "POST",
+    "--raw-field",
+    `event=${event}`,
+    "--raw-field",
+    `commit_id=${pr.headRefOid}`,
+  ];
+  if (body !== undefined) ghArgs.push("--raw-field", `body=${body}`);
+  await ghExec(ghArgs, ctx);
 }
 
 // Summary line plus per-check rows, shared by `pr checks` and `pr view --checks`.

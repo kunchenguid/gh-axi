@@ -293,7 +293,10 @@ function parseRepoContextArgs(
     stripped.push(arg);
   }
 
-  if (command === "pr" && stripped[0] === "merge") {
+  if (
+    command === "pr" &&
+    (stripped[0] === "merge" || stripped[0] === "review")
+  ) {
     // Check the original options first, so context stripping cannot hide a
     // missing or duplicate condition. Non-merge flags belong to their handler.
     const matchHeadCommit = takeSingleRequiredFlag(
