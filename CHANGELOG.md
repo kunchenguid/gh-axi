@@ -18,6 +18,18 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.38](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.37...gh-axi-v0.1.38) (2026-10-10)
+
+
+### Features
+
+* **pr:** add --match-head-commit to pr review ([#199](https://github.com/kunchenguid/gh-axi/issues/199)) ([9de033a](https://github.com/kunchenguid/gh-axi/commit/9de033a53dec83c40b70b4118e1479fe276419f2))
+
+
+### Bug Fixes
+
+* **search:** forward query terms as separate gh arguments ([#188](https://github.com/kunchenguid/gh-axi/issues/188)) ([bde0ae0](https://github.com/kunchenguid/gh-axi/commit/bde0ae0acd56ba85f5dda2b58f374b6e3e251a53))
+
 ## [0.1.37](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.36...gh-axi-v0.1.37) (2026-10-09)
 
 
