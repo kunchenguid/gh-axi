@@ -65,6 +65,12 @@ function hostnameFlag(ctx: SuggestionContext): string {
   return ` --hostname ${host.value}`;
 }
 
+/** The `-R`/`--hostname` flags a suggested command needs to hit `repo`. */
+export function repoTargetFlags(repo?: RepoContext): string {
+  const ctx: SuggestionContext = { domain: "", action: "", repo };
+  return `${repoFlag(ctx)}${hostnameFlag(ctx)}`;
+}
+
 function appendHostnameFlag(line: string, ctx: SuggestionContext): string {
   const flag = hostnameFlag(ctx);
   if (!flag) {
