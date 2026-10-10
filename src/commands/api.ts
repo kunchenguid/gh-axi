@@ -6,7 +6,7 @@ import { cleanBody } from "../body.js";
 import { readStdin, isStdinTTY } from "../stdin.js";
 
 export const API_HELP = `usage: gh-axi api [<method>] <path>
-description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
+description: Make an authenticated GitHub API request. Without a method, gh picks it: GET normally, POST once --field, --raw-field or --input adds a request body (same as gh api).
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
 flags[9]:
@@ -15,6 +15,7 @@ examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
   gh-axi api -X POST /repos/{owner}/{repo}/issues --field title="Bug report"
+  gh-axi api graphql --field query='query{viewer{login}}'
   gh-axi api /repos/{owner}/{repo}/pulls --paginate
   gh-axi api /repos/{owner}/{repo}/issues/1 --jq '[.labels[].name]'
   gh-axi api PUT /repos/{owner}/{repo}/branches/main/protection --input body.json
@@ -230,10 +231,15 @@ export async function apiCommand(
   if (methodGiven && positionals.length < 2) throw pathRequired;
 
   const method =
-    methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : "GET");
+    methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : undefined);
   const path = methodGiven ? positionals[1] : positionals[0];
 
-  const ghArgs = ["api", path, "--method", method];
+  // Forward --method only when the caller chose one. Without it gh applies its
+  // own rule (GET normally, POST once --field, --raw-field or --input adds parameters), so
+  // `api graphql --field query=...` runs the query instead of a forced GET that
+  // returns the schema, and a REST `--field` call creates instead of listing.
+  const ghArgs = ["api", path];
+  if (method !== undefined) ghArgs.push("--method", method);
 
   for (const f of fields) {
     ghArgs.push("--field", f);
