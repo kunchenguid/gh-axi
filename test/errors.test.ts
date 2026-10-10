@@ -51,6 +51,37 @@ describe("mapGhError", () => {
     expect(err.message).toContain("gh discussion");
   });
 
+  it("explains a search qualifier that swallowed the rest of the query", () => {
+    const err = mapGhError(
+      'Invalid search query "( review-requested:\\"@me created:>=2026-10-07\\" ) type:pr".\n' +
+        "The listed users cannot be searched either because the users do not exist or you do not have permission to view the users.",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("`review-requested:` qualifier");
+    expect(err.suggestions[0]).toContain(
+      "'review-requested:@me' 'created:>=2026-10-07'",
+    );
+  });
+
+  it("quotes apostrophes in the split-query suggestion", () => {
+    const err = mapGhError(
+      'Invalid search query "( author:\\"missing-user O\'Brien\\" )".',
+      1,
+    );
+    expect(err.suggestions[0]).toContain("'author:missing-user' 'O'\\''Brien'");
+  });
+
+  it("keeps GitHub's error for a single quoted qualifier value", () => {
+    const err = mapGhError(
+      'Invalid search query "( author:\\"missing-user\\" ) type:pr".\n' +
+        "The listed users cannot be searched.",
+      1,
+    );
+    expect(err.message).not.toContain("swallowed");
+    expect(err.message).toContain("Invalid search query");
+  });
+
   it("matches repo not found pattern", () => {
     const err = mapGhError(
       "Could not resolve to a Repository with the name 'cli/cli'",
