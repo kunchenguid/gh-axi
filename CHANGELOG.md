@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.37](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.36...gh-axi-v0.1.37) (2026-10-09)
+
+
+### Bug Fixes
+
+* **commands:** reject empty single-value filters on issue list and pr list ([#190](https://github.com/kunchenguid/gh-axi/issues/190)) ([5d54f57](https://github.com/kunchenguid/gh-axi/commit/5d54f577b2cf4a68a777e6bd3f2a4dd8dc238642))
+* **errors:** surface GitHub's message on HTTP 422 instead of "Validation error" ([#187](https://github.com/kunchenguid/gh-axi/issues/187)) ([11ff52c](https://github.com/kunchenguid/gh-axi/commit/11ff52c42afb432b6d10a9d00675256659aa71e0))
+
 ## [0.1.36](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.35...gh-axi-v0.1.36) (2026-10-07)
 
 
