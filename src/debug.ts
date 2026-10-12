@@ -16,10 +16,32 @@ export function debugEnabled(): boolean {
   return process.env["AXI_DEBUG"] === "1";
 }
 
-/** Single-quote an argument for a POSIX shell, only when it needs it. */
+const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
+const ANSI_C_ESCAPES: Record<string, string> = {
+  "\\": "\\\\",
+  "'": "\\'",
+  "\n": "\\n",
+  "\t": "\\t",
+  "\r": "\\r",
+};
+
+/**
+ * Quote an argument for a shell, only when it needs it. An argument with a
+ * newline or other control character uses `$'...'` so the trace stays on one
+ * physical line; everything else is POSIX single-quoted.
+ */
 export function shellQuote(arg: string): string {
   if (arg === "") return "''";
   if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(arg)) return arg;
+  if (CONTROL_CHAR.test(arg)) {
+    const body = arg.replace(
+      /[\\'\x00-\x1f\x7f]/g,
+      (ch) =>
+        ANSI_C_ESCAPES[ch] ??
+        `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`,
+    );
+    return `$'${body}'`;
+  }
   return `'${arg.replace(/'/g, `'\\''`)}'`;
 }
 
@@ -31,11 +53,13 @@ function maskHeader(header: string): string {
 }
 
 /**
- * Mask every `-H`/`--header` value, in the separate, `=`, and attached
- * (`-HAuthorization: ...`) forms. Header values are the one place a credential
- * can reach argv; secret values are stdin-only and never appear there.
+ * For an `api` call, mask every `-H`/`--header` value, in the separate, `=`,
+ * and attached (`-HAuthorization: ...`) forms. `api` is the only command that
+ * forwards headers, the one place a credential can reach argv; secret values
+ * are stdin-only and never appear there. Other commands are returned as is.
  */
 export function maskSecrets(args: readonly string[]): string[] {
+  if (args[0] !== "api") return [...args];
   const out: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];

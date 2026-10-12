@@ -199,7 +199,7 @@ When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output l
 - `--help` — show help for any command
 - `-v`, `-V`, `--version` — show the installed `gh-axi` version
 - `--hostname <host>` / `--hostname=<host>` - target a custom GitHub host; explicit flags win over `GH_HOST`. The flag must follow the command. gh-axi strips it before invoking `gh` and sets `GH_HOST` for that child only when the flag is present, leaving an existing `GH_HOST` untouched otherwise. `src/host.ts` `resolveHost()` (flag, then `GH_HOST`, then `github.com`) is the host used when building or parsing URLs.
-- `AXI_DEBUG=1` (env) - before each `gh` call, write `[axi-debug] gh <args>` to stderr: the exact argv gh-axi forwards, shell-quoted only where needed, so the part after the prefix pastes into a POSIX shell to retry the call in plain `gh`. Every `-H`/`--header` value is masked as `Name: ***`. Any other value, or unset, prints nothing. stdout is unchanged. The line shows argv only, not env such as a `GH_HOST` set from `--hostname`.
+- `AXI_DEBUG=1` (env) - before each `gh` call, write `[axi-debug] gh <args>` to stderr: the exact argv gh-axi forwards, shell-quoted only where needed, so the part after the prefix pastes into a POSIX shell to retry the call in plain `gh`. For `api` calls, every `-H`/`--header` value is masked as `Name: ***`; other commands are traced unmasked. An argument with a newline or other control character is written as `$'...'` so each trace stays on one line. Any other value, or unset, prints nothing. stdout is unchanged. The line shows argv only, not env such as a `GH_HOST` set from `--hostname`.
 
 Repository and host targeting are command-first too:
 

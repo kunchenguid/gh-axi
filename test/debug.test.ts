@@ -42,9 +42,9 @@ describe("AXI_DEBUG argv trace", () => {
   });
 
   /** Paste the traced command into a real shell, with the fake gh on PATH. */
-  function replayInShell(line: string): string[] {
+  function replayInShell(line: string, shell = "sh"): string[] {
     const command = line.replace(/^\[axi-debug\] /, "");
-    const out = execFileSync("sh", ["-c", command], {
+    const out = execFileSync(shell, ["-c", command], {
       encoding: "utf8",
       env: { ...process.env, PATH: `${dir}${delimiter}${process.env["PATH"]}` },
     });
@@ -86,7 +86,6 @@ describe("AXI_DEBUG argv trace", () => {
       "a*b",
       "`whoami`",
       'say "hi"',
-      "line1\nline2",
       "--repo",
       "owner/name",
       "label:bug",
@@ -97,6 +96,49 @@ describe("AXI_DEBUG argv trace", () => {
     expect(line).toContain(" --repo owner/name label:bug");
     expect(line).toContain(" 'login bug' ");
     expect(replayInShell(line)).toEqual(args);
+  });
+
+  it("keeps an argument with control characters on one line via $'...'", async () => {
+    const args = [
+      "issue",
+      "create",
+      "--body",
+      "line1\nline2\tit's a \\path\r\x01\x7f end",
+    ];
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec(args);
+    expect(stderr.endsWith("\n")).toBe(true);
+    expect(stderr.indexOf("\n")).toBe(stderr.length - 1);
+    // Replays through sh when it accepts $'...' (e.g. macOS sh, dash >= 0.5.12), else bash.
+    const shAcceptsAnsiC =
+      execFileSync("sh", ["-c", "printf %s $'a\\nb'"], {
+        encoding: "utf8",
+      }) === "a\nb";
+    const shell = shAcceptsAnsiC ? "sh" : "bash";
+    expect(replayInShell(stderr.trimEnd(), shell)).toEqual(args);
+  });
+
+  it("traces header-like values of non-api commands unmasked", async () => {
+    const args = [
+      "issue",
+      "create",
+      "--title",
+      "-Hotfix: crash",
+      "--body",
+      "-H",
+    ];
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec(args);
+    expect(stderr).not.toContain("***");
+    expect(replayInShell(stderr.trimEnd())).toEqual(args);
+  });
+
+  it("still masks an api --header value", async () => {
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec(["api", "user", "--header", "Authorization: x"]);
+    expect(stderr).toBe(
+      "[axi-debug] gh api user --header 'Authorization: ***'\n",
+    );
   });
 
   it("masks header values in every -H/--header form, keeping the name", async () => {
