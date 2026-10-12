@@ -40,7 +40,7 @@ export function debugEnabled(): boolean {
 const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
 const ANSI_C_ESCAPES: Record<string, string> = {
   "\\": "\\\\",
-  "'": "\\x27",
+  "'": "\\047",
   "\n": "\\n",
   "\t": "\\t",
   "\r": "\\r",
@@ -49,10 +49,12 @@ const ANSI_C_ESCAPES: Record<string, string> = {
 /**
  * Quote an argument for a shell, only when it needs it. An argument with a
  * newline or other control character uses `$'...'` so the trace stays on one
- * physical line; everything else is POSIX single-quoted. `$'...'` replays
- * exactly in bash, zsh and POSIX.1-2024 sh. A quote inside it
- * is `\x27`, never a raw `'`, so an older sh reads it as one literal word and
- * cannot run any of its text as a command.
+ * physical line; everything else is POSIX single-quoted. Escapes are `\n`,
+ * `\t`, `\r`, `\\` or a three-digit octal `\ooo`, which always ends after
+ * three digits, so `$'...'` replays exactly in every shell that supports it
+ * (bash, zsh, POSIX.1-2024 sh). A quote inside it is `\047`, never a raw `'`,
+ * so an older sh reads it as one literal word and cannot run any of its text
+ * as a command.
  */
 export function shellQuote(arg: string): string {
   if (arg === "") return "''";
@@ -63,7 +65,7 @@ export function shellQuote(arg: string): string {
       /[\\'\x00-\x1f\x7f]/g,
       (ch) =>
         ANSI_C_ESCAPES[ch] ??
-        `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`,
+        `\\${ch.charCodeAt(0).toString(8).padStart(3, "0")}`,
     );
     return `$'${body}'`;
   }

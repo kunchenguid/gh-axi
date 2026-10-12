@@ -118,6 +118,22 @@ describe("AXI_DEBUG argv trace", () => {
     expect(replayInShell(stderr.trimEnd(), shell)).toEqual(args);
   });
 
+  it("ends each escape after three octal digits, even before hex-digit text", async () => {
+    const args = ["issue", "create", "--body", "line1\n'abc'\x017"];
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec(args);
+    expect(stderr).toBe(
+      "[axi-debug] gh issue create --body $'line1\\n\\047abc\\047\\0017'\n",
+    );
+    const shAcceptsAnsiC =
+      execFileSync("sh", ["-c", "printf %s $'a\\nb'"], {
+        encoding: "utf8",
+      }) === "a\nb";
+    expect(
+      replayInShell(stderr.trimEnd(), shAcceptsAnsiC ? "sh" : "bash"),
+    ).toEqual(args);
+  });
+
   it("never lets body text run when a shell lacks $'...' support", async () => {
     const body = "x\n';printf AXI_REPLAY_PROOF;#";
     process.env["AXI_DEBUG"] = "1";
