@@ -16,6 +16,7 @@ export function debugEnabled(): boolean {
   return process.env["AXI_DEBUG"] === "1";
 }
 
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
 const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
 const ANSI_C_ESCAPES: Record<string, string> = {
   "\\": "\\\\",
@@ -35,6 +36,7 @@ export function shellQuote(arg: string): string {
   if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(arg)) return arg;
   if (CONTROL_CHAR.test(arg)) {
     const body = arg.replace(
+      // eslint-disable-next-line no-control-regex -- escapes control characters
       /[\\'\x00-\x1f\x7f]/g,
       (ch) =>
         ANSI_C_ESCAPES[ch] ??
