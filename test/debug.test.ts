@@ -118,6 +118,55 @@ describe("AXI_DEBUG argv trace", () => {
     expect(replayInShell(stderr.trimEnd(), shell)).toEqual(args);
   });
 
+  it("never lets body text run when a shell lacks $'...' support", async () => {
+    const body = "x\n';printf AXI_REPLAY_PROOF;#";
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec(["issue", "create", "--body", body]);
+    // Simulate a shell without $'...': the body becomes a plain '...' word.
+    const line = stderr.trimEnd().replace("$'", "'");
+    const command = line.replace(/^\[axi-debug\] /, "");
+    const out = execFileSync("sh", ["-c", command], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${dir}${delimiter}${process.env["PATH"]}` },
+    });
+    // stdout is only the fake gh's one JSON line (the body is echoed inside
+    // it); printf running as its own command would add text outside it.
+    const [echoed, ...rest] = out.split("\n");
+    expect(rest.join("\n")).toBe("");
+    const argv = JSON.parse(echoed) as string[];
+    expect(argv.slice(0, 3)).toEqual(["issue", "create", "--body"]);
+    expect(argv).toHaveLength(4);
+    expect(argv[3]).not.toContain("'");
+  });
+
+  it("skips other api flag values when finding headers", async () => {
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec([
+      "api",
+      "user",
+      "--field",
+      "-H",
+      "--header",
+      "Authorization: token secret",
+    ]);
+    expect(stderr).not.toContain("secret");
+    expect(replayInShell(stderr.trimEnd())).toEqual([
+      "api",
+      "user",
+      "--field",
+      "-H",
+      "--header",
+      "Authorization: ***",
+    ]);
+  });
+
+  it("traces an api --template value starting with -H unchanged", async () => {
+    const args = ["api", "user", "--template", "-Hotfix: {{.}}"];
+    process.env["AXI_DEBUG"] = "1";
+    await ghExec(args);
+    expect(replayInShell(stderr.trimEnd())).toEqual(args);
+  });
+
   it("traces header-like values of non-api commands unmasked", async () => {
     const args = [
       "issue",

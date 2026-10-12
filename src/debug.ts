@@ -10,6 +10,26 @@ export const DEBUG_PREFIX = "[axi-debug]";
 export const MASK = "***";
 
 const HEADER_FLAGS = new Set(["-H", "--header"]);
+/** `gh api` flags that take the next token as their value, in separate form. */
+const API_VALUE_FLAGS = new Set([
+  "-X",
+  "--method",
+  "-f",
+  "--raw-field",
+  "-F",
+  "--field",
+  "-H",
+  "--header",
+  "-q",
+  "--jq",
+  "-t",
+  "--template",
+  "--input",
+  "-p",
+  "--preview",
+  "--cache",
+  "--hostname",
+]);
 
 /** True only when `AXI_DEBUG` is exactly `1`. */
 export function debugEnabled(): boolean {
@@ -20,7 +40,7 @@ export function debugEnabled(): boolean {
 const CONTROL_CHAR = /[\x00-\x1f\x7f]/;
 const ANSI_C_ESCAPES: Record<string, string> = {
   "\\": "\\\\",
-  "'": "\\'",
+  "'": "\\x27",
   "\n": "\\n",
   "\t": "\\t",
   "\r": "\\r",
@@ -56,7 +76,8 @@ function maskHeader(header: string): string {
 
 /**
  * For an `api` call, mask every `-H`/`--header` value, in the separate, `=`,
- * and attached (`-HAuthorization: ...`) forms. `api` is the only command that
+ * and attached (`-HAuthorization: ...`) forms. Values of other flags are
+ * skipped, never read as flags. `api` is the only command that
  * forwards headers, the one place a credential can reach argv; secret values
  * are stdin-only and never appear there. Other commands are returned as is.
  */
@@ -65,8 +86,9 @@ export function maskSecrets(args: readonly string[]): string[] {
   const out: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (HEADER_FLAGS.has(arg) && i + 1 < args.length) {
-      out.push(arg, maskHeader(args[i + 1]));
+    if (API_VALUE_FLAGS.has(arg) && i + 1 < args.length) {
+      const value = args[i + 1];
+      out.push(arg, HEADER_FLAGS.has(arg) ? maskHeader(value) : value);
       i++;
       continue;
     }
