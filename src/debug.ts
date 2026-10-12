@@ -2,7 +2,7 @@
  * `AXI_DEBUG=1` tracing of the argv gh-axi forwards to `gh`.
  *
  * The line goes to stderr only, so stdout (TOON) is unchanged. The part after
- * the `[axi-debug] ` prefix pastes into a POSIX shell as is, so a failing
+ * the `[axi-debug] ` prefix pastes into a shell as is, so a failing
  * gh-axi call can be retried in plain `gh` exactly as gh-axi ran it.
  */
 
@@ -49,7 +49,10 @@ const ANSI_C_ESCAPES: Record<string, string> = {
 /**
  * Quote an argument for a shell, only when it needs it. An argument with a
  * newline or other control character uses `$'...'` so the trace stays on one
- * physical line; everything else is POSIX single-quoted.
+ * physical line; everything else is POSIX single-quoted. `$'...'` replays
+ * exactly in bash, zsh and POSIX.1-2024 sh. A quote inside it
+ * is `\x27`, never a raw `'`, so an older sh reads it as one literal word and
+ * cannot run any of its text as a command.
  */
 export function shellQuote(arg: string): string {
   if (arg === "") return "''";
