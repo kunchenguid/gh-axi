@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { ATTACH_MIN_GH_VERSION } from "./attach.js";
 import { type RepoContext } from "./context.js";
+import { debugArgv } from "./debug.js";
 import {
   AttachmentMutationError,
   AxiError,
@@ -63,6 +64,7 @@ function toExecResult(
 
 /** Stream gh diagnostics live while retaining both streams for result handling. */
 function run(args: string[], input?: string): Promise<ExecResult> {
+  debugArgv(args);
   return new Promise((resolve) => {
     const child = execFile(
       resolveGhBin(),
