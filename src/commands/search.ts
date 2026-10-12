@@ -4,11 +4,13 @@ import { AxiError } from "../errors.js";
 import { getFlag, hasFlag, rejectUnknownFlags } from "../args.js";
 import {
   field,
+  boolYesNo,
   lower,
   pluck,
   relativeTime,
   joinArray,
   custom,
+  extract,
   renderList,
   renderHelp,
   renderOutput,
@@ -17,6 +19,7 @@ import {
 } from "../toon.js";
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
+import { parseFields, type ExtraFieldSpec } from "../fields.js";
 
 const DEFAULT_SEARCH_LIMIT = "1000";
 const DISPLAY_LIMIT = 30;
@@ -32,16 +35,17 @@ const SEARCH_VALUE_FLAGS = new Set([
   "--review",
   "--language",
   "--stars",
+  "--fields",
 ]);
 
 export const SEARCH_FLAGS: Record<string, readonly string[]> = {
   issues: [
     "--repo", "--owner", "--state", "--label", "--assignee", "--author",
-    "--sort", "--limit",
+    "--sort", "--limit", "--fields",
   ],
   prs: [
     "--repo", "--owner", "--state", "--label", "--assignee", "--author",
-    "--sort", "--limit", "--draft", "--review",
+    "--sort", "--limit", "--draft", "--review", "--fields",
   ],
   repos: ["--repo", "--owner", "--language", "--stars", "--sort", "--limit"],
   commits: ["--repo", "--owner", "--author", "--sort", "--limit"],
@@ -53,8 +57,10 @@ types[5]:
   issues, prs, repos, commits, code
 flags{common}:
   --repo, --owner, --state, --label, --assignee, --author, --sort, --limit <n> (default 1000)
+flags{issues}:
+  --fields <a,b,c> (extra columns: assignees, authorAssociation, body, closedAt, commentsCount, isLocked, updatedAt, url)
 flags{prs}:
-  --draft, --review
+  --draft, --review, --fields <a,b,c> (extra columns: the issues set plus isDraft, labels)
 flags{repos}:
   --language, --stars (e.g. ">100")
 flags{code}:
@@ -62,6 +68,7 @@ flags{code}:
 examples:
   gh-axi search issues "login bug" --repo octo/repo --state open
   gh-axi search prs "feat" --author alice --sort updated
+  gh-axi search prs "feat" --owner octo --fields updatedAt,url
   gh-axi search repos "cli tool" --language Go --stars ">50"`;
 
 const issueSchema: FieldDef[] = [
@@ -73,6 +80,53 @@ const issueSchema: FieldDef[] = [
   joinArray("labels", "name", "labels"),
   relativeTime("createdAt", "created"),
 ];
+
+// Extra columns for --fields, limited to what `gh search issues|prs --json`
+// returns. Fields already in the default schema are not repeated here.
+const SEARCH_ISSUE_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
+  assignees: {
+    jsonKey: "assignees",
+    def: joinArray("assignees", "login", "assignees"),
+  },
+  authorAssociation: {
+    jsonKey: "authorAssociation",
+    def: lower("authorAssociation", "author_association"),
+  },
+  body: { jsonKey: "body", def: field("body") },
+  closedAt: {
+    jsonKey: "closedAt",
+    // gh search reports an open item's closedAt as Go's zero time
+    // (0001-01-01T00:00:00Z) rather than null.
+    def: custom("closed_at", (item) => {
+      const closedAt = item.closedAt;
+      if (typeof closedAt !== "string" || closedAt.startsWith("0001-"))
+        return "none";
+      return extract(item, [relativeTime("closedAt", "closed_at")]).closed_at;
+    }),
+  },
+  commentsCount: {
+    jsonKey: "commentsCount",
+    def: field("commentsCount", "comments"),
+  },
+  isLocked: { jsonKey: "isLocked", def: boolYesNo("isLocked", "locked") },
+  updatedAt: {
+    jsonKey: "updatedAt",
+    def: relativeTime("updatedAt", "updated_at"),
+  },
+  url: { jsonKey: "url", def: field("url") },
+};
+
+const SEARCH_PR_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
+  ...SEARCH_ISSUE_EXTRA_FIELDS,
+  isDraft: { jsonKey: "isDraft", def: boolYesNo("isDraft", "draft") },
+  labels: { jsonKey: "labels", def: joinArray("labels", "name", "labels") },
+};
+
+function withExtraJson(base: string, extraJsonKeys: string[]): string {
+  return extraJsonKeys.length > 0
+    ? base + "," + extraJsonKeys.join(",")
+    : base;
+}
 
 const prSchema: FieldDef[] = [
   field("number"),
@@ -156,6 +210,10 @@ async function searchIssues(
   args: string[],
   ctx?: RepoContext,
 ): Promise<string> {
+  const { extraDefs, extraJsonKeys } = parseFields(
+    getFlag(args, "--fields"),
+    SEARCH_ISSUE_EXTRA_FIELDS,
+  );
   const query = extractQuery(args);
   if (query.length === 0 && !hasSearchFilters(args))
     throw new AxiError(
@@ -167,7 +225,10 @@ async function searchIssues(
   const ghArgs = ["search", "issues"];
   ghArgs.push(
     "--json",
-    "number,title,repository,state,author,labels,createdAt",
+    withExtraJson(
+      "number,title,repository,state,author,labels,createdAt",
+      extraJsonKeys,
+    ),
     "--limit",
     limit,
   );
@@ -203,12 +264,16 @@ async function searchIssues(
   });
   return renderOutput([
     countLine,
-    renderList("issues", displayed, issueSchema),
+    renderList("issues", displayed, [...issueSchema, ...extraDefs]),
     renderHelp(suggestions),
   ]);
 }
 
 async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
+  const { extraDefs, extraJsonKeys } = parseFields(
+    getFlag(args, "--fields"),
+    SEARCH_PR_EXTRA_FIELDS,
+  );
   const query = extractQuery(args);
   if (query.length === 0 && !hasSearchFilters(args, ["--draft", "--review"]))
     throw new AxiError(
@@ -220,7 +285,10 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   const ghArgs = ["search", "prs"];
   ghArgs.push(
     "--json",
-    "number,title,repository,state,author,createdAt",
+    withExtraJson(
+      "number,title,repository,state,author,createdAt",
+      extraJsonKeys,
+    ),
     "--limit",
     limit,
   );
@@ -259,7 +327,7 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   });
   return renderOutput([
     countLine,
-    renderList("prs", displayed, prSchema),
+    renderList("prs", displayed, [...prSchema, ...extraDefs]),
     renderHelp(suggestions),
   ]);
 }

@@ -144,6 +144,113 @@ describe("searchCommand", () => {
     });
   });
 
+  describe("--fields", () => {
+    const prItem = {
+      number: 7,
+      title: "Add thing",
+      repository: { nameWithOwner: "octo/repo" },
+      state: "OPEN",
+      author: { login: "alice" },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: new Date().toISOString(),
+      url: "https://github.com/octo/repo/pull/7",
+      isDraft: true,
+      labels: [{ name: "bug" }, { name: "ui" }],
+    };
+
+    it("keeps the default prs --json set when --fields is not passed", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(["prs", "x"], ctx);
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs[ghArgs.indexOf("--json") + 1]).toBe(
+        "number,title,repository,state,author,createdAt",
+      );
+    });
+
+    it("extends prs --json and columns with the requested fields", async () => {
+      mockedGhJson.mockResolvedValue([prItem]);
+
+      const result = await searchCommand(
+        ["prs", "x", "--owner", "octo", "--fields", "updatedAt,url,isDraft,labels"],
+        ctx,
+      );
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs[ghArgs.indexOf("--json") + 1]).toBe(
+        "number,title,repository,state,author,createdAt,updatedAt,url,isDraft,labels",
+      );
+      expect(ghArgs.slice(-2)).toEqual(["--", "x"]);
+      expect(result).toContain(
+        "prs[1]{number,title,repo,state,author,created,updated_at,url,draft,labels}:",
+      );
+      expect(result).toContain("https://github.com/octo/repo/pull/7");
+      expect(result).toContain("yes");
+      expect(result).toContain("bug,ui");
+    });
+
+    it("accepts --fields=<a,b> and keeps the query", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(["issues", "--fields=url,commentsCount", "bug"], ctx);
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs[ghArgs.indexOf("--json") + 1]).toBe(
+        "number,title,repository,state,author,labels,createdAt,url,commentsCount",
+      );
+      expect(ghArgs.slice(-2)).toEqual(["--", "bug"]);
+    });
+
+    it("shows closed_at as none for an open item's zero-time closedAt", async () => {
+      mockedGhJson.mockResolvedValue([
+        { ...prItem, number: 1, closedAt: "0001-01-01T00:00:00Z" },
+        { ...prItem, number: 2, closedAt: new Date().toISOString() },
+      ]);
+
+      const result = await searchCommand(
+        ["issues", "x", "--fields", "closedAt"],
+        ctx,
+      );
+
+      const rows = result.split("\n").filter((l) => /^ {2}[12],/.test(l));
+      expect(rows[0]).toMatch(/,none$/);
+      expect(rows[1]).toMatch(/,just now$/);
+    });
+
+    it("does not treat the --fields value as query text", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await expect(
+        searchCommand(["issues", "--fields", "url"], ctx),
+      ).rejects.toThrow("Search query or filters required");
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["issues", "isDraft"],
+      ["prs", "fakeField"],
+    ])(
+      "rejects an unknown %s field %s without calling gh",
+      async (type, name) => {
+        await expect(
+          searchCommand([type, "x", "--fields", name], ctx),
+        ).rejects.toThrow(`Unknown field(s): ${name}`);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["repos", "commits", "code"])(
+      "still rejects --fields on search %s",
+      async (type) => {
+        await expect(
+          searchCommand([type, "x", "--fields", "url"], ctx),
+        ).rejects.toThrow("--fields");
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   describe("searchRepos", () => {
     it("returns results", async () => {
       mockedGhJson.mockResolvedValue([
