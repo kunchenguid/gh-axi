@@ -18,6 +18,20 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.39](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.38...gh-axi-v0.1.39) (2026-10-12)
+
+
+### Features
+
+* add AXI_DEBUG=1 trace of the argv forwarded to gh ([#204](https://github.com/kunchenguid/gh-axi/issues/204)) ([0a63932](https://github.com/kunchenguid/gh-axi/commit/0a63932da7350e4ac127f1780eb0c967dc9dc5e3))
+* **commands:** show merge state in pr view for open PRs ([#192](https://github.com/kunchenguid/gh-axi/issues/192)) ([f5bbf71](https://github.com/kunchenguid/gh-axi/commit/f5bbf71b283875603dcd44912624fc3e7fb1cc39))
+* **search:** support --fields on search issues and search prs ([#202](https://github.com/kunchenguid/gh-axi/issues/202)) ([f4048d1](https://github.com/kunchenguid/gh-axi/commit/f4048d1d8cfaeaf9cfbabd576f116912cb6f581d)), closes [#191](https://github.com/kunchenguid/gh-axi/issues/191)
+
+
+### Bug Fixes
+
+* **repo:** read --enable-issues/--enable-wiki as booleans in repo edit ([#205](https://github.com/kunchenguid/gh-axi/issues/205)) ([79e03cb](https://github.com/kunchenguid/gh-axi/commit/79e03cb54aafcde46c032e39b6095159a38dc0f3))
+
 ## [0.1.38](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.37...gh-axi-v0.1.38) (2026-10-10)
 
 
