@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.40](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.39...gh-axi-v0.1.40) (2026-10-13)
+
+
+### Bug Fixes
+
+* **gh:** stop echoing stderr of fast gh calls, keep pending notices live ([#209](https://github.com/kunchenguid/gh-axi/issues/209)) ([d36441e](https://github.com/kunchenguid/gh-axi/commit/d36441efdd1a537d3320257e657a52c5d177ae83)), closes [#196](https://github.com/kunchenguid/gh-axi/issues/196)
+* **search:** leave out the context repo when --owner or an org:/user:/repo: qualifier is given ([#207](https://github.com/kunchenguid/gh-axi/issues/207)) ([af773be](https://github.com/kunchenguid/gh-axi/commit/af773be01d55c27599c3472415a01e20c03bdd66))
+
 ## [0.1.39](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.38...gh-axi-v0.1.39) (2026-10-12)
 
 
