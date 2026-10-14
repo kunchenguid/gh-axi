@@ -1470,6 +1470,36 @@ describe("issueCommand", () => {
     );
 
     it.each([
+      [
+        ["--comment", "--duplicate-of", "17"],
+        "--comment requires a value; got --duplicate-of, which is a flag. Use --comment=<value> for a dash-leading value.",
+      ],
+      [
+        ["--reason", "--comment", "hi"],
+        "--reason requires a value; got --comment, which is a flag. Use --reason=<value> for a dash-leading value.",
+      ],
+    ])(
+      "rejects a close flag in another flag's value position (%j) before any gh call",
+      async (flagArgs, message) => {
+        await expect(
+          issueCommand(["close", "42", ...flagArgs], ctx),
+        ).rejects.toThrow(message);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
+    it("ignores a trailing --comment with no value and still closes", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "open" });
+      mockedGhExec.mockResolvedValue("");
+      mockedGhJson.mockResolvedValueOnce({ number: 42, state: "closed" });
+
+      await issueCommand(["close", "42", "--comment"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(["issue", "close", "42"], ctx);
+    });
+
+    it.each([
       [["--duplicate-of", "17", "42"]],
       [["--duplicate-of=17", "42"]],
       [["--reason", "duplicate", "--duplicate-of", "17", "42"]],

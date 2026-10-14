@@ -943,7 +943,8 @@ type CloseValueFlag = (typeof CLOSE_VALUE_FLAGS)[number];
  * option (`--comment "--duplicate-of=1"` is comment text) and is never read
  * as the issue number (`--duplicate-of 17 42` closes 42). A missing value is
  * recorded as "" so the caller can reject it; a declared close flag in a
- * value position is a missing value, never a value.
+ * value position is a missing value, never a value, and is rejected here for
+ * --reason and --comment.
  */
 function scanCloseFlags(args: string[]): {
   values: Record<CloseValueFlag, string[]>;
@@ -960,10 +961,14 @@ function scanCloseFlags(args: string[]): {
     const exact = CLOSE_VALUE_FLAGS.find((flag) => flag === arg);
     if (exact) {
       const next = args[i + 1];
-      if (
-        next === undefined ||
-        CLOSE_VALUE_FLAGS.some((flag) => next === flag)
-      ) {
+      const nextIsFlag = CLOSE_VALUE_FLAGS.some((flag) => next === flag);
+      if (nextIsFlag && exact !== "--duplicate-of") {
+        throw new AxiError(
+          `${exact} requires a value; got ${next}, which is a flag. Use ${exact}=<value> for a dash-leading value.`,
+          "VALIDATION_ERROR",
+        );
+      }
+      if (next === undefined || nextIsFlag) {
         values[exact].push("");
       } else {
         values[exact].push(next);
