@@ -1279,7 +1279,7 @@ describe("issueCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
-    it("normalizes documented not_planned to gh's \"not planned\" (separated form)", async () => {
+    it('normalizes documented not_planned to gh\'s "not planned" (separated form)', async () => {
       mockedGhJson.mockResolvedValueOnce({ state: "open" });
       mockedGhExec.mockResolvedValue("");
       mockedGhJson.mockResolvedValueOnce({ number: 42, state: "closed" });
@@ -1292,7 +1292,7 @@ describe("issueCommand", () => {
       );
     });
 
-    it("normalizes documented not_planned to gh's \"not planned\" (equals form)", async () => {
+    it('normalizes documented not_planned to gh\'s "not planned" (equals form)', async () => {
       mockedGhJson.mockResolvedValueOnce({ state: "open" });
       mockedGhExec.mockResolvedValue("");
       mockedGhJson.mockResolvedValueOnce({ number: 42, state: "closed" });
