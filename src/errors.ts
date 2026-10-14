@@ -251,6 +251,20 @@ const patterns: ErrorPattern[] = [
     message: () => "An issue cannot be a sub-issue of itself",
   },
   {
+    // gh 2.87 and older reject --duplicate-of as an unknown flag and
+    // `--reason duplicate` as an invalid enum value. Must sit ahead of any
+    // broader unknown-flag pattern so the upgrade hint is not swallowed.
+    pattern:
+      /unknown flag: --duplicate-of|invalid argument "duplicate" for "-r, --reason" flag/,
+    code: "VALIDATION_ERROR",
+    message: () =>
+      "Closing as duplicate (--duplicate-of / --reason duplicate) requires gh >= 2.88.0. Upgrade gh, or set GH_BIN to a 2.88.0+ binary",
+    suggestions: () => [
+      "Install GitHub CLI 2.88.0 or newer from https://github.com/cli/cli/releases",
+      "Or point GH_BIN at a 2.88.0+ gh binary",
+    ],
+  },
+  {
     // gh 2.98 and older reject --attach as an unknown flag. Must sit ahead of
     // any broader unknown-flag pattern so the upgrade hint is not swallowed.
     pattern: /unknown flag: --attach/,

@@ -43,7 +43,7 @@ npx skills add kunchenguid/gh-axi --skill gh-axi -g
 
 That is the entire setup - no npm install needed.
 The skill is a minimal discovery stub that directs your agent to the always-current `npx -y gh-axi` dashboard and help output instead of duplicating command guidance.
-You still need [`gh`](https://cli.github.com/) installed and authenticated via `gh auth login` (Node 20+ required). gh-axi adds no new minimum `gh` version for existing commands. Only `--attach` on issue and pull request create/edit/comment requires **gh >= 2.99.0**; older `gh` returns a structured error before any mutation runs. Set `GH_BIN` to point at a specific `gh` binary.
+You still need [`gh`](https://cli.github.com/) installed and authenticated via `gh auth login` (Node 20+ required). gh-axi adds no new minimum `gh` version for existing commands. Only `--attach` on issue and pull request create/edit/comment requires **gh >= 2.99.0**, and closing an issue as a duplicate (`issue close --duplicate-of` or `--reason duplicate`) requires **gh >= 2.88.0**; older `gh` returns a structured error before any mutation runs. Set `GH_BIN` to point at a specific `gh` binary.
 Stacked PR commands also require GitHub's official extension: `gh extension install github/gh-stack`.
 For GitHub Enterprise or another custom host, authenticate `gh` for that host and either pass `--hostname <host>` after the command or set `GH_HOST`.
 

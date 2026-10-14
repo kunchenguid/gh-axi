@@ -99,7 +99,7 @@ flags{create}:
 flags{edit}:
   --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
 flags{close}:
-  --reason <completed|not_planned>, --comment <text>
+  --reason <completed|not_planned|duplicate>, --duplicate-of <number|url> (implies --reason duplicate; requires gh >= 2.88.0), --comment <text>
 flags{comment}:
   --body <text> or --body-file <path> (required unless --attach), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0)
 flags{transfer}:
@@ -114,6 +114,7 @@ examples:
   gh-axi issue comment 42 --body-file comment.md
   gh-axi issue comment 42 --attach ./before.png --attach ./after.png
   gh-axi issue close 42 --reason completed
+  gh-axi issue close 42 --duplicate-of 17
   gh-axi issue transfer 42 -R source/repo --to-repo dest/repo
   gh-axi issue subissue add 16 20 101 125
   gh-axi issue subissue list 16`;
@@ -170,7 +171,7 @@ export const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--no-type",
     "--type",
   ],
-  close: ["--reason", "--comment"],
+  close: ["--reason", "--duplicate-of", "--comment"],
   reopen: [],
   comment: ["--body", "--body-file", "--attach"],
   delete: [],
@@ -250,6 +251,16 @@ const editResultSchema: FieldDef[] = [
 ];
 
 const stateResultSchema: FieldDef[] = [field("number"), lower("state")];
+
+const closeReasonResultSchema: FieldDef[] = [
+  ...stateResultSchema,
+  lower("stateReason", "state_reason"),
+];
+
+const duplicateCloseResultSchema: FieldDef[] = [
+  ...closeReasonResultSchema,
+  field("_duplicateOf", "duplicate_of"),
+];
 
 const commentResultSchema: FieldDef[] = [
   field("number", "issue"),
@@ -927,6 +938,24 @@ async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
   const reason = getFlag(args, "--reason");
   const comment = getFlag(args, "--comment");
+  const duplicateOf = getFlag(args, "--duplicate-of");
+  const duplicateFlagGiven = args.some(
+    (arg) => arg === "--duplicate-of" || arg.startsWith("--duplicate-of="),
+  );
+  if (duplicateFlagGiven && (!duplicateOf || !duplicateOf.trim())) {
+    throw new AxiError(
+      "--duplicate-of requires an issue number or URL",
+      "VALIDATION_ERROR",
+    );
+  }
+  // Mirror gh: --duplicate-of implies --reason duplicate and conflicts with any
+  // other reason. Reject locally, before any gh call.
+  if (duplicateOf && reason && reason !== "duplicate") {
+    throw new AxiError(
+      "--duplicate-of can only be used with --reason duplicate",
+      "VALIDATION_ERROR",
+    );
+  }
 
   // Idempotent: check current state
   const current = await ghJson<{ state: string }>(
@@ -956,20 +985,44 @@ async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghArgs = ["issue", "close", String(num)];
   if (reason) {
-    // gh accepts only "completed" or "not planned"; normalize the documented form.
+    // gh accepts "completed", "not planned" or "duplicate"; normalize the
+    // documented not_planned form.
     const nativeReason = reason === "not_planned" ? "not planned" : reason;
     ghArgs.push("--reason", nativeReason);
   }
+  if (duplicateOf) ghArgs.push("--duplicate-of", duplicateOf);
   if (comment) ghArgs.push("--comment", comment);
 
   await ghExec(ghArgs, ctx);
 
+  const closedAsDuplicate = Boolean(duplicateOf) || reason === "duplicate";
   const item = await ghJson<Record<string, unknown>>(
-    ["issue", "view", String(num), "--json", "number,state"],
+    [
+      "issue",
+      "view",
+      String(num),
+      "--json",
+      closedAsDuplicate ? "number,state,stateReason" : "number,state",
+    ],
     ctx,
   );
 
-  const blocks: string[] = [renderDetail("issue", item, stateResultSchema)];
+  const blocks: string[] = [
+    closedAsDuplicate
+      ? renderDetail(
+          "issue",
+          {
+            ...item,
+            // A bare issue number renders as a number; a URL stays as given.
+            _duplicateOf:
+              duplicateOf && /^\d+$/.test(duplicateOf)
+                ? Number(duplicateOf)
+                : duplicateOf,
+          },
+          duplicateOf ? duplicateCloseResultSchema : closeReasonResultSchema,
+        )
+      : renderDetail("issue", item, stateResultSchema),
+  ];
   const help = getSuggestions({
     domain: "issue",
     action: "close",

@@ -307,6 +307,23 @@ describe("mapGhError", () => {
     expect(err.suggestions.some((s) => s.includes("2.99.0"))).toBe(true);
   });
 
+  it("maps old gh's rejection of --duplicate-of to a gh >= 2.88.0 upgrade error", () => {
+    const err = mapGhError("unknown flag: --duplicate-of", 1);
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("gh >= 2.88.0");
+    expect(err.message).toContain("GH_BIN");
+    expect(err.suggestions.some((s) => s.includes("2.88.0"))).toBe(true);
+  });
+
+  it("maps old gh's rejection of --reason duplicate to a gh >= 2.88.0 upgrade error", () => {
+    const err = mapGhError(
+      'invalid argument "duplicate" for "-r, --reason" flag: valid values are {completed|not planned}',
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toContain("gh >= 2.88.0");
+  });
+
   it("maps gh attach type and size stderr to VALIDATION_ERROR", () => {
     const typeErr = mapGhError(
       "/tmp/my image.txt is not a supported file type (supported: png, jpg, jpeg, gif, webp, svg, mp4, mov, webm)",

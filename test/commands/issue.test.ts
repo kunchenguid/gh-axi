@@ -1317,6 +1317,165 @@ describe("issueCommand", () => {
         ctx,
       );
     });
+
+    it("keeps the plain close output unchanged (no state_reason)", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "open" });
+      mockedGhExec.mockResolvedValue("");
+      mockedGhJson.mockResolvedValueOnce({ number: 42, state: "CLOSED" });
+
+      const result = await issueCommand(["close", "42"], ctx);
+
+      expect(mockedGhJson).toHaveBeenLastCalledWith(
+        ["issue", "view", "42", "--json", "number,state"],
+        ctx,
+      );
+      expect(result).toContain("state: closed");
+      expect(result).not.toContain("state_reason");
+      expect(result).not.toContain("duplicate_of");
+    });
+
+    it("forwards --duplicate-of to gh and reports state_reason and duplicate_of", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "open" });
+      mockedGhExec.mockResolvedValue("");
+      mockedGhJson.mockResolvedValueOnce({
+        number: 42,
+        state: "CLOSED",
+        stateReason: "DUPLICATE",
+      });
+
+      const result = await issueCommand(
+        ["close", "42", "--duplicate-of", "17"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["issue", "close", "42", "--duplicate-of", "17"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenLastCalledWith(
+        ["issue", "view", "42", "--json", "number,state,stateReason"],
+        ctx,
+      );
+      expect(result).toContain("state: closed");
+      expect(result).toContain("state_reason: duplicate");
+      expect(result).toContain("duplicate_of: 17");
+    });
+
+    it("forwards an equals-form --duplicate-of URL unchanged", async () => {
+      const url = "https://github.com/octo/other/issues/9";
+      mockedGhJson.mockResolvedValueOnce({ state: "open" });
+      mockedGhExec.mockResolvedValue("");
+      mockedGhJson.mockResolvedValueOnce({
+        number: 42,
+        state: "CLOSED",
+        stateReason: "DUPLICATE",
+      });
+
+      const result = await issueCommand(
+        ["close", "42", `--duplicate-of=${url}`, "--comment", "dupe"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["issue", "close", "42", "--duplicate-of", url, "--comment", "dupe"],
+        ctx,
+      );
+      expect(result).toContain(url);
+    });
+
+    it("accepts --duplicate-of together with --reason duplicate", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "open" });
+      mockedGhExec.mockResolvedValue("");
+      mockedGhJson.mockResolvedValueOnce({
+        number: 42,
+        state: "CLOSED",
+        stateReason: "DUPLICATE",
+      });
+
+      await issueCommand(
+        ["close", "42", "--reason", "duplicate", "--duplicate-of", "17"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        [
+          "issue",
+          "close",
+          "42",
+          "--reason",
+          "duplicate",
+          "--duplicate-of",
+          "17",
+        ],
+        ctx,
+      );
+    });
+
+    it("passes --reason duplicate through and reports state_reason without duplicate_of", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "open" });
+      mockedGhExec.mockResolvedValue("");
+      mockedGhJson.mockResolvedValueOnce({
+        number: 42,
+        state: "CLOSED",
+        stateReason: "DUPLICATE",
+      });
+
+      const result = await issueCommand(
+        ["close", "42", "--reason", "duplicate"],
+        ctx,
+      );
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["issue", "close", "42", "--reason", "duplicate"],
+        ctx,
+      );
+      expect(result).toContain("state_reason: duplicate");
+      expect(result).not.toContain("duplicate_of");
+    });
+
+    it.each([["completed"], ["not_planned"]])(
+      "rejects --duplicate-of with --reason %s before any gh call",
+      async (reason) => {
+        await expect(
+          issueCommand(
+            ["close", "42", "--reason", reason, "--duplicate-of", "17"],
+            ctx,
+          ),
+        ).rejects.toThrow(
+          "--duplicate-of can only be used with --reason duplicate",
+        );
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [["--duplicate-of"]],
+      [["--duplicate-of="]],
+      [["--duplicate-of", " "]],
+    ])(
+      "rejects a missing or blank --duplicate-of value (%j) before any gh call",
+      async (flagArgs) => {
+        await expect(
+          issueCommand(["close", "42", ...flagArgs], ctx),
+        ).rejects.toThrow("--duplicate-of requires an issue number or URL");
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
+    it("stays idempotent for an already-closed issue with --duplicate-of", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "closed" });
+      mockedGhJson.mockResolvedValueOnce({ number: 42, state: "closed" });
+
+      const result = await issueCommand(
+        ["close", "42", "--duplicate-of", "17"],
+        ctx,
+      );
+
+      expect(result).toContain("Already closed");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
   });
 
   describe("lock", () => {
