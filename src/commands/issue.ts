@@ -24,7 +24,6 @@ import {
   getPositional,
   requireNumber,
   takeFlag,
-  takeRequiredFlag,
   takeBoolFlag,
   rejectUnknownFlags,
 } from "../args.js";
@@ -935,32 +934,77 @@ async function editIssue(
   return renderOutput(blocks);
 }
 
+const CLOSE_VALUE_FLAGS = ["--reason", "--comment", "--duplicate-of"] as const;
+type CloseValueFlag = (typeof CLOSE_VALUE_FLAGS)[number];
+
+/**
+ * Read issue close's valued flags in one left-to-right pass, taking each
+ * option together with its value. A flag's value is never re-read as an
+ * option (`--comment "--duplicate-of=1"` is comment text) and is never read
+ * as the issue number (`--duplicate-of 17 42` closes 42). A missing value is
+ * recorded as "" so the caller can reject it; a declared close flag in a
+ * value position is a missing value, never a value.
+ */
+function scanCloseFlags(args: string[]): {
+  values: Record<CloseValueFlag, string[]>;
+  rest: string[];
+} {
+  const values: Record<CloseValueFlag, string[]> = {
+    "--reason": [],
+    "--comment": [],
+    "--duplicate-of": [],
+  };
+  const rest: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const exact = CLOSE_VALUE_FLAGS.find((flag) => flag === arg);
+    if (exact) {
+      const next = args[i + 1];
+      if (
+        next === undefined ||
+        CLOSE_VALUE_FLAGS.some((flag) => next === flag)
+      ) {
+        values[exact].push("");
+      } else {
+        values[exact].push(next);
+        i++;
+      }
+      continue;
+    }
+    const withValue = CLOSE_VALUE_FLAGS.find((flag) =>
+      arg.startsWith(`${flag}=`),
+    );
+    if (withValue) {
+      values[withValue].push(arg.slice(withValue.length + 1));
+      continue;
+    }
+    rest.push(arg);
+  }
+  return { values, rest };
+}
+
 async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  // Consume valued flags from a copy before reading the issue number, so a
-  // flag value placed before the number (`--duplicate-of 17 42`) is never
-  // mistaken for the issue to close.
-  const rest = [...args];
-  let duplicateOf: string | undefined;
-  try {
-    duplicateOf = takeRequiredFlag(rest, "--duplicate-of");
-  } catch {
+  const { values, rest } = scanCloseFlags(args);
+  const duplicateValues = values["--duplicate-of"];
+  if (
+    duplicateValues.some(
+      (value) => value.trim() === "" || value.startsWith("-"),
+    )
+  ) {
     throw new AxiError(
       "--duplicate-of requires an issue number or URL",
       "VALIDATION_ERROR",
     );
   }
-  if (
-    rest.some(
-      (arg) => arg === "--duplicate-of" || arg.startsWith("--duplicate-of="),
-    )
-  ) {
+  if (duplicateValues.length > 1) {
     throw new AxiError(
       "--duplicate-of may only be given once",
       "VALIDATION_ERROR",
     );
   }
-  const reason = takeFlag(rest, "--reason");
-  const comment = takeFlag(rest, "--comment");
+  const duplicateOf = duplicateValues[0];
+  const reason = values["--reason"][0];
+  const comment = values["--comment"][0];
   const num = requireNumber(getPositional(rest, 1), "issue");
   // Mirror gh: --duplicate-of implies --reason duplicate and conflicts with any
   // other reason. Reject locally, before any gh call.
