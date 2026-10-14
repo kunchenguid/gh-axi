@@ -1453,6 +1453,9 @@ describe("issueCommand", () => {
       [["--duplicate-of"]],
       [["--duplicate-of="]],
       [["--duplicate-of", " "]],
+      [["--duplicate-of", "--comment", "hi"]],
+      [["--duplicate-of", "--reason", "duplicate"]],
+      [["--duplicate-of", "--duplicate-of", "17"]],
     ])(
       "rejects a missing or blank --duplicate-of value (%j) before any gh call",
       async (flagArgs) => {

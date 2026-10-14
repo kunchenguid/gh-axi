@@ -938,11 +938,10 @@ async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const num = requireNumber(getPositional(args, 1), "issue");
   const reason = getFlag(args, "--reason");
   const comment = getFlag(args, "--comment");
-  const duplicateOf = getFlag(args, "--duplicate-of");
-  const duplicateFlagGiven = args.some(
-    (arg) => arg === "--duplicate-of" || arg.startsWith("--duplicate-of="),
-  );
-  if (duplicateFlagGiven && (!duplicateOf || !duplicateOf.trim())) {
+  let duplicateOf: string | undefined;
+  try {
+    duplicateOf = getRequiredFlag(args, "--duplicate-of");
+  } catch {
     throw new AxiError(
       "--duplicate-of requires an issue number or URL",
       "VALIDATION_ERROR",
