@@ -27,7 +27,6 @@ import {
   takeFlag,
   takeRequiredFlag,
   takeSingleRequiredFlag,
-  takeRequiredFlag,
   takeBoolFlag,
   takeNumber,
   takeAllFlags,
