@@ -1467,6 +1467,50 @@ describe("issueCommand", () => {
       },
     );
 
+    it.each([
+      [["--duplicate-of", "17", "42"]],
+      [["--duplicate-of=17", "42"]],
+      [["--reason", "duplicate", "--duplicate-of", "17", "42"]],
+    ])(
+      "closes the positional issue, not the flag value, when flags come first (%j)",
+      async (flagArgs) => {
+        mockedGhJson.mockResolvedValueOnce({ state: "open" });
+        mockedGhExec.mockResolvedValue("");
+        mockedGhJson.mockResolvedValueOnce({
+          number: 42,
+          state: "CLOSED",
+          stateReason: "DUPLICATE",
+        });
+
+        await issueCommand(["close", ...flagArgs], ctx);
+
+        expect(mockedGhJson).toHaveBeenNthCalledWith(
+          1,
+          ["issue", "view", "42", "--json", "state"],
+          ctx,
+        );
+        const closeArgv = mockedGhExec.mock.calls[0][0];
+        expect(closeArgv.slice(0, 3)).toEqual(["issue", "close", "42"]);
+        expect(closeArgv).toContain("--duplicate-of");
+        expect(closeArgv[closeArgv.indexOf("--duplicate-of") + 1]).toBe("17");
+      },
+    );
+
+    it.each([
+      [["--duplicate-of", "17", "--duplicate-of="]],
+      [["--duplicate-of", "17", "--duplicate-of"]],
+      [["--duplicate-of=17", "--duplicate-of", "18"]],
+    ])(
+      "rejects a repeated --duplicate-of (%j) before any gh call",
+      async (flagArgs) => {
+        await expect(
+          issueCommand(["close", "42", ...flagArgs], ctx),
+        ).rejects.toThrow("--duplicate-of may only be given once");
+        expect(mockedGhJson).not.toHaveBeenCalled();
+        expect(mockedGhExec).not.toHaveBeenCalled();
+      },
+    );
+
     it("stays idempotent for an already-closed issue with --duplicate-of", async () => {
       mockedGhJson.mockResolvedValueOnce({ state: "closed" });
       mockedGhJson.mockResolvedValueOnce({ number: 42, state: "closed" });

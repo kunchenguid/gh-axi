@@ -24,6 +24,7 @@ import {
   getPositional,
   requireNumber,
   takeFlag,
+  takeRequiredFlag,
   takeBoolFlag,
   rejectUnknownFlags,
 } from "../args.js";
@@ -935,18 +936,32 @@ async function editIssue(
 }
 
 async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const num = requireNumber(getPositional(args, 1), "issue");
-  const reason = getFlag(args, "--reason");
-  const comment = getFlag(args, "--comment");
+  // Consume valued flags from a copy before reading the issue number, so a
+  // flag value placed before the number (`--duplicate-of 17 42`) is never
+  // mistaken for the issue to close.
+  const rest = [...args];
   let duplicateOf: string | undefined;
   try {
-    duplicateOf = getRequiredFlag(args, "--duplicate-of");
+    duplicateOf = takeRequiredFlag(rest, "--duplicate-of");
   } catch {
     throw new AxiError(
       "--duplicate-of requires an issue number or URL",
       "VALIDATION_ERROR",
     );
   }
+  if (
+    rest.some(
+      (arg) => arg === "--duplicate-of" || arg.startsWith("--duplicate-of="),
+    )
+  ) {
+    throw new AxiError(
+      "--duplicate-of may only be given once",
+      "VALIDATION_ERROR",
+    );
+  }
+  const reason = takeFlag(rest, "--reason");
+  const comment = takeFlag(rest, "--comment");
+  const num = requireNumber(getPositional(rest, 1), "issue");
   // Mirror gh: --duplicate-of implies --reason duplicate and conflicts with any
   // other reason. Reject locally, before any gh call.
   if (duplicateOf && reason && reason !== "duplicate") {
