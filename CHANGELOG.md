@@ -18,6 +18,20 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.41](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.40...gh-axi-v0.1.41) (2026-10-15)
+
+
+### Features
+
+* **issue:** close an issue as a duplicate with --duplicate-of ([#213](https://github.com/kunchenguid/gh-axi/issues/213)) ([97564fd](https://github.com/kunchenguid/gh-axi/commit/97564fd69972c29fc866c38d689d025a3d201334))
+
+
+### Bug Fixes
+
+* **api:** hand -R to gh api as GH_REPO instead of --repo ([#208](https://github.com/kunchenguid/gh-axi/issues/208)) ([5c4e7af](https://github.com/kunchenguid/gh-axi/commit/5c4e7afa9100fe80e9c610f0b2f44156d23d8fb5)), closes [#197](https://github.com/kunchenguid/gh-axi/issues/197)
+* **pr:** add --watch and gh exit codes to pr checks ([#193](https://github.com/kunchenguid/gh-axi/issues/193)) ([96e44e6](https://github.com/kunchenguid/gh-axi/commit/96e44e65506083f57d53e566df362c8cb2569034))
+* **pr:** report what pr merge actually did instead of merged / status: ok ([#210](https://github.com/kunchenguid/gh-axi/issues/210)) ([15b48df](https://github.com/kunchenguid/gh-axi/commit/15b48df3e066528fe0a6f4bdc959890be7dfe253))
+
 ## [0.1.40](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.39...gh-axi-v0.1.40) (2026-10-13)
 
 
