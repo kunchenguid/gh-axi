@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.43](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.42...gh-axi-v0.1.43) (2026-10-17)
+
+
+### Features
+
+* **workflow:** accept --yaml on workflow view to print the workflow file ([#217](https://github.com/kunchenguid/gh-axi/issues/217)) ([8b480ba](https://github.com/kunchenguid/gh-axi/commit/8b480ba3266b40ff0ff5da732f04946aafb78468))
+
 ## [0.1.42](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.41...gh-axi-v0.1.42) (2026-10-16)
 
 
