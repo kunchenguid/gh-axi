@@ -451,7 +451,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
   checks: ["--failed", "--watch", "--interval", "--fail-fast"],
   diff: ["--full", "--patch"],
   checkout: [],
-  ready: [],
+  ready: ["--undo"],
   reopen: [],
   comment: ["--body", "--body-file", "--attach"],
   "update-branch": [],
@@ -481,6 +481,8 @@ flags{checks}:
   --failed (show only failing checks), --watch (wait until no check is pending), --interval <seconds> (poll interval for --watch, default 10), --fail-fast (with --watch, stop at the first failing check); exits 1 when a check failed or none are reported, 8 when a check is still pending (like gh pr checks)
 flags{diff}:
   --full (show complete diff without truncation), --patch (accepted for gh compatibility; output is already patch format)
+flags{ready}:
+  --undo (convert the PR back to a draft)
 examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
@@ -1351,22 +1353,44 @@ async function prCheckout(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function prReady(args: string[], ctx?: RepoContext): Promise<string> {
   const num = takeNumber(args, "PR");
+  const undo = takeBoolFlag(args, "--undo");
+  const suggestions = () =>
+    renderHelp(
+      getSuggestions({
+        domain: "pr",
+        action: "ready",
+        id: num,
+        repo: ctx,
+        ...(undo ? { state: "draft" } : {}),
+      }),
+    );
 
-  // Idempotent: check if already not a draft
+  // Idempotent: check if already in the requested state (not a draft for a
+  // plain ready, a draft for --undo)
   const pr = await ghJson<Pick<PrItem, "isDraft">>(
     ["pr", "view", String(num), "--json", "isDraft"],
     ctx,
   );
-  if (!pr.isDraft) {
+  if (undo ? pr.isDraft : !pr.isDraft) {
     return renderOutput([
       renderDetail(
         "pull_request",
-        { number: num, draft: "no", already: true },
+        { number: num, draft: undo ? "yes" : "no", already: true },
         [field("number"), field("draft"), field("already")],
       ),
-      renderHelp(
-        getSuggestions({ domain: "pr", action: "ready", id: num, repo: ctx }),
+      suggestions(),
+    ]);
+  }
+
+  if (undo) {
+    await ghExec(["pr", "ready", String(num), "--undo"], ctx);
+    return renderOutput([
+      renderDetail(
+        "pull_request",
+        { number: num, draft: "yes", status: "ok" },
+        [field("number"), field("draft"), field("status")],
       ),
+      suggestions(),
     ]);
   }
 
@@ -1376,9 +1400,7 @@ async function prReady(args: string[], ctx?: RepoContext): Promise<string> {
       field("number"),
       field("status"),
     ]),
-    renderHelp(
-      getSuggestions({ domain: "pr", action: "ready", id: num, repo: ctx }),
-    ),
+    suggestions(),
   ]);
 }
 

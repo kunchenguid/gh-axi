@@ -311,6 +311,15 @@ const table: SuggestionEntry[] = [
     lines: () => [],
   },
 
+  // PR ready --undo (now a draft)
+  {
+    match: (c) =>
+      c.domain === "pr" && c.action === "ready" && c.state === "draft",
+    lines: (c) => [
+      `Run \`gh-axi${repoFlag(c)} pr ready ${c.id}\` to mark it ready for review`,
+    ],
+  },
+
   // PR ready
   {
     match: (c) => c.domain === "pr" && c.action === "ready",

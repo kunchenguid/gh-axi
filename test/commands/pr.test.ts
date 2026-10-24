@@ -1205,6 +1205,64 @@ describe("prCommand", () => {
     });
   });
 
+  describe("ready", () => {
+    it("marks a draft PR ready without --undo (unchanged behaviour)", async () => {
+      mockedGhJson.mockResolvedValue({ isDraft: true });
+      mockedGhExec.mockResolvedValue("");
+
+      const result = await prCommand(["ready", "10"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(["pr", "ready", "10"], ctx);
+      expect(result).toContain("ready:");
+      expect(result).toContain("status: ok");
+      expect(result).toContain("gh-axi pr view 10");
+    });
+
+    it("returns already not a draft when PR is ready (idempotent)", async () => {
+      mockedGhJson.mockResolvedValue({ isDraft: false });
+
+      const result = await prCommand(["ready", "10"], ctx);
+
+      expect(result).toContain("draft: no");
+      expect(result).toContain("already: true");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("forwards --undo to convert a ready PR back to a draft", async () => {
+      mockedGhJson.mockResolvedValue({ isDraft: false });
+      mockedGhExec.mockResolvedValue("");
+
+      const result = await prCommand(["ready", "10", "--undo"], ctx);
+
+      expect(mockedGhExec).toHaveBeenCalledWith(
+        ["pr", "ready", "10", "--undo"],
+        ctx,
+      );
+      expect(result).toContain("draft: yes");
+      expect(result).toContain("status: ok");
+      expect(result).toContain("gh-axi pr ready 10");
+      expect(result).not.toContain("--undo");
+    });
+
+    it("returns already a draft for --undo on a draft PR (idempotent)", async () => {
+      mockedGhJson.mockResolvedValue({ isDraft: true });
+
+      const result = await prCommand(["ready", "10", "--undo"], ctx);
+
+      expect(result).toContain("draft: yes");
+      expect(result).toContain("already: true");
+      expect(result).toContain("gh-axi pr ready 10");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("still rejects unknown flags", async () => {
+      await expect(prCommand(["ready", "10", "--bogus"], ctx)).rejects.toThrow(
+        /unknown flag/,
+      );
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+  });
+
   describe("review", () => {
     const head = "0123456789abcdef0123456789abcdef01234567";
     const reviewPath = "repos/octo/repo/pulls/10/reviews";
