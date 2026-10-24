@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.44](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.43...gh-axi-v0.1.44) (2026-10-24)
+
+
+### Features
+
+* **pr:** forward --undo on pr ready to convert a PR back to draft ([#222](https://github.com/kunchenguid/gh-axi/issues/222)) ([f9c4b22](https://github.com/kunchenguid/gh-axi/commit/f9c4b22259e719ca4c026ace0a360a23128bf1de)), closes [#221](https://github.com/kunchenguid/gh-axi/issues/221)
+
 ## [0.1.43](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.42...gh-axi-v0.1.43) (2026-10-17)
 
 
