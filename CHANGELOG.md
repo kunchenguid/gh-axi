@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.45](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.44...gh-axi-v0.1.45) (2026-10-28)
+
+
+### Features
+
+* add opt-in field selection to pr view ([#227](https://github.com/kunchenguid/gh-axi/issues/227)) ([3098da7](https://github.com/kunchenguid/gh-axi/commit/3098da71e49bb671bb9288b8c9f8a26ed976fabf))
+* **project:** add delete subcommand ([#225](https://github.com/kunchenguid/gh-axi/issues/225)) ([2215d23](https://github.com/kunchenguid/gh-axi/commit/2215d232cf44aacbe04dba06426405cbd359ba07))
+
 ## [0.1.44](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.43...gh-axi-v0.1.44) (2026-10-24)
 
 
