@@ -337,6 +337,21 @@ const viewSchemaFull: FieldDef[] = viewSchema.map((f) =>
 const VIEW_JSON_FIELDS =
   "number,title,state,author,isDraft,mergedAt,mergeStateStatus,statusCheckRollup,body,comments,reviews";
 
+// gh pr view --json fields. Keep selection separate from the default view schema
+// so opt-in fields retain their original names and nested metadata.
+const PR_VIEW_FIELDS = new Set(
+  (
+    "additions,assignees,author,autoMergeRequest,baseRefName,baseRefOid,body," +
+    "changedFiles,closed,closedAt,closingIssuesReferences,comments,commits," +
+    "createdAt,deletions,files,fullDatabaseId,headRefName,headRefOid," +
+    "headRepository,headRepositoryOwner,id,isCrossRepository,isDraft,labels," +
+    "latestReviews,maintainerCanModify,mergeCommit,mergeStateStatus,mergeable," +
+    "mergedAt,mergedBy,milestone,number,potentialMergeCommit,projectCards," +
+    "projectItems,reactionGroups,reviewDecision,reviewRequests,reviews,state," +
+    "statusCheckRollup,title,updatedAt,url"
+  ).split(","),
+);
+
 /**
  * Hints for `mergeStateStatus` values that need action. CLEAN, HAS_HOOKS and
  * DRAFT read clearly on their own.
@@ -397,7 +412,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--reviews", "--checks", "--full"],
+  view: ["--comments", "--reviews", "--checks", "--full", "--fields"],
   create: [
     "--title",
     "--body",
@@ -464,7 +479,9 @@ subcommands[15]:
 flags{list}:
   --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation)
+  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments, --reviews, --checks or --full)
+fields{view}:
+  ${[...PR_VIEW_FIELDS].join(", ")}
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
 flags{edit}:
@@ -487,6 +504,7 @@ examples:
   gh-axi pr list --state open --label bug
   gh-axi pr view 42 --comments
   gh-axi pr view 42 --reviews
+  gh-axi pr view 42 --fields number,title,headRefOid,reviews
   gh-axi pr checks 42 --watch --fail-fast
   gh-axi pr create --title "Fix login" --attach './before.png#Before'
   gh-axi pr comment 42 --body-file review.md
@@ -576,11 +594,42 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function prView(args: string[], ctx?: RepoContext): Promise<string> {
+  const fieldsArg = takeSingleRequiredFlag(args, "--fields");
   const includeComments = takeBoolFlag(args, "--comments");
   const includeReviews = takeBoolFlag(args, "--reviews");
   const includeChecks = takeBoolFlag(args, "--checks");
   const full = takeBoolFlag(args, "--full");
   const num = takeNumber(args, "PR");
+
+  if (fieldsArg !== undefined) {
+    if (includeComments || includeReviews || includeChecks || full) {
+      throw new AxiError(
+        "--fields cannot combine with --comments, --reviews, --checks or --full",
+        "VALIDATION_ERROR",
+      );
+    }
+    const fields = [
+      ...new Set(fieldsArg.split(",").map((name) => name.trim())),
+    ];
+    if (fields.some((name) => name === "")) {
+      throw new AxiError(
+        "--fields requires nonblank comma-separated field names",
+        "VALIDATION_ERROR",
+      );
+    }
+    const unknown = fields.filter((name) => !PR_VIEW_FIELDS.has(name));
+    if (unknown.length > 0) {
+      throw new AxiError(
+        `Unknown field(s): ${unknown.join(", ")}. Available: ${[...PR_VIEW_FIELDS].join(", ")}`,
+        "VALIDATION_ERROR",
+      );
+    }
+    const pr = await ghJson<Record<string, unknown>>(
+      ["pr", "view", String(num), "--json", fields.join(",")],
+      ctx,
+    );
+    return encode({ pull_request: pr });
+  }
 
   // Always fetch comments + review summaries (for count or full rendering)
   const ghArgs = ["pr", "view", String(num), "--json", VIEW_JSON_FIELDS];

@@ -87,6 +87,7 @@ gh-axi                          # dashboard - live state, no args needed
 gh-axi issue list               # list issues in current repo
 gh-axi issue subissue list 16   # list sub-issues for issue #16
 gh-axi pr view 42               # view pull request #42
+gh-axi pr view 42 --fields number,title,headRefOid,reviews  # select fields as TOON
 gh-axi discussion view 66 --comments  # read a discussion with replies nested under each comment
 gh-axi stack init model api ui  # create or adopt a stack of branches
 gh-axi stack submit --open      # create ready-for-review stacked PRs without prompts
@@ -121,6 +122,8 @@ For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 fil
 For releases, `--body` and `--body-file` are aliases for release notes, alongside `--notes` and `--notes-file`.
 Any of these file flags also accepts `-` to read the Markdown from piped stdin (`cat body.md | gh-axi pr comment 42 --body-file -`); an interactive terminal or empty pipe is rejected instead of waited on.
 For multi-line variable values, pipe stdin to `gh-axi variable set <name>`; `--body`/`-b` is for inline values only.
+
+`gh-axi pr view --fields <a,b,c>` selects exactly the named `gh pr view --json` fields and renders them under `pull_request` as TOON, preserving field names, nested metadata and complete values. `gh-axi pr --help` lists the available fields. Missing, blank or unknown fields and repeated `--fields` flags are rejected locally. This opt-in mode cannot combine with `--comments`, `--reviews`, `--checks` or `--full`. Without `--fields`, the default view and those modes are unchanged.
 
 `--attach <path>` is repeatable on `issue` and `pr` `create`, `edit`, and `comment` (not `pr review`). It uploads a local image or video through the same `gh --attach` mechanism (requires **gh >= 2.99.0**) and inlines it in the Markdown body. If the body already references the local path, `gh` replaces that reference with the uploaded URL; otherwise it appends the attachment. Alt text is `path#alt` for images; videos cannot take alt text. Supported types: PNG, JPEG, GIF, WebP, SVG, MP4, MOV, WebM. Size limits match GitHub's web upload: 10 MB for images and GIFs, 10 MB for video on Free, 100 MB for video on paid plans. GitHub Enterprise Server is not supported in this gh release. Successful output names each attached file and only the `user-attachments` asset URLs uploaded by that invocation. Override the wrapped `gh` binary with `GH_BIN`.
 
