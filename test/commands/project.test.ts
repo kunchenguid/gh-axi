@@ -42,6 +42,189 @@ describe("projectCommand", () => {
     });
   });
 
+  describe("field-create", () => {
+    it("returns the field and option ids and forwards repeated option lists", async () => {
+      mockedGhJson.mockResolvedValue({
+        id: "PVTSSF_priority",
+        name: "Priority",
+        type: "ProjectV2SingleSelectField",
+        options: [
+          { id: "opt0", name: "P0" },
+          { id: "opt1", name: "P1" },
+        ],
+      });
+      const result = await projectCommand(
+        [
+          "field-create",
+          "3",
+          "--owner",
+          "my-org",
+          "--name",
+          "Priority",
+          "--data-type",
+          "SINGLE_SELECT",
+          "--single-select-options",
+          "P0,P1",
+          "--single-select-options=P2,P3",
+        ],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+        "project",
+        "field-create",
+        "3",
+        "--name",
+        "Priority",
+        "--data-type",
+        "SINGLE_SELECT",
+        "--format",
+        "json",
+        "--owner",
+        "my-org",
+        "--single-select-options",
+        "P0,P1",
+        "--single-select-options",
+        "P2,P3",
+      ]);
+      expect(result).toContain("PVTSSF_priority");
+      expect(result).toContain("P0:opt0,P1:opt1");
+    });
+
+    it.each(["TEXT", "DATE", "NUMBER", "text"])(
+      "supports %s fields and repo-owner default",
+      async (dataType) => {
+        mockedGhJson.mockResolvedValue({
+          id: "PVTF_new",
+          name: "123",
+          type: "ProjectV2Field",
+        });
+        const result = await projectCommand(
+          ["field-create", "--name", "123", "--data-type", dataType, "3"],
+          ctx,
+        );
+        expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+          "project",
+          "field-create",
+          "3",
+          "--name",
+          "123",
+          "--data-type",
+          dataType,
+          "--format",
+          "json",
+          "--owner",
+          "octo",
+        ]);
+        expect(result).toContain("PVTF_new");
+      },
+    );
+
+    it("defaults to the authenticated owner outside a repo", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
+      await projectCommand([
+        "field-create",
+        "3",
+        "--name=N",
+        "--data-type=TEXT",
+      ]);
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        expect.arrayContaining(["--owner", "@me"]),
+      );
+    });
+
+    it.each([
+      ["--name", "123", "--data-type", "TEXT"],
+      ["3", "--data-type", "TEXT"],
+      ["3", "--name", "N"],
+      ["3", "--name", "N", "--data-type", "ITERATION"],
+      ["3", "--name", "--data-type", "TEXT"],
+      ["3", "--name= ", "--data-type=TEXT"],
+      ["3", "--name=N", "--data-type=TEXT", "--single-select-options"],
+      ["3", "--name=N", "--data-type=TEXT", "--single-select-options="],
+      ["3", "--name=N", "--data-type=TEXT", "--owner"],
+      ["3", "--name=N", "--data-type=TEXT", "--unknown"],
+    ])("rejects invalid arguments without calling gh: %j", async (...args) => {
+      await expect(
+        projectCommand(["field-create", ...args]),
+      ).rejects.toBeInstanceOf(AxiError);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("single-value field flags", () => {
+    const cases = [
+      { command: "field-create", flag: "--owner", value: "octo" },
+      { command: "field-create", flag: "--name", value: "Priority" },
+      { command: "field-create", flag: "--data-type", value: "TEXT" },
+      { command: "field-delete", flag: "--id", value: "PVTF_old" },
+    ];
+
+    for (const { command, flag, value } of cases) {
+      it.each(["separate", "equals", "mixed"])(
+        `rejects repeated ${command} ${flag} in %s form before calling gh`,
+        async (form) => {
+          const args =
+            command === "field-create"
+              ? ["3", "--name=Priority", "--data-type=TEXT"].filter(
+                  (arg) => !arg.startsWith(`${flag}=`),
+                )
+              : [];
+          const first =
+            form === "equals" ? [`${flag}=${value}`] : [flag, value];
+          const second =
+            form === "separate" ? [flag, value] : [`${flag}=${value}`];
+          await expect(
+            projectCommand([command, ...args, ...first, ...second], ctx),
+          ).rejects.toMatchObject({
+            message: `${flag} may only be specified once`,
+            code: "VALIDATION_ERROR",
+          });
+          expect(mockedGhJson).not.toHaveBeenCalled();
+        },
+      );
+    }
+  });
+
+  describe("field-delete", () => {
+    it("deletes by global field id without owner or repo arguments", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_old" });
+      const result = await projectCommand(
+        ["field-delete", "--id", "PVTF_old"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+        "project",
+        "field-delete",
+        "--id",
+        "PVTF_old",
+        "--format",
+        "json",
+      ]);
+      expect(result).toContain("deleted:");
+      expect(result).toContain("id: PVTF_old");
+      expect(result).toContain("status: ok");
+    });
+
+    it.each([[], ["--id"], ["--id="], ["--id= "], ["--id=x", "--owner=octo"]])(
+      "rejects invalid arguments: %j",
+      async (...args) => {
+        await expect(
+          projectCommand(["field-delete", ...args]),
+        ).rejects.toBeInstanceOf(AxiError);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
+    it("propagates gh failures instead of reporting success", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError("Field not found", "NOT_FOUND"),
+      );
+      await expect(projectCommand(["field-delete", "--id=x"])).rejects.toThrow(
+        "Field not found",
+      );
+    });
+  });
+
   describe("list", () => {
     it("returns project list with totalCount", async () => {
       mockedGhJson.mockResolvedValue({
