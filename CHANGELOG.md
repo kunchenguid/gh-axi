@@ -18,6 +18,18 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.46](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.45...gh-axi-v0.1.46) (2026-10-30)
+
+
+### Features
+
+* add project field creation and deletion ([#226](https://github.com/kunchenguid/gh-axi/issues/226)) ([6738d29](https://github.com/kunchenguid/gh-axi/commit/6738d29d389d327f7ad8561c62dccb6a4a4e017a))
+
+
+### Bug Fixes
+
+* **project:** classify field-create/delete errors and validate SINGLE_SELECT ([#232](https://github.com/kunchenguid/gh-axi/issues/232)) ([78727f5](https://github.com/kunchenguid/gh-axi/commit/78727f5fec427153546ebfe9e0353223df4b5569))
+
 ## [0.1.45](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.44...gh-axi-v0.1.45) (2026-10-28)
 
 
