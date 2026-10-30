@@ -254,14 +254,6 @@ const patterns: ErrorPattern[] = [
     message: (m) => `Issue is already a sub-issue of #${m[1]}`,
   },
   {
-    // gh prints GraphQL uniqueness failures as `GraphQL: <msg> (<path>)`.
-    // Scoped to createProjectV2Field so other "already taken" resources keep
-    // their existing classification (HTTP 422 labels, etc.).
-    pattern: /Name has already been taken \(createProjectV2Field\)/i,
-    code: "VALIDATION_ERROR",
-    message: () => "A field with that name already exists",
-  },
-  {
     pattern: /sub-?issue.*?(cycle|circular)/i,
     code: "VALIDATION_ERROR",
     message: () => "Cannot add sub-issue: would create a cycle",

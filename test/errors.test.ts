@@ -294,24 +294,6 @@ describe("mapGhError", () => {
     expect(err.message).toMatch(/already a sub-issue of #?5/);
   });
 
-  it("maps a duplicate project field name to VALIDATION_ERROR", () => {
-    const err = mapGhError(
-      "GraphQL: Name has already been taken (createProjectV2Field)",
-      1,
-    );
-    expect(err.code).toBe("VALIDATION_ERROR");
-    expect(err.message).toBe("A field with that name already exists");
-  });
-
-  it("does not rewrite HTTP 422 label-already-exists as a project field error", () => {
-    const err = mapGhError(
-      "HTTP 422: Validation Failed (https://api.github.com/repos/octo/repo/labels)\nLabel name already exists\n",
-      1,
-    );
-    expect(err.code).toBe("VALIDATION_ERROR");
-    expect(err.message).toBe("Validation Failed Label name already exists");
-  });
-
   it("maps sub-issue cycle errors", () => {
     const err = mapGhError(
       "GraphQL: Sub-issue would create a cycle (addSubIssue)",

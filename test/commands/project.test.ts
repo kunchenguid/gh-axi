@@ -200,8 +200,8 @@ describe("projectCommand", () => {
     it("does not treat a duplicate create as success", async () => {
       mockedGhJson.mockRejectedValue(
         new AxiError(
-          "A field with that name already exists",
-          "VALIDATION_ERROR",
+          "GraphQL: Name has already been taken (createProjectV2Field)",
+          "UNKNOWN",
         ),
       );
       await expect(
@@ -212,6 +212,49 @@ describe("projectCommand", () => {
       ).rejects.toMatchObject({
         code: "VALIDATION_ERROR",
         message: 'A field named "Priority" already exists',
+      });
+    });
+
+    it("does not treat a generic already-exists message as a duplicate field", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError("A field with that name already exists", "UNKNOWN"),
+      );
+      await expect(
+        projectCommand(
+          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: "A field with that name already exists",
+      });
+    });
+
+    it("does not relabel FORBIDDEN or NOT_FOUND as a duplicate field", async () => {
+      mockedGhJson.mockRejectedValueOnce(
+        new AxiError("Name has already been taken", "FORBIDDEN"),
+      );
+      await expect(
+        projectCommand(
+          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: "Name has already been taken",
+      });
+
+      mockedGhJson.mockRejectedValueOnce(
+        new AxiError("A field named Priority already exists", "NOT_FOUND"),
+      );
+      await expect(
+        projectCommand(
+          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "A field named Priority already exists",
       });
     });
 

@@ -520,15 +520,16 @@ function wantsHelp(args: string[]): boolean {
 }
 
 function rejectUnexpectedArgs(args: string[]): void {
-  const extra = args.find((a) => a !== "--help" && a !== "-h");
-  if (extra !== undefined)
-    throw new AxiError(`Unexpected argument: ${extra}`, "VALIDATION_ERROR");
+  if (args.length > 0)
+    throw new AxiError(`Unexpected argument: ${args[0]}`, "VALIDATION_ERROR");
 }
 
 function isDuplicateFieldError(error: unknown): boolean {
   return (
     error instanceof AxiError &&
-    /already been taken|already exists/i.test(error.message)
+    error.code !== "FORBIDDEN" &&
+    error.code !== "NOT_FOUND" &&
+    /Name has already been taken/i.test(error.message)
   );
 }
 
