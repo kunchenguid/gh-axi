@@ -535,8 +535,8 @@ async function projectFieldCreate(
   ctx?: RepoContext,
 ): Promise<string> {
   const flags = [...PROJECT_FLAGS["field-create"]];
-  const explicitOwner = takeSingleFieldFlag(args, "--owner", flags);
-  const owner = explicitOwner ?? ctx?.owner ?? "@me";
+  const owner =
+    takeSingleFieldFlag(args, "--owner", flags) ?? ctx?.owner ?? "@me";
   const name = takeSingleFieldFlag(args, "--name", flags);
   const dataType = takeSingleFieldFlag(args, "--data-type", flags);
   const options = takeAllFlags(args, "--single-select-options", flags);
@@ -593,7 +593,7 @@ async function projectFieldCreate(
         domain: "project",
         action: "field-create",
         id: num,
-        owner: explicitOwner,
+        owner,
       }),
     ),
   ]);

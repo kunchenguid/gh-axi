@@ -228,7 +228,7 @@ describe("getSuggestions", () => {
     ]);
   });
 
-  it("returns project field-create suggestions with an explicit owner", () => {
+  it("returns project field-create suggestions with the resolved owner", () => {
     const lines = getSuggestions({
       domain: "project",
       action: "field-create",
@@ -240,14 +240,15 @@ describe("getSuggestions", () => {
     ]);
   });
 
-  it("omits --owner from field-create suggestions when none was passed", () => {
+  it("includes @me in field-create suggestions when that is the resolved owner", () => {
     const lines = getSuggestions({
       domain: "project",
       action: "field-create",
       id: 7,
+      owner: "@me",
     });
     expect(lines).toEqual([
-      "Run `gh-axi project field-list 7` to see project fields",
+      "Run `gh-axi project field-list 7 --owner @me` to see project fields",
     ]);
   });
 });

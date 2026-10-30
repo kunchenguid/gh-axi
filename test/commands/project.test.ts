@@ -91,7 +91,7 @@ describe("projectCommand", () => {
       expect(result).toContain("gh-axi project field-list 3 --owner my-org");
     });
 
-    it("suggests field-list with the project number and only an explicit --owner", async () => {
+    it("prefers an explicit --owner over the -R owner in the field-list suggestion", async () => {
       mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
       const result = await projectCommand(
         [
@@ -138,14 +138,23 @@ describe("projectCommand", () => {
           "octo",
         ]);
         expect(result).toContain("PVTF_new");
-        expect(result).toContain("gh-axi project field-list 3");
-        expect(result).not.toContain("field-list 3 --owner");
+        expect(result).toContain("gh-axi project field-list 3 --owner octo");
       },
     );
 
+    it("suggests field-list with the owner resolved from -R", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
+      const result = await projectCommand(
+        ["field-create", "7", "--name", "N", "--data-type", "TEXT"],
+        ctx,
+      );
+      expect(ctx.source).toBe("flag");
+      expect(result).toContain("gh-axi project field-list 7 --owner octo");
+    });
+
     it("defaults to the authenticated owner outside a repo", async () => {
       mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
-      await projectCommand([
+      const result = await projectCommand([
         "field-create",
         "3",
         "--name=N",
@@ -154,6 +163,7 @@ describe("projectCommand", () => {
       expect(mockedGhJson).toHaveBeenCalledWith(
         expect.arrayContaining(["--owner", "@me"]),
       );
+      expect(result).toContain("gh-axi project field-list 3 --owner @me");
     });
 
     it.each([
