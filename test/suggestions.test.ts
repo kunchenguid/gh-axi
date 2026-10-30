@@ -228,26 +228,26 @@ describe("getSuggestions", () => {
     ]);
   });
 
-  it("returns project field-create suggestions", () => {
+  it("returns project field-create suggestions with an explicit owner", () => {
     const lines = getSuggestions({
       domain: "project",
       action: "field-create",
-      id: 3,
-      owner: "my-org",
+      id: 7,
+      owner: "stub-owner",
     });
     expect(lines).toEqual([
-      "Run `gh-axi project field-list 3 --owner my-org` to see project fields",
+      "Run `gh-axi project field-list 7 --owner stub-owner` to see project fields",
     ]);
   });
 
-  it("returns project field-delete suggestions", () => {
+  it("omits --owner from field-create suggestions when none was passed", () => {
     const lines = getSuggestions({
       domain: "project",
-      action: "field-delete",
-      id: "PVTF_old",
+      action: "field-create",
+      id: 7,
     });
     expect(lines).toEqual([
-      "Run `gh-axi project field-list <number>` to see remaining fields",
+      "Run `gh-axi project field-list 7` to see project fields",
     ]);
   });
 });

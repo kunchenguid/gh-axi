@@ -707,12 +707,6 @@ const table: SuggestionEntry[] = [
       `Run \`gh-axi project field-list ${c.id}${ownerFlag(c)}\` to see project fields`,
     ],
   },
-  {
-    match: (c) => c.domain === "project" && c.action === "field-delete",
-    lines: () => [
-      `Run \`gh-axi project field-list <number>\` to see remaining fields`,
-    ],
-  },
 
   // Project item-add/item-create/item-edit/item-archive/item-delete
   {

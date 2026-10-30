@@ -36,10 +36,6 @@ describe("projectCommand", () => {
       expect(result).toBe(PROJECT_HELP);
     });
 
-    it("ends help text with a trailing newline", () => {
-      expect(PROJECT_HELP.endsWith("\n")).toBe(true);
-    });
-
     it("returns error for unknown subcommand", async () => {
       const result = await projectCommand(["unknown"]);
       expect(result).toContain("Unknown project subcommand: unknown");
@@ -95,6 +91,27 @@ describe("projectCommand", () => {
       expect(result).toContain("gh-axi project field-list 3 --owner my-org");
     });
 
+    it("suggests field-list with the project number and only an explicit --owner", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
+      const result = await projectCommand(
+        [
+          "field-create",
+          "7",
+          "--owner",
+          "stub-owner",
+          "--name",
+          "N",
+          "--data-type",
+          "TEXT",
+        ],
+        ctx,
+      );
+      expect(result).toContain(
+        "gh-axi project field-list 7 --owner stub-owner",
+      );
+      expect(result).not.toContain("--owner octo");
+    });
+
     it.each(["TEXT", "DATE", "NUMBER", "text"])(
       "supports %s fields and repo-owner default",
       async (dataType) => {
@@ -121,6 +138,8 @@ describe("projectCommand", () => {
           "octo",
         ]);
         expect(result).toContain("PVTF_new");
+        expect(result).toContain("gh-axi project field-list 3");
+        expect(result).not.toContain("field-list 3 --owner");
       },
     );
 
@@ -230,34 +249,6 @@ describe("projectCommand", () => {
       });
     });
 
-    it("does not relabel FORBIDDEN or NOT_FOUND as a duplicate field", async () => {
-      mockedGhJson.mockRejectedValueOnce(
-        new AxiError("Name has already been taken", "FORBIDDEN"),
-      );
-      await expect(
-        projectCommand(
-          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
-          ctx,
-        ),
-      ).rejects.toMatchObject({
-        code: "FORBIDDEN",
-        message: "Name has already been taken",
-      });
-
-      mockedGhJson.mockRejectedValueOnce(
-        new AxiError("A field named Priority already exists", "NOT_FOUND"),
-      );
-      await expect(
-        projectCommand(
-          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
-          ctx,
-        ),
-      ).rejects.toMatchObject({
-        code: "NOT_FOUND",
-        message: "A field named Priority already exists",
-      });
-    });
-
     it.each(["-h", "--help"])(
       "returns project help for field-create %s",
       async (flag) => {
@@ -320,7 +311,7 @@ describe("projectCommand", () => {
       expect(result).toContain("deleted:");
       expect(result).toContain("id: PVTF_old");
       expect(result).toContain("status: ok");
-      expect(result).toContain("gh-axi project field-list <number>");
+      expect(result).not.toContain("help[");
     });
 
     it.each([

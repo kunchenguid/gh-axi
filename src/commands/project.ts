@@ -146,8 +146,7 @@ examples:
   gh-axi project create --owner my-org --title "Roadmap"
   gh-axi project delete 4 --owner my-org
   gh-axi project field-create 3 --owner my-org --name Priority --data-type SINGLE_SELECT --single-select-options P0,P1,P2,P3
-  gh-axi project field-delete --id PVTSSF_field
-`;
+  gh-axi project field-delete --id PVTSSF_field`;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -527,8 +526,6 @@ function rejectUnexpectedArgs(args: string[]): void {
 function isDuplicateFieldError(error: unknown): boolean {
   return (
     error instanceof AxiError &&
-    error.code !== "FORBIDDEN" &&
-    error.code !== "NOT_FOUND" &&
     /Name has already been taken/i.test(error.message)
   );
 }
@@ -538,8 +535,8 @@ async function projectFieldCreate(
   ctx?: RepoContext,
 ): Promise<string> {
   const flags = [...PROJECT_FLAGS["field-create"]];
-  const owner =
-    takeSingleFieldFlag(args, "--owner", flags) ?? ctx?.owner ?? "@me";
+  const explicitOwner = takeSingleFieldFlag(args, "--owner", flags);
+  const owner = explicitOwner ?? ctx?.owner ?? "@me";
   const name = takeSingleFieldFlag(args, "--name", flags);
   const dataType = takeSingleFieldFlag(args, "--data-type", flags);
   const options = takeAllFlags(args, "--single-select-options", flags);
@@ -596,7 +593,7 @@ async function projectFieldCreate(
         domain: "project",
         action: "field-create",
         id: num,
-        owner,
+        owner: explicitOwner,
       }),
     ),
   ]);
@@ -620,14 +617,9 @@ async function projectFieldDelete(args: string[]): Promise<string> {
     "--format",
     "json",
   ]);
-  return renderOutput([
-    renderDetail("deleted", { id: deleted.id ?? id, status: "ok" }, [
-      field("id"),
-      field("status"),
-    ]),
-    renderHelp(
-      getSuggestions({ domain: "project", action: "field-delete", id }),
-    ),
+  return renderDetail("deleted", { id: deleted.id ?? id, status: "ok" }, [
+    field("id"),
+    field("status"),
   ]);
 }
 
