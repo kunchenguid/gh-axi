@@ -227,4 +227,27 @@ describe("getSuggestions", () => {
       "Run `gh-axi project list --owner my-org` to see remaining projects",
     ]);
   });
+
+  it("returns project field-create suggestions", () => {
+    const lines = getSuggestions({
+      domain: "project",
+      action: "field-create",
+      id: 3,
+      owner: "my-org",
+    });
+    expect(lines).toEqual([
+      "Run `gh-axi project field-list 3 --owner my-org` to see project fields",
+    ]);
+  });
+
+  it("returns project field-delete suggestions", () => {
+    const lines = getSuggestions({
+      domain: "project",
+      action: "field-delete",
+      id: "PVTF_old",
+    });
+    expect(lines).toEqual([
+      "Run `gh-axi project field-list <number>` to see remaining fields",
+    ]);
+  });
 });

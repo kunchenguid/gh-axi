@@ -8,7 +8,7 @@ vi.mock("../../src/gh.js", () => ({
 
 import { ghJson } from "../../src/gh.js";
 import { projectCommand, PROJECT_HELP } from "../../src/commands/project.js";
-import { AxiError } from "../../src/errors.js";
+import { AxiError, exitCodeForError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 
 const mockedGhJson = vi.mocked(ghJson);
@@ -34,6 +34,10 @@ describe("projectCommand", () => {
     it("returns help when no subcommand is given", async () => {
       const result = await projectCommand([]);
       expect(result).toBe(PROJECT_HELP);
+    });
+
+    it("ends help text with a trailing newline", () => {
+      expect(PROJECT_HELP.endsWith("\n")).toBe(true);
     });
 
     it("returns error for unknown subcommand", async () => {
@@ -88,6 +92,7 @@ describe("projectCommand", () => {
       ]);
       expect(result).toContain("PVTSSF_priority");
       expect(result).toContain("P0:opt0,P1:opt1");
+      expect(result).toContain("gh-axi project field-list 3 --owner my-org");
     });
 
     it.each(["TEXT", "DATE", "NUMBER", "text"])(
@@ -137,6 +142,8 @@ describe("projectCommand", () => {
       ["3", "--data-type", "TEXT"],
       ["3", "--name", "N"],
       ["3", "--name", "N", "--data-type", "ITERATION"],
+      ["3", "--name", "N", "--data-type", "SINGLE_SELECT"],
+      ["3", "--name", "N", "--data-type", "single_select"],
       ["3", "--name", "--data-type", "TEXT"],
       ["3", "--name= ", "--data-type=TEXT"],
       ["3", "--name=N", "--data-type=TEXT", "--single-select-options"],
@@ -149,6 +156,73 @@ describe("projectCommand", () => {
       ).rejects.toBeInstanceOf(AxiError);
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
+
+    it.each(["SINGLE_SELECT", "single_select"])(
+      "rejects %s without --single-select-options locally with exit 2",
+      async (dataType) => {
+        const error = await projectCommand([
+          "field-create",
+          "3",
+          "--name",
+          "Priority",
+          "--data-type",
+          dataType,
+        ]).catch((e) => e);
+        expect(error).toBeInstanceOf(AxiError);
+        expect((error as AxiError).code).toBe("VALIDATION_ERROR");
+        expect((error as AxiError).message).toContain(
+          "--single-select-options",
+        );
+        expect(exitCodeForError(error)).toBe(2);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
+    it("maps a duplicate field name to a structured already-exists error", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError(
+          "GraphQL: Name has already been taken (createProjectV2Field)",
+          "UNKNOWN",
+        ),
+      );
+      const error = await projectCommand(
+        ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+        ctx,
+      ).catch((e) => e);
+      expect(error).toBeInstanceOf(AxiError);
+      expect((error as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((error as AxiError).message).toBe(
+        'A field named "Priority" already exists',
+      );
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not treat a duplicate create as success", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError(
+          "A field with that name already exists",
+          "VALIDATION_ERROR",
+        ),
+      );
+      await expect(
+        projectCommand(
+          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: 'A field named "Priority" already exists',
+      });
+    });
+
+    it.each(["-h", "--help"])(
+      "returns project help for field-create %s",
+      async (flag) => {
+        const result = await projectCommand(["field-create", flag]);
+        expect(result).toBe(PROJECT_HELP);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("single-value field flags", () => {
@@ -203,17 +277,37 @@ describe("projectCommand", () => {
       expect(result).toContain("deleted:");
       expect(result).toContain("id: PVTF_old");
       expect(result).toContain("status: ok");
+      expect(result).toContain("gh-axi project field-list <number>");
     });
 
-    it.each([[], ["--id"], ["--id="], ["--id= "], ["--id=x", "--owner=octo"]])(
-      "rejects invalid arguments: %j",
-      async (...args) => {
-        await expect(
-          projectCommand(["field-delete", ...args]),
-        ).rejects.toBeInstanceOf(AxiError);
-        expect(mockedGhJson).not.toHaveBeenCalled();
-      },
-    );
+    it.each([
+      [],
+      ["--id"],
+      ["--id="],
+      ["--id= "],
+      ["--id=x", "--owner=octo"],
+      ["3", "--id", "x"],
+      ["--id", "x", "extra"],
+    ])("rejects invalid arguments: %j", async (...args) => {
+      await expect(
+        projectCommand(["field-delete", ...args]),
+      ).rejects.toBeInstanceOf(AxiError);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects extra positional args with VALIDATION_ERROR", async () => {
+      const error = await projectCommand([
+        "field-delete",
+        "3",
+        "--id",
+        "PVTF_old",
+      ]).catch((e) => e);
+      expect(error).toBeInstanceOf(AxiError);
+      expect((error as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((error as AxiError).message).toBe("Unexpected argument: 3");
+      expect(exitCodeForError(error)).toBe(2);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
 
     it("propagates gh failures instead of reporting success", async () => {
       mockedGhJson.mockRejectedValue(
@@ -223,6 +317,15 @@ describe("projectCommand", () => {
         "Field not found",
       );
     });
+
+    it.each(["-h", "--help"])(
+      "returns project help for field-delete %s",
+      async (flag) => {
+        const result = await projectCommand(["field-delete", flag]);
+        expect(result).toBe(PROJECT_HELP);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("list", () => {

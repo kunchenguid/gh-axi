@@ -98,7 +98,38 @@ describe("mapGhError", () => {
       1,
     );
     expect(err.code).toBe("NOT_FOUND");
-    expect(err.message).toContain("999");
+    expect(err.message).toBe("Item #999 does not exist in this repository");
+  });
+
+  it("keeps repository GraphQL misses as REPO_NOT_FOUND after the generic resolve mapping", () => {
+    const err = mapGhError(
+      "GraphQL: Could not resolve to a Repository with the name 'cli/cli'",
+      1,
+    );
+    expect(err.code).toBe("REPO_NOT_FOUND");
+    expect(err.message).toBe('Repository "cli/cli" not found');
+  });
+
+  it("maps a missing ProjectV2 number to NOT_FOUND", () => {
+    const err = mapGhError(
+      "GraphQL: Could not resolve to a ProjectV2 with the number 99999",
+      1,
+    );
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe(
+      "GraphQL: Could not resolve to a ProjectV2 with the number 99999",
+    );
+  });
+
+  it("maps a missing GraphQL node id to NOT_FOUND", () => {
+    const err = mapGhError(
+      "Could not resolve to a node with the global id of 'PVTF_notarealid'",
+      1,
+    );
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe(
+      "Could not resolve to a node with the global id of 'PVTF_notarealid'",
+    );
   });
 
   it("matches issue not found pattern (REST)", () => {
@@ -261,6 +292,24 @@ describe("mapGhError", () => {
     );
     expect(err.code).toBe("VALIDATION_ERROR");
     expect(err.message).toMatch(/already a sub-issue of #?5/);
+  });
+
+  it("maps a duplicate project field name to VALIDATION_ERROR", () => {
+    const err = mapGhError(
+      "GraphQL: Name has already been taken (createProjectV2Field)",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe("A field with that name already exists");
+  });
+
+  it("does not rewrite HTTP 422 label-already-exists as a project field error", () => {
+    const err = mapGhError(
+      "HTTP 422: Validation Failed (https://api.github.com/repos/octo/repo/labels)\nLabel name already exists\n",
+      1,
+    );
+    expect(err.code).toBe("VALIDATION_ERROR");
+    expect(err.message).toBe("Validation Failed Label name already exists");
   });
 
   it("maps sub-issue cycle errors", () => {
