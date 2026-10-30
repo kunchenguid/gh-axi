@@ -98,7 +98,38 @@ describe("mapGhError", () => {
       1,
     );
     expect(err.code).toBe("NOT_FOUND");
-    expect(err.message).toContain("999");
+    expect(err.message).toBe("Item #999 does not exist in this repository");
+  });
+
+  it("keeps repository GraphQL misses as REPO_NOT_FOUND after the generic resolve mapping", () => {
+    const err = mapGhError(
+      "GraphQL: Could not resolve to a Repository with the name 'cli/cli'",
+      1,
+    );
+    expect(err.code).toBe("REPO_NOT_FOUND");
+    expect(err.message).toBe('Repository "cli/cli" not found');
+  });
+
+  it("maps a missing ProjectV2 number to NOT_FOUND", () => {
+    const err = mapGhError(
+      "GraphQL: Could not resolve to a ProjectV2 with the number 99999",
+      1,
+    );
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe(
+      "GraphQL: Could not resolve to a ProjectV2 with the number 99999",
+    );
+  });
+
+  it("maps a missing GraphQL node id to NOT_FOUND", () => {
+    const err = mapGhError(
+      "Could not resolve to a node with the global id of 'PVTF_notarealid'",
+      1,
+    );
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toBe(
+      "Could not resolve to a node with the global id of 'PVTF_notarealid'",
+    );
   });
 
   it("matches issue not found pattern (REST)", () => {

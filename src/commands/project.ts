@@ -513,6 +513,33 @@ function takeSingleFieldFlag(
   return values[0];
 }
 
+function wantsHelp(args: string[]): boolean {
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === "--") break;
+    if (tok !== "--help" && tok !== "-h") continue;
+    if (i > 0 && PROJECT_NUMBER_VALUE_FLAGS.has(args[i - 1])) continue;
+    return true;
+  }
+  return false;
+}
+
+function rejectUnexpectedArgs(args: string[]): void {
+  const leftover = args.filter((a) => a !== "--");
+  if (leftover.length > 0)
+    throw new AxiError(
+      `Unexpected argument: ${leftover[0]}`,
+      "VALIDATION_ERROR",
+    );
+}
+
+function isDuplicateFieldError(error: unknown): boolean {
+  return (
+    error instanceof AxiError &&
+    /Name has already been taken/i.test(error.message)
+  );
+}
+
 async function projectFieldCreate(
   args: string[],
   ctx?: RepoContext,
@@ -538,6 +565,11 @@ async function projectFieldCreate(
       "--data-type must be TEXT, SINGLE_SELECT, DATE or NUMBER",
       "VALIDATION_ERROR",
     );
+  if (dataType.toUpperCase() === "SINGLE_SELECT" && options.length === 0)
+    throw new AxiError(
+      "--single-select-options is required for --data-type SINGLE_SELECT",
+      "VALIDATION_ERROR",
+    );
 
   const ghArgs = [
     "project",
@@ -552,8 +584,29 @@ async function projectFieldCreate(
     ...ownerArgs(owner),
   ];
   pushRepeated(ghArgs, "--single-select-options", options);
-  const created = await ghJson<ProjectItem>(ghArgs);
-  return renderProjectFields([created]);
+  let created: ProjectItem;
+  try {
+    created = await ghJson<ProjectItem>(ghArgs);
+  } catch (error) {
+    if (isDuplicateFieldError(error)) {
+      throw new AxiError(
+        `A field named "${name}" already exists`,
+        "VALIDATION_ERROR",
+      );
+    }
+    throw error;
+  }
+  return renderOutput([
+    renderProjectFields([created]),
+    renderHelp(
+      getSuggestions({
+        domain: "project",
+        action: "field-create",
+        id: num,
+        owner,
+      }),
+    ),
+  ]);
 }
 
 async function projectFieldDelete(args: string[]): Promise<string> {
@@ -565,6 +618,7 @@ async function projectFieldDelete(args: string[]): Promise<string> {
       "--id is required: gh-axi project field-delete --id <field-id>",
       "VALIDATION_ERROR",
     );
+  rejectUnexpectedArgs(args);
   const deleted = await ghJson<ProjectItem>([
     "project",
     "field-delete",
@@ -1068,6 +1122,7 @@ export async function projectCommand(
       );
       return projectFieldList(rest, ctx);
     case "field-create":
+      if (wantsHelp(rest)) return PROJECT_HELP;
       rejectUnknownFlags(
         rest,
         PROJECT_FLAGS["field-create"],
@@ -1076,6 +1131,7 @@ export async function projectCommand(
       );
       return projectFieldCreate(rest, ctx);
     case "field-delete":
+      if (wantsHelp(rest)) return PROJECT_HELP;
       rejectUnknownFlags(
         rest,
         PROJECT_FLAGS["field-delete"],

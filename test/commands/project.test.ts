@@ -8,7 +8,7 @@ vi.mock("../../src/gh.js", () => ({
 
 import { ghJson } from "../../src/gh.js";
 import { projectCommand, PROJECT_HELP } from "../../src/commands/project.js";
-import { AxiError } from "../../src/errors.js";
+import { AxiError, exitCodeForError } from "../../src/errors.js";
 import type { RepoContext } from "../../src/context.js";
 
 const mockedGhJson = vi.mocked(ghJson);
@@ -88,6 +88,28 @@ describe("projectCommand", () => {
       ]);
       expect(result).toContain("PVTSSF_priority");
       expect(result).toContain("P0:opt0,P1:opt1");
+      expect(result).toContain("gh-axi project field-list 3 --owner my-org");
+    });
+
+    it("prefers an explicit --owner over the -R owner in the field-list suggestion", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
+      const result = await projectCommand(
+        [
+          "field-create",
+          "7",
+          "--owner",
+          "stub-owner",
+          "--name",
+          "N",
+          "--data-type",
+          "TEXT",
+        ],
+        ctx,
+      );
+      expect(result).toContain(
+        "gh-axi project field-list 7 --owner stub-owner",
+      );
+      expect(result).not.toContain("--owner octo");
     });
 
     it.each(["TEXT", "DATE", "NUMBER", "text"])(
@@ -116,12 +138,23 @@ describe("projectCommand", () => {
           "octo",
         ]);
         expect(result).toContain("PVTF_new");
+        expect(result).toContain("gh-axi project field-list 3 --owner octo");
       },
     );
 
+    it("suggests field-list with the owner resolved from -R", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
+      const result = await projectCommand(
+        ["field-create", "7", "--name", "N", "--data-type", "TEXT"],
+        ctx,
+      );
+      expect(ctx.source).toBe("flag");
+      expect(result).toContain("gh-axi project field-list 7 --owner octo");
+    });
+
     it("defaults to the authenticated owner outside a repo", async () => {
       mockedGhJson.mockResolvedValue({ id: "PVTF_new" });
-      await projectCommand([
+      const result = await projectCommand([
         "field-create",
         "3",
         "--name=N",
@@ -130,6 +163,7 @@ describe("projectCommand", () => {
       expect(mockedGhJson).toHaveBeenCalledWith(
         expect.arrayContaining(["--owner", "@me"]),
       );
+      expect(result).toContain("gh-axi project field-list 3 --owner @me");
     });
 
     it.each([
@@ -137,6 +171,8 @@ describe("projectCommand", () => {
       ["3", "--data-type", "TEXT"],
       ["3", "--name", "N"],
       ["3", "--name", "N", "--data-type", "ITERATION"],
+      ["3", "--name", "N", "--data-type", "SINGLE_SELECT"],
+      ["3", "--name", "N", "--data-type", "single_select"],
       ["3", "--name", "--data-type", "TEXT"],
       ["3", "--name= ", "--data-type=TEXT"],
       ["3", "--name=N", "--data-type=TEXT", "--single-select-options"],
@@ -148,6 +184,111 @@ describe("projectCommand", () => {
         projectCommand(["field-create", ...args]),
       ).rejects.toBeInstanceOf(AxiError);
       expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it.each(["SINGLE_SELECT", "single_select"])(
+      "rejects %s without --single-select-options locally with exit 2",
+      async (dataType) => {
+        const error = await projectCommand([
+          "field-create",
+          "3",
+          "--name",
+          "Priority",
+          "--data-type",
+          dataType,
+        ]).catch((e) => e);
+        expect(error).toBeInstanceOf(AxiError);
+        expect((error as AxiError).code).toBe("VALIDATION_ERROR");
+        expect((error as AxiError).message).toContain(
+          "--single-select-options",
+        );
+        expect(exitCodeForError(error)).toBe(2);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
+    it("maps a duplicate field name to a structured already-exists error", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError(
+          "GraphQL: Name has already been taken (createProjectV2Field)",
+          "UNKNOWN",
+        ),
+      );
+      const error = await projectCommand(
+        ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+        ctx,
+      ).catch((e) => e);
+      expect(error).toBeInstanceOf(AxiError);
+      expect((error as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((error as AxiError).message).toBe(
+        'A field named "Priority" already exists',
+      );
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not treat a duplicate create as success", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError(
+          "GraphQL: Name has already been taken (createProjectV2Field)",
+          "UNKNOWN",
+        ),
+      );
+      await expect(
+        projectCommand(
+          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: 'A field named "Priority" already exists',
+      });
+    });
+
+    it("does not treat a generic already-exists message as a duplicate field", async () => {
+      mockedGhJson.mockRejectedValue(
+        new AxiError("A field with that name already exists", "UNKNOWN"),
+      );
+      await expect(
+        projectCommand(
+          ["field-create", "3", "--name", "Priority", "--data-type", "TEXT"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: "A field with that name already exists",
+      });
+    });
+
+    it.each(["-h", "--help"])(
+      "returns project help for field-create %s",
+      async (flag) => {
+        const result = await projectCommand(["field-create", flag]);
+        expect(result).toBe(PROJECT_HELP);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not treat -h as help when it is a --name value", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new", name: "-h" });
+      const result = await projectCommand(
+        ["field-create", "3", "--name", "-h", "--data-type", "TEXT"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+        "project",
+        "field-create",
+        "3",
+        "--name",
+        "-h",
+        "--data-type",
+        "TEXT",
+        "--format",
+        "json",
+        "--owner",
+        "octo",
+      ]);
+      expect(result).toContain("PVTF_new");
+      expect(result).not.toBe(PROJECT_HELP);
     });
   });
 
@@ -203,17 +344,65 @@ describe("projectCommand", () => {
       expect(result).toContain("deleted:");
       expect(result).toContain("id: PVTF_old");
       expect(result).toContain("status: ok");
+      expect(result).not.toContain("help[");
     });
 
-    it.each([[], ["--id"], ["--id="], ["--id= "], ["--id=x", "--owner=octo"]])(
-      "rejects invalid arguments: %j",
-      async (...args) => {
-        await expect(
-          projectCommand(["field-delete", ...args]),
-        ).rejects.toBeInstanceOf(AxiError);
-        expect(mockedGhJson).not.toHaveBeenCalled();
-      },
-    );
+    it.each([
+      [],
+      ["--id"],
+      ["--id="],
+      ["--id= "],
+      ["--id=x", "--owner=octo"],
+      ["3", "--id", "x"],
+      ["--id", "x", "extra"],
+    ])("rejects invalid arguments: %j", async (...args) => {
+      await expect(
+        projectCommand(["field-delete", ...args]),
+      ).rejects.toBeInstanceOf(AxiError);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("ignores a trailing -- end-of-flags marker", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_old" });
+      const result = await projectCommand(
+        ["field-delete", "--id", "PVTF_old", "--"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+        "project",
+        "field-delete",
+        "--id",
+        "PVTF_old",
+        "--format",
+        "json",
+      ]);
+      expect(result).toContain("id: PVTF_old");
+      expect(result).toContain("status: ok");
+    });
+
+    it("still rejects extra values after a -- marker", async () => {
+      await expect(
+        projectCommand(["field-delete", "--id", "PVTF_old", "--", "extra"]),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Unexpected argument: extra",
+      });
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("rejects extra positional args with VALIDATION_ERROR", async () => {
+      const error = await projectCommand([
+        "field-delete",
+        "3",
+        "--id",
+        "PVTF_old",
+      ]).catch((e) => e);
+      expect(error).toBeInstanceOf(AxiError);
+      expect((error as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((error as AxiError).message).toBe("Unexpected argument: 3");
+      expect(exitCodeForError(error)).toBe(2);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
 
     it("propagates gh failures instead of reporting success", async () => {
       mockedGhJson.mockRejectedValue(
@@ -223,6 +412,15 @@ describe("projectCommand", () => {
         "Field not found",
       );
     });
+
+    it.each(["-h", "--help"])(
+      "returns project help for field-delete %s",
+      async (flag) => {
+        const result = await projectCommand(["field-delete", flag]);
+        expect(result).toBe(PROJECT_HELP);
+        expect(mockedGhJson).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("list", () => {

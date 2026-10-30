@@ -129,6 +129,10 @@ interface ErrorPattern {
   suggestions?: (match: RegExpMatchArray) => string[];
 }
 
+function firstErrorLine(stderr: string): string {
+  return stderr.trim().split("\n")[0] ?? "";
+}
+
 const patterns: ErrorPattern[] = [
   {
     pattern: /Could not resolve to a Repository with the name '([^']+)'/,
@@ -141,6 +145,15 @@ const patterns: ErrorPattern[] = [
     code: "NOT_FOUND",
     message: (m) => `Item #${m[1]} does not exist in this repository`,
     suggestions: () => [],
+  },
+  {
+    // GraphQL ProjectV2 / node-id misses ("the number 99999", "global id of
+    // ...") do not match the issue/PR "number of N" pattern above. Keep this
+    // after the Repository and "number of" patterns so those messages stay
+    // REPO_NOT_FOUND / Item #N.
+    pattern: /Could not resolve to /,
+    code: "NOT_FOUND",
+    message: (_m, stderr) => firstErrorLine(stderr),
   },
   {
     pattern: /the '([^']+)' repository has discussions disabled/i,
@@ -383,10 +396,6 @@ function validationMessage(stderr: string): string | undefined {
   }
 
   return undefined;
-}
-
-function firstErrorLine(stderr: string): string {
-  return stderr.trim().split("\n")[0] ?? "";
 }
 
 export function mapGhError(stderr: string, exitCode: number): AxiError {

@@ -227,4 +227,28 @@ describe("getSuggestions", () => {
       "Run `gh-axi project list --owner my-org` to see remaining projects",
     ]);
   });
+
+  it("returns project field-create suggestions with the resolved owner", () => {
+    const lines = getSuggestions({
+      domain: "project",
+      action: "field-create",
+      id: 7,
+      owner: "stub-owner",
+    });
+    expect(lines).toEqual([
+      "Run `gh-axi project field-list 7 --owner stub-owner` to see project fields",
+    ]);
+  });
+
+  it("includes @me in field-create suggestions when that is the resolved owner", () => {
+    const lines = getSuggestions({
+      domain: "project",
+      action: "field-create",
+      id: 7,
+      owner: "@me",
+    });
+    expect(lines).toEqual([
+      "Run `gh-axi project field-list 7 --owner @me` to see project fields",
+    ]);
+  });
 });
