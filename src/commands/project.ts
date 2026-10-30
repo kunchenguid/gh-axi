@@ -10,7 +10,6 @@ import {
   takeAllFlags,
   pushRepeated,
   takeBoolFlag,
-  hasFlag,
   rejectUnknownFlags,
 } from "../args.js";
 import {
@@ -515,12 +514,23 @@ function takeSingleFieldFlag(
 }
 
 function wantsHelp(args: string[]): boolean {
-  return hasFlag(args, "--help") || hasFlag(args, "-h");
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i];
+    if (tok === "--") break;
+    if (tok !== "--help" && tok !== "-h") continue;
+    if (i > 0 && PROJECT_NUMBER_VALUE_FLAGS.has(args[i - 1])) continue;
+    return true;
+  }
+  return false;
 }
 
 function rejectUnexpectedArgs(args: string[]): void {
-  if (args.length > 0)
-    throw new AxiError(`Unexpected argument: ${args[0]}`, "VALIDATION_ERROR");
+  const leftover = args.filter((a) => a !== "--");
+  if (leftover.length > 0)
+    throw new AxiError(
+      `Unexpected argument: ${leftover[0]}`,
+      "VALIDATION_ERROR",
+    );
 }
 
 function isDuplicateFieldError(error: unknown): boolean {

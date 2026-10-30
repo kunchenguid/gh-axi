@@ -267,6 +267,29 @@ describe("projectCommand", () => {
         expect(mockedGhJson).not.toHaveBeenCalled();
       },
     );
+
+    it("does not treat -h as help when it is a --name value", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_new", name: "-h" });
+      const result = await projectCommand(
+        ["field-create", "3", "--name", "-h", "--data-type", "TEXT"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+        "project",
+        "field-create",
+        "3",
+        "--name",
+        "-h",
+        "--data-type",
+        "TEXT",
+        "--format",
+        "json",
+        "--owner",
+        "octo",
+      ]);
+      expect(result).toContain("PVTF_new");
+      expect(result).not.toBe(PROJECT_HELP);
+    });
   });
 
   describe("single-value field flags", () => {
@@ -336,6 +359,34 @@ describe("projectCommand", () => {
       await expect(
         projectCommand(["field-delete", ...args]),
       ).rejects.toBeInstanceOf(AxiError);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("ignores a trailing -- end-of-flags marker", async () => {
+      mockedGhJson.mockResolvedValue({ id: "PVTF_old" });
+      const result = await projectCommand(
+        ["field-delete", "--id", "PVTF_old", "--"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledExactlyOnceWith([
+        "project",
+        "field-delete",
+        "--id",
+        "PVTF_old",
+        "--format",
+        "json",
+      ]);
+      expect(result).toContain("id: PVTF_old");
+      expect(result).toContain("status: ok");
+    });
+
+    it("still rejects extra values after a -- marker", async () => {
+      await expect(
+        projectCommand(["field-delete", "--id", "PVTF_old", "--", "extra"]),
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Unexpected argument: extra",
+      });
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
