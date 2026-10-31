@@ -1,5 +1,6 @@
 import type { RepoContext } from "./context.js";
-import { AxiError } from "./errors.js";
+import { preserveAttachMutation } from "./attach.js";
+import { unexpectedGhOutput } from "./errors.js";
 import { ghJson } from "./gh.js";
 
 export interface CreatedComment {
@@ -21,26 +22,30 @@ export async function fetchCreatedComment(
 ): Promise<CreatedComment> {
   const matches = [...output.matchAll(/#issuecomment-(\d+)/g)];
   const id = matches.at(-1)?.[1];
-  if (!id) {
-    throw new AxiError(
-      `Unexpected gh comment output: ${output.slice(0, 200)}`,
-      "UNKNOWN",
-    );
-  }
+  return preserveAttachMutation(
+    id ? `comment #${id}` : "created comment",
+    async () => {
+      if (!id) {
+        throw unexpectedGhOutput(output, "comment");
+      }
 
-  const repository = ctx
-    ? `repos/${encodeURIComponent(ctx.owner)}/${encodeURIComponent(ctx.name)}`
-    : "repos/{owner}/{repo}";
-  const comment = await ghJson<ApiComment>([
-    "api",
-    `${repository}/issues/comments/${id}`,
-  ]);
+      const repository = ctx
+        ? `repos/${encodeURIComponent(ctx.owner)}/${encodeURIComponent(ctx.name)}`
+        : "repos/{owner}/{repo}";
+      const comment = await ghJson<ApiComment>([
+        "api",
+        `${repository}/issues/comments/${id}`,
+      ]);
 
-  return {
-    ...(comment.user?.login ? { author: { login: comment.user.login } } : {}),
-    ...(comment.body !== undefined ? { body: comment.body } : {}),
-    ...(comment.created_at !== undefined
-      ? { createdAt: comment.created_at }
-      : {}),
-  };
+      return {
+        ...(comment.user?.login
+          ? { author: { login: comment.user.login } }
+          : {}),
+        ...(comment.body !== undefined ? { body: comment.body } : {}),
+        ...(comment.created_at !== undefined
+          ? { createdAt: comment.created_at }
+          : {}),
+      };
+    },
+  );
 }

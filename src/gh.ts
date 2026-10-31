@@ -7,6 +7,7 @@ import {
   AxiError,
   ghNotInstalledError,
   mapGhError,
+  unexpectedGhOutput,
 } from "./errors.js";
 
 export interface ExecResult {
@@ -113,10 +114,7 @@ export async function ghJson<T = unknown>(
   try {
     return JSON.parse(result.stdout);
   } catch {
-    throw new AxiError(
-      `Unexpected gh output: ${result.stdout.slice(0, 200)}`,
-      "UNKNOWN",
-    );
+    throw unexpectedGhOutput(result.stdout);
   }
 }
 

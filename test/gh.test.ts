@@ -91,16 +91,19 @@ describe("ghJson", () => {
     }
   });
 
-  it("throws on invalid JSON", async () => {
-    mockExecFileResult(null, "not json at all", "");
-    await expect(ghJson(["issue", "list"])).rejects.toThrow(AxiError);
-    try {
-      mockExecFileResult(null, "not json at all", "");
-      await ghJson(["issue", "list"]);
-    } catch (e) {
-      expect((e as AxiError).code).toBe("UNKNOWN");
-      expect((e as AxiError).message).toContain("Unexpected gh output");
-    }
+  it.each([
+    ["", "empty"],
+    [" \n\t", "whitespace-only"],
+    [" \n<html>secret</html>", "HTML/XML-like"],
+    [' {"token":"secret"', "JSON-like"],
+    [' ["secret"', "JSON-like"],
+    ["secret proxy response", "other text"],
+  ])("reports only safe facts for invalid JSON %j", async (output, shape) => {
+    mockExecFileResult(null, output, "");
+    await expect(ghJson(["issue", "list"])).rejects.toMatchObject({
+      code: "UNKNOWN",
+      message: `Unexpected gh output: ${output.length} characters; shape: ${shape}`,
+    });
   });
 
   it("throws ghNotInstalledError on ENOENT", async () => {
