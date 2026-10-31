@@ -111,6 +111,17 @@ export class AttachmentMutationError extends OperationOutcomeError {
   }
 }
 
+export class RepositoryMetadataError extends AxiError {
+  constructor(readonly exitCode: number) {
+    super(
+      `Repository metadata request failed (gh exit ${exitCode}); diagnostics withheld to protect token values`,
+      "UNKNOWN",
+      ["Check repository access, authentication, and the requested endpoint"],
+    );
+    this.name = "RepositoryMetadataError";
+  }
+}
+
 export class StackError extends AxiError {
   constructor(
     message: string,

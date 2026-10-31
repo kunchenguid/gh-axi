@@ -338,7 +338,7 @@ describe("apiCommand", () => {
   it("forwards --template to gh api", async () => {
     mockedGhExec.mockResolvedValue("out");
 
-    await apiCommand(["/repos/octo/repo", "--template", "{{.name}}"]);
+    await apiCommand(["/repos/octo/repo/issues/1", "--template", "{{.name}}"]);
 
     expect(mockedGhExec).toHaveBeenCalledWith(
       expect.arrayContaining(["--template", "{{.name}}"]),
@@ -430,7 +430,7 @@ describe("apiCommand", () => {
   it("does not forward a flag-shaped --header value as its own flag", async () => {
     mockedGhExec.mockResolvedValue("{}");
 
-    await apiCommand(["/repos/octo/repo", "--header", "--jq=.x"]);
+    await apiCommand(["/repos/octo/repo/issues/1", "--header", "--jq=.x"]);
 
     const ghArgs = mockedGhExec.mock.calls[0][0];
     expect(ghArgs).toEqual(expect.arrayContaining(["--header", "--jq=.x"]));

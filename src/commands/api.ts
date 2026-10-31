@@ -4,11 +4,17 @@ import { ghExec, ghExecWithStdin } from "../gh.js";
 import { AxiError } from "../errors.js";
 import { cleanBody } from "../body.js";
 import { readStdin, isStdinTTY } from "../stdin.js";
+import {
+  isRepositoryMetadataPath,
+  omitRepositoryToken,
+  REPOSITORY_METADATA_JQ,
+} from "../repoMetadata.js";
 
 export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
+safety: Repository metadata always omits *_token fields, including with --full and before --jq. --template is rejected for repository metadata; use --jq instead. Upstream metadata diagnostics are withheld.
 flags[9]:
   -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; typed: numbers, true, false and null become JSON values), --raw-field <key=value> (repeatable; always sent as a string, e.g. content=+1), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
@@ -233,6 +239,13 @@ export async function apiCommand(
     methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : "GET");
   const path = methodGiven ? positionals[1] : positionals[0];
 
+  const repositoryMetadata = isRepositoryMetadataPath(path);
+  if (repositoryMetadata && template !== undefined) {
+    throw new AxiError(
+      "--template is not supported for repository metadata; use --jq instead so token fields can be redacted before selection",
+      "VALIDATION_ERROR",
+    );
+  }
   const ghArgs = ["api", path, "--method", method];
 
   for (const f of fields) {
@@ -268,7 +281,16 @@ export async function apiCommand(
 
   if (paginate) ghArgs.push("--paginate");
 
-  if (jq !== undefined) ghArgs.push("--jq", jq);
+  // Sanitize inside gh, before a user projection can turn a token into a bare
+  // scalar or rename it. This also covers every page of --paginate output.
+  if (repositoryMetadata) {
+    ghArgs.push(
+      "--jq",
+      jq === undefined
+        ? REPOSITORY_METADATA_JQ
+        : `${REPOSITORY_METADATA_JQ} | (${jq})`,
+    );
+  } else if (jq !== undefined) ghArgs.push("--jq", jq);
 
   if (template !== undefined) ghArgs.push("--template", template);
 
@@ -290,7 +312,10 @@ export async function apiCommand(
       ? await ghExecWithStdin(ghArgs, stdinBody, ctx)
       : await ghExec(ghArgs, ctx);
   try {
-    const data = JSON.parse(raw);
+    const data = JSON.parse(
+      raw,
+      repositoryMetadata ? omitRepositoryToken : undefined,
+    );
     return encode(shapeOutput(data, stripNoisyKeys, truncateValues));
   } catch {
     const trimmed = raw.trim();

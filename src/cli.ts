@@ -26,6 +26,7 @@ import {
   AxiError,
   exitCodeForError,
   OperationOutcomeError,
+  RepositoryMetadataError,
   StackError,
 } from "./errors.js";
 
@@ -114,7 +115,7 @@ function formatCliError(error: unknown) {
           "UNKNOWN",
         );
   // Preserve the SDK's error/help shape, adding operation outcomes and asset
-  // URLs to distinguish partial success, and retain StackError's upstream exit.
+  // URLs to distinguish partial success, and retain safe adapters' upstream exits.
   return {
     output: `${encode({
       error: axiError.message,
@@ -132,7 +133,9 @@ function formatCliError(error: unknown) {
         : {}),
     })}\n`,
     exitCode:
-      error instanceof StackError ? error.exitCode : exitCodeForError(axiError),
+      error instanceof StackError || error instanceof RepositoryMetadataError
+        ? error.exitCode
+        : exitCodeForError(axiError),
   };
 }
 

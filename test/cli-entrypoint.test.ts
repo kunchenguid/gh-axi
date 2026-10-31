@@ -339,12 +339,15 @@ describe("CLI entrypoint", () => {
         });
 
         const [, argv, opts] = mockedExecFile.mock.calls[0];
-        expect(argv).toEqual([
-          "api",
-          "repos/{owner}/{repo}",
-          "--method",
-          "GET",
-        ]);
+        expect(argv).toEqual(
+          expect.arrayContaining([
+            "api",
+            "repos/{owner}/{repo}",
+            "--method",
+            "GET",
+          ]),
+        );
+        expect(argv).not.toContain("--repo");
         expect((opts as { env?: NodeJS.ProcessEnv }).env?.["GH_REPO"]).toBe(
           "octo/other",
         );

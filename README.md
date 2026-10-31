@@ -13,7 +13,7 @@ GitHub CLI for agents — designed with [AXI](https://github.com/kunchenguid/axi
 
 Wraps the official `gh` cli with token-efficient TOON output, contextual next-step suggestions, and structured error handling.
 Built for autonomous agents that interact with GitHub via shell execution.
-Diagnostics the wrapped `gh` process writes while a request is still pending (gh is still running a second later), such as approval prompts, stream to stderr. Diagnostics `gh` writes as it exits are not echoed: a failure is reported once in the structured error, and those from a call that succeeds, including gh-axi's internal fallback attempts, are dropped.
+Diagnostics the wrapped `gh` process writes while a request is still pending (gh is still running a second later), such as approval prompts, stream to stderr. Diagnostics `gh` writes as it exits are not echoed: a failure is reported once in the structured error, and those from a call that succeeds, including gh-axi's internal fallback attempts, are dropped. Repository-metadata API calls withhold all upstream diagnostics, including pending/debug output and failure bodies, to avoid exposing token values; failures report safe guidance and retain the child's exit status.
 
 ## Benchmarks
 
@@ -176,9 +176,10 @@ Use `--input <file>` to send a raw JSON request body, or `--input -` to relay pi
 `--input -` rejects an interactive terminal instead of waiting for input.
 `--raw-field <key=value>` (repeatable) forwards to `gh api --raw-field` and always sends the value as a JSON string, while `--field` is typed like `gh api -F` and turns numbers, `true`, `false` and `null` into JSON values. Use `--raw-field content=+1` for a value such as a `+1` reaction that must stay a string.
 Giving `-X` more than once or together with a positional method is rejected, as is any other unsupported flag, extra positional argument, or repeated `--input`/`--jq`/`--template`.
-JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
+JSON responses are normally stripped of noisy fields before TOON encoding, but a response you shaped yourself with `--jq` or `--template` keeps every nonsensitive key and value verbatim — only over-long strings are still truncated so one field cannot flood an agent's context.
+Repository-metadata endpoints (repository details, lists/search, forks, generation, and transfer) always omit `temp_clone_token` and every other `*_token` property recursively, including nested objects/arrays and paginated responses. Redaction happens before your `--jq` expression, so selecting or renaming a token cannot expose its value. `--full` cannot bypass redaction. `--template` is rejected locally for these endpoints because it could hide credential field names before redaction; use `--jq` instead. Templates on other endpoints are unchanged.
 When a bare (non-JSON) `--jq`/`--template` result still exceeds the raw output limit, it is clamped and ends with `... (truncated)` so the cut is visible; pass `--full` to lift the cap.
-`--full` is an explicit opt-in escape hatch: it keeps every field and every complete value, and it also returns non-JSON response bodies without the length cap. `--full` is a gh-axi flag only, and gh-axi does not send it to `gh`. Compact output stays the default without `--full`.
+`--full` is an explicit opt-in escape hatch for compacting/truncation, not token redaction: it keeps every nonsensitive field and every complete value, and it also returns non-JSON response bodies without the length cap. `--full` is a gh-axi flag only, and gh-axi does not send it to `gh`. Compact output stays the default without `--full`.
 
 ### Commands
 
