@@ -34,7 +34,6 @@ import {
   hasAttachmentFlag,
   newAttachmentUrls,
   pushAttachments,
-  preserveAttachMutation,
   renderAttachOutput,
 } from "../attach.js";
 import { takeBody, truncateBody } from "../body.js";
@@ -1172,9 +1171,7 @@ async function commentOnIssue(
   let createdComment: IssueComment | undefined;
   if (attachments.length > 0) {
     try {
-      createdComment = await preserveAttachMutation(commentOutput.trim(), () =>
-        fetchCreatedComment(commentOutput, ctx),
-      );
+      createdComment = await fetchCreatedComment(commentOutput, ctx);
     } catch (error) {
       if (attachmentError) throw attachmentError.withFollowupError(error);
       throw error;

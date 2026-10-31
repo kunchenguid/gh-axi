@@ -12,6 +12,27 @@ export type ErrorCode =
 
 export { AxiError, exitCodeForError };
 
+export function unexpectedGhOutput(
+  output: string,
+  command?: "comment" | "stack",
+): AxiError {
+  const leading = output.trimStart();
+  const shape =
+    output.length === 0
+      ? "empty"
+      : leading.length === 0
+        ? "whitespace-only"
+        : leading.startsWith("<")
+          ? "HTML/XML-like"
+          : leading.startsWith("{") || leading.startsWith("[")
+            ? "JSON-like"
+            : "other text";
+  return new AxiError(
+    `Unexpected gh${command ? ` ${command}` : ""} output: ${output.length} characters; shape: ${shape}`,
+    "UNKNOWN",
+  );
+}
+
 function toAxiError(error: unknown): AxiError {
   return error instanceof AxiError
     ? error

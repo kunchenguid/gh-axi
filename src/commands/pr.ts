@@ -1520,9 +1520,7 @@ async function prComment(
   if (attachments.length > 0) {
     let createdComment: Awaited<ReturnType<typeof fetchCreatedComment>>;
     try {
-      createdComment = await preserveAttachMutation(commentOutput.trim(), () =>
-        fetchCreatedComment(commentOutput, ctx),
-      );
+      createdComment = await fetchCreatedComment(commentOutput, ctx);
     } catch (error) {
       if (attachmentError) throw attachmentError.withFollowupError(error);
       throw error;

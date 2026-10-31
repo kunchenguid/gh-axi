@@ -1,6 +1,6 @@
 import { encode } from "@toon-format/toon";
 import { ghRaw, type ExecResult } from "../gh.js";
-import { AxiError, StackError } from "../errors.js";
+import { AxiError, StackError, unexpectedGhOutput } from "../errors.js";
 
 type StackBranch = {
   name: string;
@@ -137,9 +137,9 @@ async function stackView(): Promise<string> {
   try {
     parsed = JSON.parse(result.stdout);
   } catch {
-    throw unexpectedOutput(result.stdout);
+    throw unexpectedGhOutput(result.stdout, "stack");
   }
-  if (!isStackView(parsed)) throw unexpectedOutput(result.stdout);
+  if (!isStackView(parsed)) throw unexpectedGhOutput(result.stdout, "stack");
   const view = parsed;
 
   return encode({
@@ -169,13 +169,6 @@ function isStackView(value: unknown): value is StackView {
   return (
     Array.isArray(branches) &&
     branches.every((branch) => typeof branch === "object" && branch !== null)
-  );
-}
-
-function unexpectedOutput(stdout: string): AxiError {
-  return new AxiError(
-    `Unexpected gh stack output: ${stdout.slice(0, 200)}`,
-    "UNKNOWN",
   );
 }
 
