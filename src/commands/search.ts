@@ -442,7 +442,7 @@ async function searchCommits(
 
 const codeSchema: FieldDef[] = [
   field("path"),
-  pluck("repository", "fullName", "repo"),
+  pluck("repository", "nameWithOwner", "repo"),
   custom("matches", (item) => {
     const tm = item.textMatches;
     if (!Array.isArray(tm) || tm.length === 0) return 0;
