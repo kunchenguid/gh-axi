@@ -2589,7 +2589,8 @@ describe("prCommand", () => {
         await expect(
           prCommand(["comment", "12", "--attach", file], ctx),
         ).rejects.toMatchObject({
-          message: `Mutation succeeded at ${url}, but follow-up operation failed: Could not fetch the created comment`,
+          message:
+            "Mutation succeeded at comment #67890, but follow-up operation failed: Could not fetch the created comment",
         });
       });
     });

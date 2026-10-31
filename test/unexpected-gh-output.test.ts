@@ -63,6 +63,37 @@ describe("unexpected gh output", () => {
   });
 
   it.each(["issue", "pr"])(
+    "warns against retrying a successful %s comment with no emitted ID",
+    (command) => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          cli,
+          command,
+          "comment",
+          "1",
+          "--attach",
+          "image.png",
+          "--repo",
+          "octo/repo",
+        ],
+        { cwd: repoRoot, encoding: "utf8", env },
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("code: UNKNOWN");
+      expect(result.stdout).toContain("Mutation succeeded at created comment");
+      expect(result.stdout).toContain(
+        "Do not retry the mutation; inspect created comment",
+      );
+      expect(result.stdout).toContain(`${output.length} characters`);
+      expect(result.stdout).toContain("HTML/XML");
+      expect(result.stdout + result.stderr).not.toContain(secret);
+      expect(result.stdout + result.stderr).not.toContain(output.trim());
+    },
+  );
+
+  it.each(["issue", "pr"])(
     "does not echo malformed %s comment output after a follow-up failure",
     (command) => {
       const commentOutput = `<html>${secret} https://github.com/octo/repo/issues/1#issuecomment-123</html>\n`;
