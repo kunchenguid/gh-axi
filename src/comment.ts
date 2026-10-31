@@ -29,8 +29,7 @@ export async function fetchCreatedComment(
   const repository = ctx
     ? `repos/${encodeURIComponent(ctx.owner)}/${encodeURIComponent(ctx.name)}`
     : "repos/{owner}/{repo}";
-  // Preserve the mutation location only after recognizing a comment ID.
-  const comment = await preserveAttachMutation(output.trim(), () =>
+  const comment = await preserveAttachMutation(`comment #${id}`, () =>
     ghJson<ApiComment>(["api", `${repository}/issues/comments/${id}`]),
   );
 
