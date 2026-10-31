@@ -38,7 +38,9 @@ export async function fetchCreatedComment(
       ]);
 
       return {
-        ...(comment.user?.login ? { author: { login: comment.user.login } } : {}),
+        ...(comment.user?.login
+          ? { author: { login: comment.user.login } }
+          : {}),
         ...(comment.body !== undefined ? { body: comment.body } : {}),
         ...(comment.created_at !== undefined
           ? { createdAt: comment.created_at }
