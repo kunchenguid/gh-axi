@@ -66,6 +66,23 @@ describe("ghJson", () => {
     mockedExecFile.mockReset();
   });
 
+  it("redacts credential fields in non-API JSON commands too", async () => {
+    const credential = "synthetic-command-credential-never-use";
+    mockExecFileResult(
+      null,
+      JSON.stringify({
+        name: "fixture",
+        nested: [
+          { password: credential, private_key: credential, keep: "visible" },
+        ],
+      }),
+      "",
+    );
+    const result = await ghJson(["repo", "view", "--json", "name"]);
+    expect(JSON.stringify(result).includes(credential)).toBe(false);
+    expect(result).toEqual({ name: "fixture", nested: [{ keep: "visible" }] });
+  });
+
   it("parses JSON output correctly", async () => {
     mockExecFileResult(null, '{"id": 1, "title": "test"}', "");
     const result = await ghJson<{ id: number; title: string }>([
@@ -203,7 +220,7 @@ describe("ghExec", () => {
     }
   });
 
-  it("surfaces GitHub's 422 message from gh api's stderr, not the stdout body", async () => {
+  it("keeps GitHub's 422 classification while withholding API diagnostic values", async () => {
     const error = new Error("exit 1") as Error & { code: number };
     error.code = 1;
     mockExecFileResult(
@@ -216,9 +233,8 @@ describe("ghExec", () => {
       expect.unreachable("ghExec should throw");
     } catch (e) {
       expect((e as AxiError).code).toBe("VALIDATION_ERROR");
-      expect((e as AxiError).message).toBe(
-        "Invalid request. For 'properties/content', 1 is not a string.",
-      );
+      expect((e as AxiError).message).toContain("diagnostics withheld");
+      expect((e as AxiError).message).not.toContain("properties/content");
     }
   });
 
@@ -335,10 +351,43 @@ describe("ghRaw", () => {
     const error = new Error("exit 1") as Error & { code: number };
     error.code = 1;
     mockExecFileResult(error, "some output", "some error");
-    const result = await ghRaw(["api", "repos"]);
+    const result = await ghRaw(["issue", "list"]);
     expect(result.stdout).toBe("some output");
     expect(result.stderr).toBe("some error");
     expect(result.exitCode).toBe(1);
+  });
+
+  it("sanitizes every page of raw API JSON output before consumers see it", async () => {
+    const credential = "synthetic-page-credential-never-use";
+    mockExecFileResult(
+      null,
+      [
+        JSON.stringify([
+          { temp_clone_token: credential, keep: 'quoted braces: " } [ ' },
+        ]),
+        JSON.stringify([{ client_secret: credential, keep: "second-page" }]),
+      ].join("\n"),
+      "",
+    );
+    const result = await ghRaw(["api", "unlisted/response", "--paginate"]);
+    expect(result.stdout.includes(credential)).toBe(false);
+    expect(result.stdout.split("\n").map((page) => JSON.parse(page))).toEqual([
+      [{ keep: 'quoted braces: " } [ ' }],
+      [{ keep: "second-page" }],
+    ]);
+  });
+
+  it("withholds API failure bodies while preserving the exact exit status", async () => {
+    const credential = "synthetic-failure-credential-never-use";
+    mockExecFileResult(
+      Object.assign(new Error("exit"), { code: 7 }),
+      credential,
+      credential,
+    );
+    const result = await ghRaw(["api", "unlisted/response"]);
+    expect((result.stdout + result.stderr).includes(credential)).toBe(false);
+    expect(result.exitCode).toBe(7);
+    expect(result.stderr).toContain("diagnostics withheld");
   });
 
   it("returns result on success", async () => {

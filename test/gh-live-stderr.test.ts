@@ -83,7 +83,7 @@ describe("shared gh runner live stderr", () => {
     }) as typeof process.stderr.write);
 
     let settled = false;
-    const pending = ghRaw(["api", "test"]).finally(() => {
+    const pending = ghRaw(["issue", "list"]).finally(() => {
       settled = true;
     });
 
@@ -108,7 +108,7 @@ describe("shared gh runner live stderr", () => {
     // Released already, so gh exits at once: the error is reported only once,
     // in the structured result.
     forwarded = "";
-    await expect(ghExec(["api", "test"])).rejects.toMatchObject({
+    await expect(ghExec(["issue", "list"])).rejects.toMatchObject({
       code: "FORBIDDEN",
       message: "Insufficient permissions for this action",
     });

@@ -171,13 +171,13 @@ describe.skipIf(!gh)("repository metadata CLI redaction (requires gh)", () => {
     expect(requests).toBe(before);
   });
 
-  it("preserves templates on other endpoints", async () => {
+  it("also refuses unsafe templates on other endpoints", async () => {
     const result = await run(`${base}/repos/octo/fixture/issues/1`, [
       "--template",
       "{{.default_branch}}",
     ]);
-    expect(result.status).toBe(0);
-    expect(result.stdout.trim()).toBe("main");
+    expect(result.status).toBe(2);
+    expect(result.stdout).toContain("--jq");
   });
 
   it.each([
@@ -211,7 +211,7 @@ describe.skipIf(!gh)("repository metadata CLI redaction (requires gh)", () => {
       const fakeGh = join(dir, "diagnostic-gh");
       copyFileSync(diagnosticFixture, fakeGh);
       chmodSync(fakeGh, 0o755);
-      const result = await run(`${base}/repos/octo/fixture`, [], {
+      const result = await run(`${base}/unlisted/chunked-response`, [], {
         GH_BIN: fakeGh,
         GH_AXI_METADATA_RESPONSE: JSON.stringify(metadata),
         GH_AXI_METADATA_EXIT: String(status),

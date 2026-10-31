@@ -2,19 +2,23 @@ import { execFile } from "node:child_process";
 import { ATTACH_MIN_GH_VERSION } from "./attach.js";
 import { type RepoContext } from "./context.js";
 import { debugArgv } from "./debug.js";
-import { isRepositoryMetadataRequest } from "./repoMetadata.js";
+import { omitCredential, redactApiArgs, redactResponseText } from "./redact.js";
 import {
   AttachmentMutationError,
   AxiError,
   ghNotInstalledError,
   mapGhError,
-  RepositoryMetadataError,
+  RedactedResponseError,
 } from "./errors.js";
 
 export interface ExecResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+interface InternalExecResult extends ExecResult {
+  protectedError?: RedactedResponseError;
 }
 
 const MAX_BUFFER_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -69,9 +73,19 @@ function run(
   args: string[],
   ctx?: RepoContext,
   input?: string,
-): Promise<ExecResult> {
-  const argv = [...args];
-  const repositoryMetadata = isRepositoryMetadataRequest(args);
+  expectJson = false,
+): Promise<InternalExecResult> {
+  const argv = redactApiArgs(args);
+  const protectResponse =
+    args[0] === "api" ||
+    expectJson ||
+    (args[0] !== "stack" &&
+      (args.includes("--json") ||
+        args.some(
+          (arg, index) =>
+            arg === "--format=json" ||
+            (arg === "--format" && args[index + 1] === "json"),
+        )));
   let env: NodeJS.ProcessEnv | undefined;
   // Pass a flag/env repo context on (gh auto-detects a git remote itself).
   // `gh api` rejects --repo but fills its {owner}/{repo} placeholders from
@@ -81,21 +95,52 @@ function run(
     else argv.push("--repo", ctx.nwo);
   }
   debugArgv(argv);
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const held = new Set<ReturnType<typeof setTimeout>>();
     const settle = toExecResult((result) => {
-      // Upstream debugging/error bodies may contain the original repository
-      // tokens, even when gh's stdout jq filter has already removed them.
-      if (repositoryMetadata && result.stderr !== "ENOENT") {
+      if (result.stderr === "ENOENT") {
+        resolve(result);
+        return;
+      }
+      if (!protectResponse) {
+        // All complete JSON responses share the field policy, even from a
+        // raw/non-API helper. Ordinary text/stack diagnostics stay unchanged.
+        try {
+          resolve({
+            ...result,
+            stdout: redactResponseText(result.stdout, false),
+            stderr: redactResponseText(result.stderr, false),
+          });
+        } catch (error) {
+          reject(error);
+        }
+        return;
+      }
+      // Classify failures internally, but never render raw diagnostic text or
+      // interpolated values from it. Keep the original child exit status.
+      if (result.exitCode !== 0) {
+        const code = mapGhError(
+          result.stderr || lastNonEmptyLine(result.stdout),
+          result.exitCode,
+        ).code;
+        const error = new RedactedResponseError(result.exitCode, code);
         resolve({
-          stdout: result.exitCode === 0 ? result.stdout : "",
-          stderr:
-            result.exitCode === 0
-              ? ""
-              : new RepositoryMetadataError(result.exitCode).message,
+          stdout: "",
+          stderr: error.message,
           exitCode: result.exitCode,
+          protectedError: error,
         });
-      } else resolve(result);
+        return;
+      }
+      try {
+        resolve({
+          stdout: redactResponseText(result.stdout),
+          stderr: "",
+          exitCode: 0,
+        });
+      } catch (error) {
+        reject(error);
+      }
     });
     const child = execFile(
       resolveGhBin(),
@@ -107,9 +152,9 @@ function run(
       },
     );
     child.stderr?.on("data", (chunk: Buffer | string) => {
-      // Do not stream even partial/chunked metadata diagnostics: field names
-      // and values can span chunks, so text-based redaction is not safe.
-      if (repositoryMetadata) return;
+      // Do not stream API/JSON diagnostics: original credential fields can
+      // span chunks, or a debug body can precede stdout's safe projection.
+      if (protectResponse) return;
       // Timers with equal delays fire in creation order, so chunks stay ordered.
       const timer = setTimeout(() => {
         held.delete(timer);
@@ -126,21 +171,15 @@ export async function ghJson<T = unknown>(
   args: string[],
   ctx?: RepoContext,
 ): Promise<T> {
-  const result = await run(args, ctx);
+  const result = await run(args, ctx, undefined, true);
   if (result.stderr === "ENOENT") throw missingGhError();
   if (result.exitCode !== 0) {
-    throw isRepositoryMetadataRequest(args)
-      ? new RepositoryMetadataError(result.exitCode)
-      : mapGhError(result.stderr, result.exitCode);
+    throw result.protectedError ?? mapGhError(result.stderr, result.exitCode);
   }
   try {
-    return JSON.parse(result.stdout);
+    return JSON.parse(result.stdout, omitCredential);
   } catch {
-    if (isRepositoryMetadataRequest(args)) throw new RepositoryMetadataError(1);
-    throw new AxiError(
-      `Unexpected gh output: ${result.stdout.slice(0, 200)}`,
-      "UNKNOWN",
-    );
+    throw new AxiError("Unexpected gh output (body withheld)", "UNKNOWN");
   }
 }
 
@@ -193,12 +232,13 @@ export async function ghExec(
     // empty, so fall back to stdout to keep the actionable output visible.
     // gh writes progress lines first and the failure summary at the end of
     // the stream, so the fallback takes the last non-empty stdout line.
-    throw isRepositoryMetadataRequest(args)
-      ? new RepositoryMetadataError(result.exitCode)
-      : mapGhError(
-          result.stderr || lastNonEmptyLine(result.stdout),
-          result.exitCode,
-        );
+    throw (
+      result.protectedError ??
+      mapGhError(
+        result.stderr || lastNonEmptyLine(result.stdout),
+        result.exitCode,
+      )
+    );
   }
   return result.stdout;
 }
@@ -215,9 +255,8 @@ export async function ghExecWithAttachmentState(
   const result = await run(args, ctx);
   if (result.stderr === "ENOENT") throw missingGhError();
   if (result.exitCode !== 0) {
-    const error = isRepositoryMetadataRequest(args)
-      ? new RepositoryMetadataError(result.exitCode)
-      : mapGhError(result.stderr, result.exitCode);
+    const error =
+      result.protectedError ?? mapGhError(result.stderr, result.exitCode);
     const mutationUrl = result.stdout.match(/https?:\/\/[^\s]+/)?.[0];
     if (!mutationUrl) throw error;
     throw new AttachmentMutationError(result.stdout, mutationUrl, error);
@@ -232,7 +271,11 @@ export async function ghRaw(
 ): Promise<ExecResult> {
   const result = await run(args, ctx);
   if (result.stderr === "ENOENT") throw missingGhError();
-  return result;
+  return {
+    stdout: result.stdout,
+    stderr: result.stderr,
+    exitCode: result.exitCode,
+  };
 }
 
 /**
@@ -247,9 +290,7 @@ export async function ghExecWithStdin(
   const result = await run(args, ctx, input);
   if (result.stderr === "ENOENT") throw missingGhError();
   if (result.exitCode !== 0) {
-    throw isRepositoryMetadataRequest(args)
-      ? new RepositoryMetadataError(result.exitCode)
-      : mapGhError(result.stderr, result.exitCode);
+    throw result.protectedError ?? mapGhError(result.stderr, result.exitCode);
   }
   return result.stdout;
 }

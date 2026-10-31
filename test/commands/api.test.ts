@@ -335,15 +335,14 @@ describe("apiCommand", () => {
     );
   });
 
-  it("forwards --template to gh api", async () => {
-    mockedGhExec.mockResolvedValue("out");
-
-    await apiCommand(["/repos/octo/repo/issues/1", "--template", "{{.name}}"]);
-
-    expect(mockedGhExec).toHaveBeenCalledWith(
-      expect.arrayContaining(["--template", "{{.name}}"]),
-      undefined,
-    );
+  it("refuses --template on every API endpoint before invoking gh", async () => {
+    await expect(
+      apiCommand(["/repos/octo/repo/issues/1", "--template", "{{.name}}"]),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: expect.stringContaining("--jq"),
+    });
+    expect(mockedGhExec).not.toHaveBeenCalled();
   });
 
   it("does not strip fields the caller explicitly selected with --jq", async () => {

@@ -176,11 +176,14 @@ describe("AXI_DEBUG argv trace", () => {
     ]);
   });
 
-  it("traces an api --template value starting with -H unchanged", async () => {
-    const args = ["api", "user", "--template", "-Hotfix: {{.}}"];
+  it("does not trace or run an unsafe api --template", async () => {
     process.env["AXI_DEBUG"] = "1";
-    await ghExec(args);
-    expect(replayInShell(stderr.trimEnd())).toEqual(args);
+    await expect(
+      ghExec(["api", "user", "--template", "-Hotfix: {{.}}"]),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
+    expect(stderr).toBe("");
   });
 
   it("traces header-like values of non-api commands unmasked", async () => {

@@ -4,17 +4,13 @@ import { ghExec, ghExecWithStdin } from "../gh.js";
 import { AxiError } from "../errors.js";
 import { cleanBody } from "../body.js";
 import { readStdin, isStdinTTY } from "../stdin.js";
-import {
-  isRepositoryMetadataPath,
-  omitRepositoryToken,
-  REPOSITORY_METADATA_JQ,
-} from "../repoMetadata.js";
+import { redactResponseText, TEMPLATE_REFUSAL } from "../redact.js";
 
 export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
-safety: Repository metadata always omits *_token fields, including with --full and before --jq. --template is rejected for repository metadata; use --jq instead. Upstream metadata diagnostics are withheld.
+safety: Every JSON response recursively omits credential fields (tokens, secrets, passwords, private keys), including with --full and before --jq. --template is rejected; use --jq instead. Upstream API diagnostics are withheld.
 flags[9]:
   -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; typed: numbers, true, false and null become JSON values), --raw-field <key=value> (repeatable; always sent as a string, e.g. content=+1), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
@@ -239,12 +235,8 @@ export async function apiCommand(
     methodFlag ?? (methodGiven ? positionals[0].toUpperCase() : "GET");
   const path = methodGiven ? positionals[1] : positionals[0];
 
-  const repositoryMetadata = isRepositoryMetadataPath(path);
-  if (repositoryMetadata && template !== undefined) {
-    throw new AxiError(
-      "--template is not supported for repository metadata; use --jq instead so token fields can be redacted before selection",
-      "VALIDATION_ERROR",
-    );
+  if (template !== undefined) {
+    throw new AxiError(TEMPLATE_REFUSAL, "VALIDATION_ERROR");
   }
   const ghArgs = ["api", path, "--method", method];
 
@@ -281,24 +273,14 @@ export async function apiCommand(
 
   if (paginate) ghArgs.push("--paginate");
 
-  // Sanitize inside gh, before a user projection can turn a token into a bare
-  // scalar or rename it. This also covers every page of --paginate output.
-  if (repositoryMetadata) {
-    ghArgs.push(
-      "--jq",
-      jq === undefined
-        ? REPOSITORY_METADATA_JQ
-        : `${REPOSITORY_METADATA_JQ} | (${jq})`,
-    );
-  } else if (jq !== undefined) ghArgs.push("--jq", jq);
+  // The shared runner prepends field redaction before the user's projection.
+  if (jq !== undefined) ghArgs.push("--jq", jq);
 
-  if (template !== undefined) ghArgs.push("--template", template);
-
-  // A caller who wrote a jq expression or template already chose the exact shape
+  // A caller who wrote a jq expression already chose the exact shape
   // they want, so noisy-field stripping would silently delete fields they asked
   // for by name (`url`, `node_id`, ...). The length clamp still applies, so a
   // selected field cannot blow the caller's context with an unbounded blob.
-  const callerShapedOutput = jq !== undefined || template !== undefined;
+  const callerShapedOutput = jq !== undefined;
 
   // --full is an explicit opt-in escape hatch: it keeps every field (like
   // caller-shaped output) and additionally lifts the string-length clamp, so
@@ -307,19 +289,17 @@ export async function apiCommand(
   const truncateValues = !full;
 
   // Try to parse as JSON, strip noisy fields, encode to TOON; fall back to raw output
-  const raw =
+  const raw = redactResponseText(
     stdinBody !== undefined
       ? await ghExecWithStdin(ghArgs, stdinBody, ctx)
-      : await ghExec(ghArgs, ctx);
+      : await ghExec(ghArgs, ctx),
+  );
   try {
-    const data = JSON.parse(
-      raw,
-      repositoryMetadata ? omitRepositoryToken : undefined,
-    );
+    const data = JSON.parse(raw);
     return encode(shapeOutput(data, stripNoisyKeys, truncateValues));
   } catch {
     const trimmed = raw.trim();
-    // A caller who shaped output with --jq/--template asked for the selected
+    // A caller who shaped output with --jq asked for the selected
     // value itself, and gh prints bare scalars, which are not valid JSON.
     // Print the value bare instead of wrapping it in the response-body
     // envelope; the length clamp still applies.
@@ -426,7 +406,7 @@ function clampString(value: string): string {
  * Walk a decoded API response, bounding every string value.
  *
  * With `stripNoisyKeys` the noisy keys are dropped and long strings are cleaned
- * as well. Output the caller shaped with --jq/--template keeps both its keys and
+ * as well. Output the caller shaped with --jq keeps nonsensitive keys and
  * its content verbatim and is only length-bounded, since rewriting a field they
  * selected by name is the same silent mutation as deleting it. With
  * `truncateValues` false (--full), string values pass through untouched.

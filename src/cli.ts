@@ -26,7 +26,7 @@ import {
   AxiError,
   exitCodeForError,
   OperationOutcomeError,
-  RepositoryMetadataError,
+  RedactedResponseError,
   StackError,
 } from "./errors.js";
 
@@ -133,7 +133,7 @@ function formatCliError(error: unknown) {
         : {}),
     })}\n`,
     exitCode:
-      error instanceof StackError || error instanceof RepositoryMetadataError
+      error instanceof StackError || error instanceof RedactedResponseError
         ? error.exitCode
         : exitCodeForError(axiError),
   };
