@@ -119,11 +119,26 @@ function run(
       // Classify failures internally, but never render raw diagnostic text or
       // interpolated values from it. Keep the original child exit status.
       if (result.exitCode !== 0) {
-        const code = mapGhError(
-          result.stderr || lastNonEmptyLine(result.stdout),
+        const diagnostic = result.stderr || lastNonEmptyLine(result.stdout);
+        const code = mapGhError(diagnostic, result.exitCode).code;
+        // Existing consumers recognize these two control-flow conditions by
+        // message. Retain only fixed, context-checked labels, never any raw
+        // diagnostic text, field value, or interpolation from the response.
+        const safeContext =
+          args[0] === "issue" &&
+          args[1] === "view" &&
+          /\bissueType\b/i.test(diagnostic)
+            ? "issueType unavailable"
+            : args[0] === "project" &&
+                args[1] === "field-create" &&
+                /Name has already been taken/i.test(diagnostic)
+              ? "Name has already been taken"
+              : undefined;
+        const error = new RedactedResponseError(
           result.exitCode,
-        ).code;
-        const error = new RedactedResponseError(result.exitCode, code);
+          code,
+          safeContext,
+        );
         resolve({
           stdout: "",
           stderr: error.message,

@@ -115,9 +115,10 @@ export class RedactedResponseError extends AxiError {
   constructor(
     readonly exitCode: number,
     code = "UNKNOWN",
+    safeContext?: "issueType unavailable" | "Name has already been taken",
   ) {
     super(
-      `GitHub request failed (gh exit ${exitCode}); diagnostics withheld to protect credential values`,
+      `${safeContext ? `${safeContext}; ` : ""}GitHub request failed (gh exit ${exitCode}); diagnostics withheld to protect credential values`,
       code,
       ["Check repository access, authentication, and the requested endpoint"],
     );
