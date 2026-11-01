@@ -99,6 +99,7 @@ gh-axi run list -R owner/repo   # list workflow runs for a specific repo
 gh-axi issue list --hostname git.example.com  # target a GitHub Enterprise host
 gh-axi run view 123456 --job 789012       # inspect a single job within a run
 gh-axi run view --job 789012 --log-failed # show failed log lines for one job
+gh-axi run view 123456 --attempt 1 --log-failed # read an earlier attempt's failed log
 gh-axi workflow run ci.yml --ref main     # trigger a workflow
 gh-axi project list --owner my-org        # list Projects (v2) for an owner
 echo -n "sk-..." | gh-axi secret set OPENAI_API_KEY  # set a secret from stdin
@@ -141,6 +142,7 @@ A total smaller than the page it accompanies is dropped the same way, since GitH
 
 Long `run view --log` and `run view --log-failed` output shows the last 20,000 characters so CI failures stay visible.
 When truncation happens, gh-axi best-effort saves the complete log to a temp file, includes it as `full_log`, and prints a `help:` hint telling agents to grep that file for earlier context.
+`run view --attempt <n>` selects a historical run attempt, as in `gh run view --attempt`. It is opt-in: without it the output is unchanged. With it, the run detail and the log envelope also report `attempt` and `head_sha` (and `job` when `--job` is given), and gh-axi fails with a `VALIDATION_ERROR` instead of returning data when the attempt, run or job that gh reports does not match the request.
 `gh-axi run` manages existing workflow runs; use `gh-axi workflow run <name> --ref <ref>` to trigger (dispatch) a workflow.
 
 `gh-axi pr checks <number>` and the `checks` summary of `gh-axi pr view <number>` bucket every entry of the PR's status-check rollup as `pass`, `fail`, `skip`, `pending`, or `cancel`, covering both check runs (GitHub Actions and similar) and legacy commit statuses (Vercel, `ci/circleci`, and similar).

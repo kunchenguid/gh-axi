@@ -26,7 +26,9 @@ export const RUN_FLAGS: Record<string, readonly string[]> = {
     "--fields", "--limit", "--workflow", "--branch", "--status",
     "--event", "--user", "--commit",
   ],
-  view: ["--job", "--conclusion", "--log", "--verbose", "--log-failed"],
+  view: [
+    "--job", "--attempt", "--conclusion", "--log", "--verbose", "--log-failed",
+  ],
   watch: [],
   rerun: ["--failed", "--debug", "--job"],
   cancel: [],
@@ -42,7 +44,7 @@ note:
 flags{list}:
   --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c>
 flags{view}:
-  --job <job-id>, --log (or --verbose), --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
+  --job <job-id>, --attempt <n> (select a historical run attempt; output names the run, attempt and head sha, and a mismatch fails), --log (or --verbose), --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
   long --log/--log-failed output keeps the tail and may include full_log for grep searches
 flags{rerun}:
   --failed, --debug, --job
@@ -103,8 +105,15 @@ const RUN_LIST_BASE_JSON =
 
 const LOG_TRUNCATE_LIMIT = 20000;
 
+interface LogIdentity {
+  run: string;
+  attempt: number;
+  head_sha?: string;
+  job?: string;
+}
+
 function takeViewFlagValue(args: string[], flag: string): string | undefined {
-  const present = args.includes(flag);
+  const present = args.some((a) => a === flag || a.startsWith(`${flag}=`));
   const value = takeFlag(args, flag);
   if (!present) return undefined;
   if (!value || value.startsWith("--")) {
@@ -144,10 +153,18 @@ async function wrapLogOutput(
   mode: string,
   output: string,
   job?: string,
+  identity?: LogIdentity,
 ): Promise<string> {
   const truncated = output.length > LOG_TRUNCATE_LIMIT;
   const runLog: Record<string, unknown> = {
     run,
+    ...(identity
+      ? {
+          attempt: identity.attempt,
+          ...(identity.head_sha ? { head_sha: identity.head_sha } : {}),
+          ...(identity.job ? { job: identity.job } : {}),
+        }
+      : {}),
     mode,
     // CI logs put the failure at the end, so keep the tail when truncating.
     output: truncated ? output.slice(-LOG_TRUNCATE_LIMIT) : output,
@@ -181,6 +198,72 @@ function matchesConclusionFilter(
       : ""
     ).toLowerCase() === conclusionFilter.toLowerCase()
   );
+}
+
+function parseAttempt(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new AxiError(
+      `Invalid --attempt ${value}: expected a positive integer`,
+      "VALIDATION_ERROR",
+    );
+  }
+  return Number(value);
+}
+
+/**
+ * Fetch the identity gh reports for the selected run attempt and refuse
+ * anything that does not match the request, rather than showing a different
+ * attempt's data.
+ */
+async function verifyAttemptIdentity(
+  ghSelector: string[],
+  id: string | undefined,
+  jobFlag: string | undefined,
+  attempt: number,
+  ctx?: RepoContext,
+): Promise<LogIdentity> {
+  const run = await ghJson<Record<string, unknown>>(
+    [
+      ...ghSelector,
+      "--attempt",
+      String(attempt),
+      ...(jobFlag ? ["--job", jobFlag] : []),
+      "--json",
+      "databaseId,attempt,headSha,jobs",
+    ],
+    ctx,
+  );
+  const runId = String(run.databaseId ?? id ?? "unknown");
+  if (id && runId !== id) {
+    throw new AxiError(
+      `Requested run ${id} but gh returned run ${runId}`,
+      "VALIDATION_ERROR",
+    );
+  }
+  if (run.attempt !== attempt) {
+    throw new AxiError(
+      `Requested attempt ${attempt} of run ${runId} but gh returned attempt ${String(run.attempt ?? "unknown")}`,
+      "VALIDATION_ERROR",
+    );
+  }
+  if (jobFlag) {
+    const jobs = Array.isArray(run.jobs)
+      ? (run.jobs as Record<string, unknown>[])
+      : [];
+    if (!jobs.some((j) => String(j.databaseId) === jobFlag)) {
+      throw new AxiError(
+        `Job ${jobFlag} not found in attempt ${attempt} of run ${runId}`,
+        "VALIDATION_ERROR",
+      );
+    }
+  }
+  return {
+    run: runId,
+    attempt,
+    ...(typeof run.headSha === "string" ? { head_sha: run.headSha } : {}),
+    ...(jobFlag ? { job: jobFlag } : {}),
+  };
 }
 
 async function resolveLogRunId(
@@ -263,6 +346,7 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   const viewArgs = [...args];
   const jobFlag = takeViewFlagValue(viewArgs, "--job");
   const conclusionFilter = takeViewFlagValue(viewArgs, "--conclusion");
+  const attempt = parseAttempt(takeViewFlagValue(viewArgs, "--attempt"));
   const positionals = viewArgs.filter((a) => !a.startsWith("--"));
   const id = positionals[1]; // positionals[0] is "view"
   if (!id && !jobFlag)
@@ -275,40 +359,57 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
   if (id) ghSelector.push(id);
 
   // Handle log modes
-  if (hasFlag(args, "--log") || hasFlag(args, "--verbose")) {
-    const ghArgs = [...ghSelector, "--log"];
+  const logMode =
+    hasFlag(args, "--log") || hasFlag(args, "--verbose")
+      ? "log"
+      : hasFlag(args, "--log-failed")
+        ? "log-failed"
+        : undefined;
+  if (logMode) {
+    const identity =
+      attempt === undefined
+        ? undefined
+        : await verifyAttemptIdentity(ghSelector, id, jobFlag, attempt, ctx);
+    const ghArgs = [...ghSelector, `--${logMode}`];
+    if (attempt !== undefined) ghArgs.push("--attempt", String(attempt));
     if (jobFlag) ghArgs.push("--job", jobFlag);
     const output = await ghExec(ghArgs, ctx);
     return wrapLogOutput(
-      await resolveLogEnvelopeRunId(id, jobFlag, ctx),
-      "log",
+      identity?.run ?? (await resolveLogEnvelopeRunId(id, jobFlag, ctx)),
+      logMode,
       output,
       jobFlag,
-    );
-  }
-  if (hasFlag(args, "--log-failed")) {
-    const ghArgs = [...ghSelector, "--log-failed"];
-    if (jobFlag) ghArgs.push("--job", jobFlag);
-    const output = await ghExec(ghArgs, ctx);
-    return wrapLogOutput(
-      await resolveLogEnvelopeRunId(id, jobFlag, ctx),
-      "log-failed",
-      output,
-      jobFlag,
+      identity,
     );
   }
 
   const run = await ghJson<Record<string, unknown>>(
     [
       ...ghSelector,
+      ...(attempt !== undefined ? ["--attempt", String(attempt)] : []),
       ...(jobFlag ? ["--job", jobFlag] : []),
       "--json",
-      "databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs",
+      `databaseId,displayTitle,status,conclusion,workflowName,headBranch,createdAt,jobs${attempt !== undefined ? ",attempt,headSha" : ""}`,
     ],
     ctx,
   );
 
-  const blocks: string[] = [renderDetail("run", run, viewSchema)];
+  if (attempt !== undefined && run.attempt !== attempt) {
+    throw new AxiError(
+      `Requested attempt ${attempt} of run ${id ?? String(run.databaseId ?? "unknown")} but gh returned attempt ${String(run.attempt ?? "unknown")}`,
+      "VALIDATION_ERROR",
+    );
+  }
+
+  const blocks: string[] = [
+    renderDetail(
+      "run",
+      run,
+      attempt !== undefined
+        ? [...viewSchema, field("attempt"), field("headSha", "head_sha")]
+        : viewSchema,
+    ),
+  ];
 
   const jobsArr = run.jobs;
   const typedJobs = Array.isArray(jobsArr)
