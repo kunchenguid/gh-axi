@@ -124,9 +124,14 @@ interface LogIdentity {
 }
 
 function takeViewFlagValue(args: string[], flag: string): string | undefined {
-  const present = args.some((a) => a === flag || a.startsWith(`${flag}=`));
+  const count = args.filter(
+    (a) => a === flag || a.startsWith(`${flag}=`),
+  ).length;
+  if (count > 1) {
+    throw new AxiError(`${flag} can be given only once`, "VALIDATION_ERROR");
+  }
   const value = takeFlag(args, flag);
-  if (!present) return undefined;
+  if (count === 0) return undefined;
   if (!value || value.startsWith("--")) {
     throw new AxiError(`Missing value for ${flag}`, "VALIDATION_ERROR");
   }

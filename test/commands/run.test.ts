@@ -528,6 +528,22 @@ describe("runCommand", () => {
       expect(mockedGhJson).not.toHaveBeenCalled();
     });
 
+    it("rejects a repeated selector before choosing the run ID", async () => {
+      for (const argv of [
+        ["view", "--attempt", "1", "--attempt", "2", "100"],
+        ["view", "--attempt=1", "--attempt", "2", "100"],
+        ["view", "--job", "555", "--job", "556", "100"],
+        ["view", "--conclusion", "failure", "--conclusion", "success", "100"],
+      ]) {
+        await expect(runCommand(argv, ctx)).rejects.toMatchObject({
+          code: "VALIDATION_ERROR",
+          message: `${argv[1].split("=")[0]} can be given only once`,
+        });
+      }
+      expect(mockedGhJson).not.toHaveBeenCalled();
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it("verifies identity and names run, attempt, head sha and job in log mode", async () => {
       mockedGhJson.mockResolvedValueOnce({ run_id: 100, run_attempt: 1 });
       mockedGhJson.mockResolvedValue(attemptRun);
