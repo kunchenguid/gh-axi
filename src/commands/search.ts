@@ -40,12 +40,28 @@ const SEARCH_VALUE_FLAGS = new Set([
 
 export const SEARCH_FLAGS: Record<string, readonly string[]> = {
   issues: [
-    "--repo", "--owner", "--state", "--label", "--assignee", "--author",
-    "--sort", "--limit", "--fields",
+    "--repo",
+    "--owner",
+    "--state",
+    "--label",
+    "--assignee",
+    "--author",
+    "--sort",
+    "--limit",
+    "--fields",
   ],
   prs: [
-    "--repo", "--owner", "--state", "--label", "--assignee", "--author",
-    "--sort", "--limit", "--draft", "--review", "--fields",
+    "--repo",
+    "--owner",
+    "--state",
+    "--label",
+    "--assignee",
+    "--author",
+    "--sort",
+    "--limit",
+    "--draft",
+    "--review",
+    "--fields",
   ],
   repos: ["--repo", "--owner", "--language", "--stars", "--sort", "--limit"],
   commits: ["--repo", "--owner", "--author", "--sort", "--limit"],
@@ -123,9 +139,7 @@ const SEARCH_PR_EXTRA_FIELDS: Record<string, ExtraFieldSpec> = {
 };
 
 function withExtraJson(base: string, extraJsonKeys: string[]): string {
-  return extraJsonKeys.length > 0
-    ? base + "," + extraJsonKeys.join(",")
-    : base;
+  return extraJsonKeys.length > 0 ? base + "," + extraJsonKeys.join(",") : base;
 }
 
 const prSchema: FieldDef[] = [
@@ -442,7 +456,7 @@ async function searchCommits(
 
 const codeSchema: FieldDef[] = [
   field("path"),
-  pluck("repository", "fullName", "repo"),
+  pluck("repository", "nameWithOwner", "repo"),
   custom("matches", (item) => {
     const tm = item.textMatches;
     if (!Array.isArray(tm) || tm.length === 0) return 0;
@@ -500,7 +514,12 @@ export async function searchCommand(
 
   switch (sub) {
     case "issues":
-      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.issues, "search", "issues");
+      rejectUnknownFlags(
+        args.slice(1),
+        SEARCH_FLAGS.issues,
+        "search",
+        "issues",
+      );
       return searchIssues(args, ctx);
     case "prs":
       rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.prs, "search", "prs");
@@ -509,7 +528,12 @@ export async function searchCommand(
       rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.repos, "search", "repos");
       return searchRepos(args, ctx);
     case "commits":
-      rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.commits, "search", "commits");
+      rejectUnknownFlags(
+        args.slice(1),
+        SEARCH_FLAGS.commits,
+        "search",
+        "commits",
+      );
       return searchCommits(args, ctx);
     case "code":
       rejectUnknownFlags(args.slice(1), SEARCH_FLAGS.code, "search", "code");
