@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.47](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.46...gh-axi-v0.1.47) (2026-10-31)
+
+
+### Bug Fixes
+
+* **gh:** stop echoing raw gh output on parse failures ([#234](https://github.com/kunchenguid/gh-axi/issues/234)) ([6325e84](https://github.com/kunchenguid/gh-axi/commit/6325e84d8d19ec26fc54dbf64136b32e6c6b4d89))
+
 ## [0.1.46](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.45...gh-axi-v0.1.46) (2026-10-30)
 
 
