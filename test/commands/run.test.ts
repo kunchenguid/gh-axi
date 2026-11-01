@@ -529,6 +529,7 @@ describe("runCommand", () => {
     });
 
     it("verifies identity and names run, attempt, head sha and job in log mode", async () => {
+      mockedGhJson.mockResolvedValueOnce({ run_id: 100, run_attempt: 1 });
       mockedGhJson.mockResolvedValue(attemptRun);
       mockedGhExec.mockResolvedValue("old failure\n");
       const result = await runCommand(
@@ -563,15 +564,52 @@ describe("runCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
-    it("refuses log output when the job is not in the requested attempt", async () => {
+    it("refuses log output when the job belongs to a different attempt", async () => {
+      mockedGhJson.mockResolvedValueOnce({ run_id: 100, run_attempt: 2 });
       mockedGhJson.mockResolvedValue(attemptRun);
       await expect(
         runCommand(
           ["view", "100", "--log", "--job", "999", "--attempt", "1"],
           ctx,
         ),
-      ).rejects.toThrow("Job 999 not found in attempt 1 of run 100");
+      ).rejects.toMatchObject({
+        code: "VALIDATION_ERROR",
+        message:
+          "Job 999 belongs to attempt 2 of run 100, not attempt 1 of run 100",
+      });
+      expect(mockedGhJson.mock.calls[0][0]).toEqual([
+        "api",
+        "repos/{owner}/{repo}/actions/jobs/999",
+      ]);
       expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("refuses job detail when the job belongs to a different attempt or run", async () => {
+      mockedGhJson.mockResolvedValueOnce({ run_id: 100, run_attempt: 2 });
+      mockedGhJson.mockResolvedValue(attemptRun);
+      await expect(
+        runCommand(["view", "100", "--job", "555", "--attempt", "1"], ctx),
+      ).rejects.toThrow(/belongs to attempt 2 of run 100, not attempt 1/);
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+
+      mockedGhJson.mockReset();
+      mockedGhJson.mockResolvedValueOnce({ run_id: 200, run_attempt: 1 });
+      await expect(
+        runCommand(["view", "100", "--job", "555", "--attempt", "1"], ctx),
+      ).rejects.toThrow(
+        /belongs to attempt 1 of run 200, not attempt 1 of run 100/,
+      );
+    });
+
+    it("shows job detail when the job matches the requested attempt", async () => {
+      mockedGhJson.mockResolvedValueOnce({ run_id: 100, run_attempt: 1 });
+      mockedGhJson.mockResolvedValue(attemptRun);
+      const result = await runCommand(
+        ["view", "100", "--job", "555", "--attempt", "1"],
+        ctx,
+      );
+      expect(result).toContain("attempt: 1");
+      expect(result).toContain("build");
     });
   });
 

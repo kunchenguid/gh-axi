@@ -23,11 +23,22 @@ import { getSuggestions } from "../suggestions.js";
 
 export const RUN_FLAGS: Record<string, readonly string[]> = {
   list: [
-    "--fields", "--limit", "--workflow", "--branch", "--status",
-    "--event", "--user", "--commit",
+    "--fields",
+    "--limit",
+    "--workflow",
+    "--branch",
+    "--status",
+    "--event",
+    "--user",
+    "--commit",
   ],
   view: [
-    "--job", "--attempt", "--conclusion", "--log", "--verbose", "--log-failed",
+    "--job",
+    "--attempt",
+    "--conclusion",
+    "--log",
+    "--verbose",
+    "--log-failed",
   ],
   watch: [],
   rerun: ["--failed", "--debug", "--job"],
@@ -230,7 +241,7 @@ async function verifyAttemptIdentity(
       String(attempt),
       ...(jobFlag ? ["--job", jobFlag] : []),
       "--json",
-      "databaseId,attempt,headSha,jobs",
+      "databaseId,attempt,headSha",
     ],
     ctx,
   );
@@ -247,23 +258,35 @@ async function verifyAttemptIdentity(
       "VALIDATION_ERROR",
     );
   }
-  if (jobFlag) {
-    const jobs = Array.isArray(run.jobs)
-      ? (run.jobs as Record<string, unknown>[])
-      : [];
-    if (!jobs.some((j) => String(j.databaseId) === jobFlag)) {
-      throw new AxiError(
-        `Job ${jobFlag} not found in attempt ${attempt} of run ${runId}`,
-        "VALIDATION_ERROR",
-      );
-    }
-  }
   return {
     run: runId,
     attempt,
     ...(typeof run.headSha === "string" ? { head_sha: run.headSha } : {}),
     ...(jobFlag ? { job: jobFlag } : {}),
   };
+}
+
+/**
+ * gh selects a job by its id alone and ignores --attempt for it, so read the
+ * job's own run and attempt and refuse a job from a different attempt.
+ */
+async function verifyJobAttempt(
+  jobFlag: string,
+  id: string | undefined,
+  attempt: number,
+  ctx?: RepoContext,
+): Promise<void> {
+  const job = await ghJson<Record<string, unknown>>(
+    ["api", `repos/{owner}/{repo}/actions/jobs/${encodeURIComponent(jobFlag)}`],
+    ctx,
+  );
+  const jobRun = String(job.run_id ?? "unknown");
+  if ((id && jobRun !== id) || job.run_attempt !== attempt) {
+    throw new AxiError(
+      `Job ${jobFlag} belongs to attempt ${String(job.run_attempt ?? "unknown")} of run ${jobRun}, not attempt ${attempt} of run ${id ?? jobRun}`,
+      "VALIDATION_ERROR",
+    );
+  }
 }
 
 async function resolveLogRunId(
@@ -357,6 +380,10 @@ async function viewRun(args: string[], ctx?: RepoContext): Promise<string> {
 
   const ghSelector = ["run", "view"];
   if (id) ghSelector.push(id);
+
+  if (attempt !== undefined && jobFlag) {
+    await verifyJobAttempt(jobFlag, id, attempt, ctx);
+  }
 
   // Handle log modes
   const logMode =
