@@ -491,7 +491,7 @@ describe("searchCommand", () => {
       expect(ghArgs).not.toContain("--repo");
     });
 
-    it.each([[["is:open org:cli"]], [["--", "x -org:cli"]]])(
+    it.each([[['is:"open org:cli"']], [["--", "x -org:cli"]]])(
       "keeps the cwd repo for the positional %j",
       async (query) => {
         const ghArgs = await forwarded(["issues", ...query], gitCtx);
