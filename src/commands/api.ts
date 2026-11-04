@@ -9,8 +9,8 @@ export const API_HELP = `usage: gh-axi api [<method>] <path>
 description: Make an authenticated GitHub API request. Defaults to GET if no method specified.
 methods[6]:
   GET, POST, PUT, PATCH, DELETE, HEAD
-flags[9]:
-  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; typed: numbers, true, false and null become JSON values), --raw-field <key=value> (repeatable; always sent as a string, e.g. content=+1), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
+flags[10]:
+  -X <method> or -X=<method> (alias for the positional method; give once and do not combine with a positional method), --field <key=value> (repeatable; typed: numbers, true, false and null become JSON values), --raw-field <key=value> (repeatable; always sent as a string, e.g. content=+1), --header <key:value> (repeatable), --input <file> (raw JSON request body; use "-" for stdin), --paginate, --allow-escape-sequences (allow gh to print terminal escape sequences), --jq <expression>, --template <format>, --full (preserve complete field values and response bodies without truncation)
 examples:
   gh-axi api /repos/{owner}/{repo}
   gh-axi api POST /repos/{owner}/{repo}/issues --field title="Bug report"
@@ -40,7 +40,7 @@ const SINGLE_VALUE_FLAG_KEYS: Record<string, "jq" | "template" | "input"> = {
 };
 
 /** Flags that stand alone and must not consume the following argument, and are forwarded to gh. */
-const BOOL_FLAGS = new Set(["--paginate"]);
+const BOOL_FLAGS = new Set(["--paginate", "--allow-escape-sequences"]);
 
 /** Flags that stand alone, are gh-axi-only, and must not be forwarded to gh. */
 const LOCAL_BOOL_FLAGS = new Set(["--full"]);
@@ -68,7 +68,7 @@ interface ParsedApiArgs {
   template?: string;
   method?: string;
   input?: string;
-  paginate: boolean;
+  booleanFlags: Set<string>;
   full: boolean;
 }
 
@@ -93,7 +93,7 @@ function parseArgs(args: string[]): ParsedApiArgs {
     fields: [],
     rawFields: [],
     headers: [],
-    paginate: false,
+    booleanFlags: new Set(),
     full: false,
   };
   for (let i = 0; i < args.length; i++) {
@@ -106,7 +106,7 @@ function parseArgs(args: string[]): ParsedApiArgs {
     if (BOOL_FLAGS.has(name)) {
       if (name !== arg)
         throw new AxiError(`${name} does not take a value`, "VALIDATION_ERROR");
-      parsed.paginate = true;
+      parsed.booleanFlags.add(name);
       continue;
     }
     if (LOCAL_BOOL_FLAGS.has(name)) {
@@ -202,7 +202,7 @@ export async function apiCommand(
     template,
     method: methodFlag,
     input,
-    paginate,
+    booleanFlags,
     full,
   } = parseArgs(args);
 
@@ -266,7 +266,9 @@ export async function apiCommand(
     ghArgs.push("--input", input);
   }
 
-  if (paginate) ghArgs.push("--paginate");
+  for (const flag of BOOL_FLAGS) {
+    if (booleanFlags.has(flag)) ghArgs.push(flag);
+  }
 
   if (jq !== undefined) ghArgs.push("--jq", jq);
 
