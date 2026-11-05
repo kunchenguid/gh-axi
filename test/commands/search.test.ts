@@ -173,7 +173,14 @@ describe("searchCommand", () => {
       mockedGhJson.mockResolvedValue([prItem]);
 
       const result = await searchCommand(
-        ["prs", "x", "--owner", "octo", "--fields", "updatedAt,url,isDraft,labels"],
+        [
+          "prs",
+          "x",
+          "--owner",
+          "octo",
+          "--fields",
+          "updatedAt,url,isDraft,labels",
+        ],
         ctx,
       );
 
