@@ -4,6 +4,7 @@ import {
   copyFileSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,52 +22,72 @@ const families = ["issues", "prs", "repos", "commits", "code"];
 
 function run(type: string, query: string[], flags = ["--owner", "octo"]) {
   const dir = mkdtempSync(join(tmpdir(), "gh-axi-search-query-"));
-  const gh = join(dir, "gh");
-  const log = join(dir, "argv.jsonl");
-  copyFileSync(fixture, gh);
-  chmodSync(gh, 0o755);
-  writeFileSync(log, "");
-  const result = spawnSync(
-    process.execPath,
-    [builtBin, "search", type, ...query, ...flags],
-    {
-      cwd: dir,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        GH_BIN: gh,
-        GH_AXI_SEARCH_ARGV: log,
-        GH_REPO: "ambient/repo",
+  try {
+    const gh = join(dir, "gh");
+    const log = join(dir, "argv.jsonl");
+    copyFileSync(fixture, gh);
+    chmodSync(gh, 0o755);
+    writeFileSync(log, "");
+    const result = spawnSync(
+      process.execPath,
+      [builtBin, "search", type, ...query, ...flags],
+      {
+        cwd: dir,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GH_BIN: gh,
+          GH_AXI_SEARCH_ARGV: log,
+          GH_REPO: "ambient/repo",
+        },
       },
-    },
-  );
-  expect(result.error).toBeUndefined();
-  const calls = readFileSync(log, "utf8")
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as string[]);
-  return { ...result, calls };
+    );
+    expect(result.error).toBeUndefined();
+    const calls = readFileSync(log, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as string[]);
+    return { ...result, calls };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 describe.each(families)("compiled search %s query validation", (type) => {
   it.each([
-    "is:open author:@me",
-    "review-requested:@me\tcreated:>=2026-01-01",
-    'label:"help wanted" author:@me',
-    'label:"say \\"hello\\" author:literal" is:open',
-    "is:open\n-author:bot",
-    "bug is:open author:@me",
-    "repo:octo/repo user:octo",
-    "is:open org:cli",
-  ])("rejects combined qualifiers %j before gh", (query) => {
-    const result = run(type, [query]);
-    expect(result.status).not.toBe(0);
-    expect(result.stdout + result.stderr).toContain("VALIDATION_ERROR");
-    expect(result.stdout + result.stderr).toContain("separate arguments");
-    expect(result.stdout + result.stderr).toContain("'is:open' 'author:@me'");
-    expect(result.calls).toEqual([]);
-  });
+    ["is:open author:@me", ["issues", "prs", "commits"]],
+    ["review-requested:@me\tcreated:>=2026-01-01", ["issues", "prs"]],
+    ['label:"help wanted" author:@me', ["issues", "prs"]],
+    ['label:"say \\"hello\\" author:literal" is:open', ["issues", "prs"]],
+    ["is:open\n-author:bot", ["issues", "prs", "commits"]],
+    ["bug is:open author:@me", ["issues", "prs", "commits"]],
+    ["repo:octo/repo user:octo", families],
+    ["is:open org:cli", ["issues", "prs", "repos", "commits"]],
+    ["stars:>10 topic:cli", ["repos"]],
+    ["author-name:Alice committer-email:alice@example.com", ["commits"]],
+    ["path:src extension:ts", ["code"]],
+    ["repo:octo/repo -repo:octo/other", families],
+  ] as [string, string[]][])(
+    "validates combined terms %j for its family",
+    (query, rejectIn) => {
+      const result = run(type, [query]);
+      // Oracle: GitHub's documented qualifiers for each search family. A global
+      // colon matcher rejects the ordinary-text cases in the other families.
+      if (!rejectIn.includes(type)) {
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("count: 0");
+        expect(result.calls).toHaveLength(1);
+        expect(result.calls[0].slice(-2)).toEqual(["--", query]);
+        return;
+      }
+      expect(result.status).not.toBe(0);
+      expect(result.stdout + result.stderr).toContain("VALIDATION_ERROR");
+      expect(result.stdout + result.stderr).toContain("separate arguments");
+      expect(result.stdout + result.stderr).toContain("'is:open' 'author:@me'");
+      expect(result.calls).toEqual([]);
+    },
+  );
 
   it.each([
     ["is:open", "author:@me"],
@@ -76,6 +97,11 @@ describe.each(families)("compiled search %s query validation", (type) => {
     ['"is:open author:@me"'],
     ['label:"say \\"hello\\" author:literal"'],
     ["https://example.com/a:b https://example.com/c:d"],
+    ["mailto:alice@example.com tel:12345"],
+    ["urn:isbn:9780140328721 data:text/plain,hello"],
+    ["mailto:alice@example.com repo:octo/repo"],
+    ["repo:octo/repo tel:12345"],
+    ["C++ :: namespace::member"],
     ["error: failed at 12:30"],
     ["std::vector std::string"],
     ["std::vector author:@me"],
