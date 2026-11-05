@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.49](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.48...gh-axi-v0.1.49) (2026-11-05)
+
+
+### Bug Fixes
+
+* distinguish failed home reads from empty results ([#250](https://github.com/kunchenguid/gh-axi/issues/250)) ([b721531](https://github.com/kunchenguid/gh-axi/commit/b7215316e75c2b36a875f668ffb6d8f2aa47e8e2))
+* reject ambiguous combined search qualifiers ([#252](https://github.com/kunchenguid/gh-axi/issues/252)) ([6231608](https://github.com/kunchenguid/gh-axi/commit/62316083e8cfe67b8ddb60572910594875043eb5))
+
 ## [0.1.48](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.47...gh-axi-v0.1.48) (2026-11-01)
 
 
