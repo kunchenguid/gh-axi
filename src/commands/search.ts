@@ -208,7 +208,7 @@ function extractQuery(args: string[]): string[] {
     // Keep the actual query argument unchanged when forwarding to gh.
     const terms = query.match(/(?:[^\s"]|"(?:\\.|[^"\\])*")+/g) ?? [];
     const qualifiers = terms.filter((term) =>
-      /^-?[A-Za-z][A-Za-z0-9-]*:(?!\/\/)(?=\S)/.test(term),
+      /^-?[A-Za-z][A-Za-z0-9-]*:(?!:|\/\/)(?=\S)/.test(term),
     );
     if (qualifiers.length > 1)
       throw new AxiError(
