@@ -121,6 +121,10 @@ gh-axi update --check           # check whether a newer release exists
 gh-axi update                   # upgrade a global install
 ```
 
+The no-argument dashboard reports `0 open` only after a successful empty read.
+A failed read shows `issues: unknown (fetch failed)` or `prs: unknown (fetch failed)` and preserves the other section's successfully fetched results.
+These read failures leave the dashboard's exit status at 0 so session hooks can still use it.
+
 For multi-line issue, PR, review, or comment text, write Markdown to a UTF-8 file and pass `--body-file <path>` on the relevant command.
 For releases, `--body` and `--body-file` are aliases for release notes, alongside `--notes` and `--notes-file`.
 Any of these file flags also accepts `-` to read the Markdown from piped stdin (`cat body.md | gh-axi pr comment 42 --body-file -`); an interactive terminal or empty pipe is rejected instead of waited on.
