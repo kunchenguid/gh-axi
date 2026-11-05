@@ -47,7 +47,7 @@ export async function homeCommand(
     ghJson<Record<string, unknown>[]>(
       ["issue", "list", "--json", "number,title,state,author", "--limit", "3"],
       ctx,
-    ).catch(() => [] as Record<string, unknown>[]),
+    ).catch(() => null),
     ghJson<Record<string, unknown>[]>(
       [
         "pr",
@@ -58,7 +58,7 @@ export async function homeCommand(
         "3",
       ],
       ctx,
-    ).catch(() => [] as Record<string, unknown>[]),
+    ).catch(() => null),
   ]);
 
   const blocks: string[] = [];
@@ -68,16 +68,25 @@ export async function homeCommand(
   }
 
   blocks.push(
-    issues.length
-      ? renderList("issues", issues, issueSchema)
-      : "issues: 0 open",
+    issues === null
+      ? "issues: unknown (fetch failed)"
+      : issues.length
+        ? renderList("issues", issues, issueSchema)
+        : "issues: 0 open",
   );
-  blocks.push(prs.length ? renderList("prs", prs, prSchema) : "prs: 0 open");
+  blocks.push(
+    prs === null
+      ? "prs: unknown (fetch failed)"
+      : prs.length
+        ? renderList("prs", prs, prSchema)
+        : "prs: 0 open",
+  );
 
   const hints: string[] = [];
-  if (issues.length >= 3)
+  if (issues && issues.length >= 3)
     hints.push("Run `gh-axi issue list` for full issue list");
-  if (prs.length >= 3) hints.push("Run `gh-axi pr list` for full PR list");
+  if (prs && prs.length >= 3)
+    hints.push("Run `gh-axi pr list` for full PR list");
   const suggestions = getSuggestions({
     domain: "home",
     action: "home",
