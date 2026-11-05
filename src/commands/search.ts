@@ -38,6 +38,114 @@ const SEARCH_VALUE_FLAGS = new Set([
   "--fields",
 ]);
 
+// GitHub's search-family qualifier names, not arbitrary colon-prefixed text.
+// https://docs.github.com/en/search-github/searching-on-github
+// Issues and PRs share the issue search engine; code uses the legacy API syntax.
+const ISSUE_QUALIFIERS = new Set([
+  "archived",
+  "assignee",
+  "author",
+  "base",
+  "closed",
+  "commenter",
+  "comments",
+  "created",
+  "draft",
+  "head",
+  "in",
+  "interactions",
+  "involves",
+  "is",
+  "label",
+  "language",
+  "linked",
+  "mentions",
+  "merged",
+  "milestone",
+  "no",
+  "org",
+  "project",
+  "reactions",
+  "reason",
+  "repo",
+  "review",
+  "review-involves",
+  "review-requested",
+  "reviewed-by",
+  "sort",
+  "state",
+  "status",
+  "team",
+  "team-review-requested",
+  "team-review-requested-user",
+  "type",
+  "updated",
+  "user",
+  "user-review-requested",
+]);
+const SEARCH_QUALIFIERS: Record<string, ReadonlySet<string>> = {
+  issues: ISSUE_QUALIFIERS,
+  prs: ISSUE_QUALIFIERS,
+  repos: new Set([
+    "archived",
+    "created",
+    "deployable",
+    "deployed",
+    "followers",
+    "fork",
+    "forks",
+    "good-first-issues",
+    "has",
+    "help-wanted-issues",
+    "in",
+    "is",
+    "language",
+    "license",
+    "mirror",
+    "org",
+    "pushed",
+    "repo",
+    "size",
+    "sort",
+    "stars",
+    "template",
+    "topic",
+    "topics",
+    "user",
+  ]),
+  commits: new Set([
+    "author",
+    "author-date",
+    "author-email",
+    "author-name",
+    "committer",
+    "committer-date",
+    "committer-email",
+    "committer-name",
+    "hash",
+    "is",
+    "merge",
+    "org",
+    "parent",
+    "repo",
+    "sort",
+    "tree",
+    "user",
+  ]),
+  code: new Set([
+    "extension",
+    "filename",
+    "fork",
+    "in",
+    "language",
+    "org",
+    "path",
+    "repo",
+    "size",
+    "user",
+  ]),
+};
+
 export const SEARCH_FLAGS: Record<string, readonly string[]> = {
   issues: [
     "--repo",
@@ -71,6 +179,9 @@ export const SEARCH_FLAGS: Record<string, readonly string[]> = {
 export const SEARCH_HELP = `usage: gh-axi search <type> <query> [flags]
 types[5]:
   issues, prs, repos, commits, code
+query:
+  Pass qualifiers as separate arguments: 'is:open' 'author:@me'.
+  Keep multiword phrases and qualifier values quoted: "login bug", 'label:"help wanted"'.
 flags{common}:
   --repo, --owner, --state, --label, --assignee, --author, --sort, --limit <n> (default 1000)
 flags{issues}:
@@ -84,6 +195,7 @@ flags{code}:
 examples:
   gh-axi search issues "login bug" --repo octo/repo --state open
   gh-axi search prs "feat" --author alice --sort updated
+  gh-axi search prs 'is:open' 'author:@me' --owner octo
   gh-axi search prs "feat" --owner octo --fields updatedAt,url
   gh-axi search repos "cli tool" --language Go --stars ">50"`;
 
@@ -197,6 +309,23 @@ function extractQuery(args: string[]): string[] {
       if (args[i].trim() !== "") positionals.push(args[i]);
       i++;
     }
+  }
+  for (const query of positionals) {
+    // Tokenize only for validation. Double-quoted values may contain spaces
+    // and qualifier-looking text; escaped quotes do not end those values.
+    // Keep the actual query argument unchanged when forwarding to gh.
+    const terms = query.match(/(?:[^\s"]|"(?:\\.|[^"\\])*")+/g) ?? [];
+    const qualifiers = terms.filter((term) => {
+      const name = /^-?([^:]+):\S/.exec(term)?.[1];
+      return name !== undefined && SEARCH_QUALIFIERS[args[0]].has(name);
+    });
+    if (qualifiers.length > 1)
+      throw new AxiError(
+        "Multiple search qualifiers in one argument are ambiguous to gh. Pass qualifiers as separate arguments, for example: gh-axi search " +
+          args[0] +
+          " 'is:open' 'author:@me'. Keep multiword qualifier values quoted, for example: 'label:\"help wanted\"'.",
+        "VALIDATION_ERROR",
+      );
   }
   return positionals;
 }
