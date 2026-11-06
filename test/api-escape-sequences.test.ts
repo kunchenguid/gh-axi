@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const cli = fileURLToPath(new URL("../dist/bin/gh-axi.js", import.meta.url));
 const fixture = fileURLToPath(
@@ -23,6 +23,10 @@ describe("api escape-sequence opt-in", () => {
     argvFile = join(dir, "argv.json");
     copyFileSync(fixture, gh);
     chmodSync(gh, 0o755);
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
   });
 
   function run(args: string[]) {
