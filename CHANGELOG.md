@@ -18,6 +18,13 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.50](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.49...gh-axi-v0.1.50) (2026-11-06)
+
+
+### Bug Fixes
+
+* support api --allow-escape-sequences passthrough ([#251](https://github.com/kunchenguid/gh-axi/issues/251)) ([b25ddf2](https://github.com/kunchenguid/gh-axi/commit/b25ddf24322883a5c429d276895bbc8dc340ac61))
+
 ## [0.1.49](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.48...gh-axi-v0.1.49) (2026-11-05)
 
 
