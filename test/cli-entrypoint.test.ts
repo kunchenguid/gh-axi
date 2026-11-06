@@ -339,12 +339,8 @@ describe("CLI entrypoint", () => {
         });
 
         const [, argv, opts] = mockedExecFile.mock.calls[0];
-        expect(argv).toEqual([
-          "api",
-          "repos/{owner}/{repo}",
-          "--method",
-          "GET",
-        ]);
+        // No caller method, so no --method either: gh picks GET itself (#180).
+        expect(argv).toEqual(["api", "repos/{owner}/{repo}"]);
         expect((opts as { env?: NodeJS.ProcessEnv }).env?.["GH_REPO"]).toBe(
           "octo/other",
         );
