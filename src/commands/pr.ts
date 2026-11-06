@@ -939,7 +939,12 @@ async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
               }
             : {}),
         },
-        [field("number"), field("state"), field("already"), field("note")],
+        [
+          field("number"),
+          field("state"),
+          field("already"),
+          ...(comment ? [field("note")] : []),
+        ],
       ),
       renderHelp(
         getSuggestions({ domain: "pr", action: "close", id: num, repo: ctx }),

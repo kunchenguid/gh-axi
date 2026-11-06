@@ -1202,6 +1202,7 @@ describe("prCommand", () => {
       expect(result).toContain("closed");
       expect(result).toContain("already");
       expect(result).not.toContain("not applied");
+      expect(result).not.toContain("note:");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
