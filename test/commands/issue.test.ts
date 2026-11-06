@@ -1279,6 +1279,35 @@ describe("issueCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
+    it("says --comment was not posted when the issue is already closed", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "closed" });
+      mockedGhJson.mockResolvedValueOnce({ number: 10, state: "closed" });
+
+      const result = await issueCommand(
+        ["close", "10", "--comment", "Fixed upstream"],
+        ctx,
+      );
+
+      expect(result).toContain("Already closed");
+      expect(result).toContain("--comment not applied");
+      expect(result).toContain("issue comment");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("names every close option it did not apply on an already closed issue", async () => {
+      mockedGhJson.mockResolvedValueOnce({ state: "closed" });
+      mockedGhJson.mockResolvedValueOnce({ number: 10, state: "closed" });
+
+      const result = await issueCommand(
+        ["close", "10", "--reason", "not_planned"],
+        ctx,
+      );
+
+      expect(result).toContain("--reason not applied");
+      expect(result).not.toContain("--comment");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it('normalizes documented not_planned to gh\'s "not planned" (separated form)', async () => {
       mockedGhJson.mockResolvedValueOnce({ state: "open" });
       mockedGhExec.mockResolvedValue("");
