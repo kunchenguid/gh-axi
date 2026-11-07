@@ -18,6 +18,14 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.51](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.50...gh-axi-v0.1.51) (2026-11-07)
+
+
+### Bug Fixes
+
+* **create:** require a body for issue create and pr create with a VALIDATION_ERROR ([#256](https://github.com/kunchenguid/gh-axi/issues/256)) ([ad26055](https://github.com/kunchenguid/gh-axi/commit/ad260558373b34a56965fbf57ce15a6ee9a77a60)), closes [#239](https://github.com/kunchenguid/gh-axi/issues/239)
+* report close options not applied to an already closed issue or PR ([#255](https://github.com/kunchenguid/gh-axi/issues/255)) ([c200fbd](https://github.com/kunchenguid/gh-axi/commit/c200fbd30f7961019a5f734fab04813de2c5a4da))
+
 ## [0.1.50](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.49...gh-axi-v0.1.50) (2026-11-06)
 
 
