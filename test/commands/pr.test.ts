@@ -927,7 +927,17 @@ describe("prCommand", () => {
       mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/7\n");
 
       await prCommand(
-        ["create", "--title", "T", "--project", "Roadmap", "--project", "Q3"],
+        [
+          "create",
+          "--title",
+          "T",
+          "--body",
+          "b",
+          "--project",
+          "Roadmap",
+          "--project",
+          "Q3",
+        ],
         ctx,
       );
 
@@ -936,6 +946,8 @@ describe("prCommand", () => {
         "create",
         "--title",
         "T",
+        "--body",
+        "b",
         "--project",
         "Roadmap",
         "--project",
@@ -1110,6 +1122,27 @@ describe("prCommand", () => {
     });
   });
 
+  describe("create body validation", () => {
+    it("requires a body with a VALIDATION_ERROR before calling gh", async () => {
+      const err = await prCommand(["create", "--title", "No body"], ctx).catch(
+        (e: unknown) => e,
+      );
+
+      expect(err).toBeInstanceOf(AxiError);
+      expect((err as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((err as AxiError).message).toContain("--body");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("documents that a body is required in create help", async () => {
+      const help = await prCommand(["--help"], ctx);
+
+      expect(help).toContain(
+        "--body <text> or --body-file <path> (one required unless --attach is given)",
+      );
+    });
+  });
+
   describe("create base/head output", () => {
     it("reports the base and head the PR was created with", async () => {
       mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
@@ -1118,7 +1151,10 @@ describe("prCommand", () => {
         headRefName: "feature-x",
       });
 
-      const result = await prCommand(["create", "--title", "T"], ctx);
+      const result = await prCommand(
+        ["create", "--title", "T", "--body", "b"],
+        ctx,
+      );
 
       expect(result).toContain("number: 42");
       expect(result).toContain("base: main");
@@ -1135,7 +1171,17 @@ describe("prCommand", () => {
       mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
 
       const result = await prCommand(
-        ["create", "--title", "T", "--base", "stack-a", "--head", "stack-b"],
+        [
+          "create",
+          "--title",
+          "T",
+          "--body",
+          "b",
+          "--base",
+          "stack-a",
+          "--head",
+          "stack-b",
+        ],
         ctx,
       );
 
@@ -1148,7 +1194,10 @@ describe("prCommand", () => {
       mockedGhExec.mockResolvedValue("https://github.com/o/r/pull/42\n");
       mockedGhJson.mockRejectedValue(new Error("boom"));
 
-      const result = await prCommand(["create", "--title", "T"], ctx);
+      const result = await prCommand(
+        ["create", "--title", "T", "--body", "b"],
+        ctx,
+      );
 
       expect(result).toContain("number: 42");
       expect(result).toContain("base: null");
@@ -1164,6 +1213,8 @@ describe("prCommand", () => {
           "create",
           "--title",
           "T",
+          "--body",
+          "b",
           "--assignee",
           "octocat",
           "--assignee",
@@ -1181,6 +1232,8 @@ describe("prCommand", () => {
         "create",
         "--title",
         "T",
+        "--body",
+        "b",
         "--assignee",
         "octocat",
         "--assignee",
@@ -2442,7 +2495,7 @@ describe("prCommand", () => {
 
     it("does not pass --attach when the flag is absent", async () => {
       mockedGhExec.mockResolvedValue("https://github.com/octo/repo/pull/12\n");
-      await prCommand(["create", "--title", "T"], ctx);
+      await prCommand(["create", "--title", "T", "--body", "b"], ctx);
       const argv = mockedGhExec.mock.calls[0][0] as string[];
       expect(argv).not.toContain("--attach");
       expect(mockedGhExecWithAttachmentState).not.toHaveBeenCalled();

@@ -94,7 +94,7 @@ flags{list}:
 flags{view}:
   --comments, --full (show the complete issue body and comment bodies without truncation)
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
+  --title <text> (required), --body <text> or --body-file <path> (one required unless --attach is given), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
 flags{edit}:
   --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
 flags{close}:
@@ -623,6 +623,11 @@ async function createIssue(
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
 
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
+  // gh cannot prompt for a body without a terminal, so it rejects a bare
+  // --title with a generic error. Fail here with a structured one instead.
+  if (body === undefined && attachments.length === 0) {
+    throw new AxiError("--body or --body-file is required", "VALIDATION_ERROR");
+  }
   const assignees = getAllFlags(args, "--assignee");
   const labels = getAllFlags(args, "--label");
   const milestone = getFlag(args, "--milestone");

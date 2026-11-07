@@ -618,6 +618,27 @@ describe("issueCommand", () => {
       await expect(issueCommand(["create"], ctx)).rejects.toThrow(AxiError);
     });
 
+    it("requires a body with a VALIDATION_ERROR before calling gh", async () => {
+      const err = await issueCommand(
+        ["create", "--title", "No body"],
+        ctx,
+      ).catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(AxiError);
+      expect((err as AxiError).code).toBe("VALIDATION_ERROR");
+      expect((err as AxiError).message).toContain("--body");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("documents that a body is required in create help", async () => {
+      const help = await issueCommand(["--help"], ctx);
+
+      expect(help).toContain(
+        "--body <text> or --body-file <path> (one required unless --attach is given)",
+      );
+    });
+
     it("returns created issue", async () => {
       mockedGhExec.mockResolvedValue(
         "https://github.com/octo/repo/issues/99\n",
@@ -630,7 +651,7 @@ describe("issueCommand", () => {
       });
 
       const result = await issueCommand(
-        ["create", "--title", "New issue"],
+        ["create", "--title", "New issue", "--body", "b"],
         ctx,
       );
 
@@ -662,7 +683,7 @@ describe("issueCommand", () => {
       mockTypeMutationOnce();
 
       const result = await issueCommand(
-        ["create", "--title", "New", "--type", "Task"],
+        ["create", "--title", "New", "--body", "b", "--type", "Task"],
         ctx,
       );
 
@@ -703,7 +724,7 @@ describe("issueCommand", () => {
       mockTypeMutationOnce();
 
       const result = await issueCommand(
-        ["create", "--title", "New", "--type", "task"],
+        ["create", "--title", "New", "--body", "b", "--type", "task"],
         ctx,
       );
 
@@ -718,7 +739,10 @@ describe("issueCommand", () => {
       ]);
 
       await expect(
-        issueCommand(["create", "--title", "X", "--type", "Bogus"], ctx),
+        issueCommand(
+          ["create", "--title", "X", "--body", "b", "--type", "Bogus"],
+          ctx,
+        ),
       ).rejects.toThrow(AxiError);
 
       mockTypeQueryOnce([
@@ -728,7 +752,10 @@ describe("issueCommand", () => {
       ]);
 
       try {
-        await issueCommand(["create", "--title", "X", "--type", "Bogus"], ctx);
+        await issueCommand(
+          ["create", "--title", "X", "--body", "b", "--type", "Bogus"],
+          ctx,
+        );
       } catch (e) {
         expect((e as AxiError).code).toBe("VALIDATION_ERROR");
         expect((e as AxiError).message).toContain("Task");
@@ -762,6 +789,8 @@ describe("issueCommand", () => {
           "create",
           "--title",
           "Multi-label issue",
+          "--body",
+          "b",
           "--label",
           "enhancement",
           "--label",
@@ -792,6 +821,8 @@ describe("issueCommand", () => {
           "create",
           "--title",
           "Triple-label issue",
+          "--body",
+          "b",
           "--label",
           "bug",
           "--label",
@@ -821,7 +852,15 @@ describe("issueCommand", () => {
       });
 
       await issueCommand(
-        ["create", "--title", "Single-label issue", "--label", "bug"],
+        [
+          "create",
+          "--title",
+          "Single-label issue",
+          "--body",
+          "b",
+          "--label",
+          "bug",
+        ],
         ctx,
       );
 
@@ -863,7 +902,17 @@ describe("issueCommand", () => {
       });
 
       await issueCommand(
-        ["create", "--title", "T", "--project", "Roadmap", "--project", "Q3"],
+        [
+          "create",
+          "--title",
+          "T",
+          "--body",
+          "b",
+          "--project",
+          "Roadmap",
+          "--project",
+          "Q3",
+        ],
         ctx,
       );
 
@@ -872,6 +921,8 @@ describe("issueCommand", () => {
         "create",
         "--title",
         "T",
+        "--body",
+        "b",
         "--project",
         "Roadmap",
         "--project",
@@ -1087,6 +1138,8 @@ describe("issueCommand", () => {
           "create",
           "--title",
           "T",
+          "--body",
+          "b",
           "--assignee",
           "octocat",
           "--assignee",
@@ -1100,6 +1153,8 @@ describe("issueCommand", () => {
         "create",
         "--title",
         "T",
+        "--body",
+        "b",
         "--assignee",
         "octocat",
         "--assignee",
@@ -2013,7 +2068,10 @@ describe("issueCommand", () => {
         url: "https://github.com/octo/repo/issues/99",
       });
 
-      await issueCommand(["create", "--title", "New issue"], ctx);
+      await issueCommand(
+        ["create", "--title", "New issue", "--body", "b"],
+        ctx,
+      );
 
       const argv = mockedGhExec.mock.calls[0][0] as string[];
       expect(argv).not.toContain("--attach");
