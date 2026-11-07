@@ -928,8 +928,23 @@ async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
     return renderOutput([
       renderDetail(
         "pull_request",
-        { number: num, state: state.toLowerCase(), already: true },
-        [field("number"), field("state"), field("already")],
+        {
+          number: num,
+          state: state.toLowerCase(),
+          already: true,
+          // Nothing is sent to gh for an already-closed PR, so say a comment was dropped.
+          ...(comment
+            ? {
+                note: "--comment not applied (use `pr comment` to post the comment)",
+              }
+            : {}),
+        },
+        [
+          field("number"),
+          field("state"),
+          field("already"),
+          ...(comment ? [field("note")] : []),
+        ],
       ),
       renderHelp(
         getSuggestions({ domain: "pr", action: "close", id: num, repo: ctx }),

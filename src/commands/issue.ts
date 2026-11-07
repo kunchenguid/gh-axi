@@ -1029,8 +1029,20 @@ async function closeIssue(args: string[], ctx?: RepoContext): Promise<string> {
       ["issue", "view", String(num), "--json", "number,state"],
       ctx,
     );
+    // The issue is already closed, so none of the close options are sent to gh.
+    // Say so, instead of letting the caller assume a comment was recorded.
+    const notApplied = [
+      comment ? "--comment" : "",
+      reason ? "--reason" : "",
+      duplicateOf ? "--duplicate-of" : "",
+    ].filter(Boolean);
+    let message = "Already closed";
+    if (notApplied.length > 0) {
+      message += `; ${notApplied.join(", ")} not applied`;
+      if (comment) message += " (use `issue comment` to post the comment)";
+    }
     const blocks: string[] = [
-      renderDetail("issue", { ...item, _message: "Already closed" }, [
+      renderDetail("issue", { ...item, _message: message }, [
         ...stateResultSchema,
         field("_message", "message"),
       ]),

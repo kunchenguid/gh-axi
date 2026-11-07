@@ -1201,6 +1201,35 @@ describe("prCommand", () => {
 
       expect(result).toContain("closed");
       expect(result).toContain("already");
+      expect(result).not.toContain("not applied");
+      expect(result).not.toContain("note:");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("says --comment was not posted when the PR is already closed", async () => {
+      mockedGhJson.mockResolvedValue({ state: "CLOSED" });
+
+      const result = await prCommand(
+        ["close", "10", "--comment", "Superseded"],
+        ctx,
+      );
+
+      expect(result).toContain("already: true");
+      expect(result).toContain("--comment not applied");
+      expect(result).toContain("pr comment");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
+    it("says --comment was not posted when the PR is already merged", async () => {
+      mockedGhJson.mockResolvedValue({ state: "MERGED" });
+
+      const result = await prCommand(
+        ["close", "10", "--comment", "Superseded"],
+        ctx,
+      );
+
+      expect(result).toContain("merged");
+      expect(result).toContain("--comment not applied");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
   });
