@@ -483,7 +483,7 @@ flags{view}:
 fields{view}:
   ${[...PR_VIEW_FIELDS].join(", ")}
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
+  --title <text> (required), --body <text> or --body-file <path> (one required unless --attach is given), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --base, --head, --draft, --assignee <login> (repeatable), --reviewer <login> (repeatable), --label <name> (repeatable), --milestone, --project <name> (repeatable)
 flags{edit}:
   --title <text>, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --add-reviewer <login> (repeatable), --remove-reviewer <login> (repeatable), --milestone, --base <branch> (retarget the PR)
 flags{close}:
@@ -733,6 +733,11 @@ async function prCreate(
   const title = takeFlag(args, "--title");
   if (!title) throw new AxiError("--title is required", "VALIDATION_ERROR");
   const body = takeBody(args, ATTACH_BODY_OPTIONS);
+  // gh cannot prompt for a body without a terminal, so it rejects a bare
+  // --title with a generic error. Fail here with a structured one instead.
+  if (body === undefined && attachments.length === 0) {
+    throw new AxiError("--body or --body-file is required", "VALIDATION_ERROR");
+  }
   const base = takeFlag(args, "--base");
   const head = takeFlag(args, "--head");
   const draft = takeBoolFlag(args, "--draft");
