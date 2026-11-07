@@ -36,7 +36,7 @@ import {
   pushAttachments,
   renderAttachOutput,
 } from "../attach.js";
-import { takeBody, truncateBody } from "../body.js";
+import { takeBody, truncateBody, withBodyArgs } from "../body.js";
 import { fetchCreatedComment } from "../comment.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import { formatCountLine } from "../format.js";
@@ -640,15 +640,16 @@ async function createIssue(
     resolvedType = await resolveIssueType(typeName, ctx);
   }
 
-  const ghArgs = ["issue", "create", "--title", title];
-  if (body !== undefined || attachments.length > 0) {
-    ghArgs.push("--body", body ?? "");
-  }
-  pushAttachments(ghArgs, attachments);
-  pushRepeated(ghArgs, "--assignee", assignees);
-  pushRepeated(ghArgs, "--label", labels);
-  if (milestone) ghArgs.push("--milestone", milestone);
-  pushRepeated(ghArgs, "--project", projects);
+  const bodyToForward =
+    body !== undefined || attachments.length > 0 ? (body ?? "") : undefined;
+
+  return withBodyArgs(bodyToForward, async (bodyArgs) => {
+    const ghArgs = ["issue", "create", "--title", title, ...bodyArgs];
+    pushAttachments(ghArgs, attachments);
+    pushRepeated(ghArgs, "--assignee", assignees);
+    pushRepeated(ghArgs, "--label", labels);
+    if (milestone) ghArgs.push("--milestone", milestone);
+    pushRepeated(ghArgs, "--project", projects);
 
   // gh issue create outputs the URL; use --json to get structured data
   // Unfortunately gh issue create doesn't support --json, so we parse the URL
@@ -746,7 +747,8 @@ async function createIssue(
   });
   blocks.push(renderHelp(help));
 
-  return renderOutput(blocks);
+    return renderOutput(blocks);
+  });
 }
 
 async function editIssue(
@@ -791,15 +793,16 @@ async function editIssue(
     issueNodeId = current.id;
   }
 
-  const ghArgs = ["issue", "edit", String(num)];
-  if (title) ghArgs.push("--title", title);
-  if (body !== undefined) ghArgs.push("--body", body);
-  pushAttachments(ghArgs, attachments);
-  pushRepeated(ghArgs, "--add-label", addLabels);
-  pushRepeated(ghArgs, "--remove-label", removeLabels);
-  pushRepeated(ghArgs, "--add-assignee", addAssignees);
-  pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
-  if (milestone) ghArgs.push("--milestone", milestone);
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["issue", "edit", String(num)];
+    if (title) ghArgs.push("--title", title);
+    ghArgs.push(...bodyArgs);
+    pushAttachments(ghArgs, attachments);
+    pushRepeated(ghArgs, "--add-label", addLabels);
+    pushRepeated(ghArgs, "--remove-label", removeLabels);
+    pushRepeated(ghArgs, "--add-assignee", addAssignees);
+    pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
+    if (milestone) ghArgs.push("--milestone", milestone);
 
   // Only call `gh issue edit` if there is a non-type field to update; otherwise
   // calling with just the issue number errors out.
@@ -935,7 +938,8 @@ async function editIssue(
   });
   blocks.push(renderHelp(help));
 
-  return renderOutput(blocks);
+    return renderOutput(blocks);
+  });
 }
 
 const CLOSE_VALUE_FLAGS = ["--reason", "--comment", "--duplicate-of"] as const;
@@ -1169,9 +1173,9 @@ async function commentOnIssue(
   const num = requireNumber(getPositional(args, 1), "issue");
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
-  const ghArgs = ["issue", "comment", String(num)];
-  if (body !== undefined) ghArgs.push("--body", body);
-  pushAttachments(ghArgs, attachments);
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["issue", "comment", String(num), ...bodyArgs];
+    pushAttachments(ghArgs, attachments);
   let commentOutput: string;
   let attachmentError: AttachmentMutationError | undefined;
   try {
@@ -1225,7 +1229,8 @@ async function commentOnIssue(
   });
   blocks.push(renderHelp(help));
 
-  return renderOutput(blocks);
+    return renderOutput(blocks);
+  });
 }
 
 async function deleteIssue(args: string[], ctx?: RepoContext): Promise<string> {

@@ -1921,6 +1921,29 @@ describe("prCommand", () => {
       });
     });
 
+    it("forwards large body via temporary file to gh instead of exceeding command-line limits", async () => {
+      const largeBody = "x".repeat(35_000);
+      await withBodyFile(largeBody, async (file) => {
+        mockedGhExec.mockResolvedValue(
+          "https://github.com/octo/repo/pull/123\n",
+        );
+
+        await prCommand(
+          ["create", "--title", "Large PR", "--body-file", file],
+          ctx,
+        );
+
+        const call = mockedGhExec.mock.calls[0];
+        expect(call[0][0]).toBe("pr");
+        expect(call[0][1]).toBe("create");
+        expect(call[0][2]).toBe("--title");
+        expect(call[0][3]).toBe("Large PR");
+        expect(call[0][4]).toBe("--body-file");
+        expect(call[0][5]).toEqual(expect.any(String));
+        expect(call[0]).not.toContain("--body");
+      });
+    });
+
     it("rejects --body and --body-file together before calling gh", async () => {
       await withBodyFile(markdownBody, async (file) => {
         await expect(

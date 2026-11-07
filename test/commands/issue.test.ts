@@ -1318,6 +1318,33 @@ describe("issueCommand", () => {
         );
       });
     });
+
+    it("forwards large body via temporary file to gh instead of exceeding command-line limits", async () => {
+      const largeBody = "x".repeat(35_000);
+      await withBodyFile(largeBody, async (file) => {
+        mockedGhExec.mockResolvedValue("https://github.com/octo/repo/issues/99\n");
+        mockedGhJson.mockResolvedValue({
+          number: 99,
+          title: "Large issue",
+          state: "OPEN",
+          url: "https://github.com/octo/repo/issues/99",
+        });
+
+        await issueCommand(
+          ["create", "--title", "Large issue", "--body-file", file],
+          ctx,
+        );
+
+        const call = mockedGhExec.mock.calls[0];
+        expect(call[0][0]).toBe("issue");
+        expect(call[0][1]).toBe("create");
+        expect(call[0][2]).toBe("--title");
+        expect(call[0][3]).toBe("Large issue");
+        expect(call[0][4]).toBe("--body-file");
+        expect(call[0][5]).toEqual(expect.any(String));
+        expect(call[0]).not.toContain("--body");
+      });
+    });
   });
 
   describe("close", () => {

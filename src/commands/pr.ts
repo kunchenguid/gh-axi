@@ -12,7 +12,7 @@ import {
   AxiError,
   MutationFollowupError,
 } from "../errors.js";
-import { takeBody, truncateBody } from "../body.js";
+import { takeBody, truncateBody, withBodyArgs } from "../body.js";
 import { fetchCreatedComment } from "../comment.js";
 import {
   ATTACH_BODY_OPTIONS,
@@ -747,19 +747,20 @@ async function prCreate(
   const milestone = takeFlag(args, "--milestone");
   const projects = takeAllFlags(args, "--project");
 
-  const ghArgs = ["pr", "create", "--title", title];
-  if (body !== undefined || attachments.length > 0) {
-    ghArgs.push("--body", body ?? "");
-  }
-  pushAttachments(ghArgs, attachments);
-  if (base) ghArgs.push("--base", base);
-  if (head) ghArgs.push("--head", head);
-  if (draft) ghArgs.push("--draft");
-  pushRepeated(ghArgs, "--assignee", assignees);
-  pushRepeated(ghArgs, "--reviewer", reviewers);
-  pushRepeated(ghArgs, "--label", labels);
-  if (milestone) ghArgs.push("--milestone", milestone);
-  pushRepeated(ghArgs, "--project", projects);
+  const bodyToForward =
+    body !== undefined || attachments.length > 0 ? (body ?? "") : undefined;
+
+  return withBodyArgs(bodyToForward, async (bodyArgs) => {
+    const ghArgs = ["pr", "create", "--title", title, ...bodyArgs];
+    pushAttachments(ghArgs, attachments);
+    if (base) ghArgs.push("--base", base);
+    if (head) ghArgs.push("--head", head);
+    if (draft) ghArgs.push("--draft");
+    pushRepeated(ghArgs, "--assignee", assignees);
+    pushRepeated(ghArgs, "--reviewer", reviewers);
+    pushRepeated(ghArgs, "--label", labels);
+    if (milestone) ghArgs.push("--milestone", milestone);
+    pushRepeated(ghArgs, "--project", projects);
 
   let stdout: string;
   let attachmentError: AttachmentMutationError | undefined;
@@ -828,7 +829,8 @@ async function prCreate(
       getSuggestions({ domain: "pr", action: "create", id: num, repo: ctx }),
     ),
   );
-  return renderOutput(blocks);
+    return renderOutput(blocks);
+  });
 }
 
 async function prEdit(
@@ -856,18 +858,19 @@ async function prEdit(
     attachmentBaseline = current.body;
   }
 
-  const ghArgs = ["pr", "edit", String(num)];
-  if (title) ghArgs.push("--title", title);
-  if (body !== undefined) ghArgs.push("--body", body);
-  pushAttachments(ghArgs, attachments);
-  pushRepeated(ghArgs, "--add-label", addLabels);
-  pushRepeated(ghArgs, "--remove-label", removeLabels);
-  pushRepeated(ghArgs, "--add-assignee", addAssignees);
-  pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
-  pushRepeated(ghArgs, "--add-reviewer", addReviewers);
-  pushRepeated(ghArgs, "--remove-reviewer", removeReviewers);
-  if (milestone) ghArgs.push("--milestone", milestone);
-  if (base) ghArgs.push("--base", base);
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["pr", "edit", String(num)];
+    if (title) ghArgs.push("--title", title);
+    ghArgs.push(...bodyArgs);
+    pushAttachments(ghArgs, attachments);
+    pushRepeated(ghArgs, "--add-label", addLabels);
+    pushRepeated(ghArgs, "--remove-label", removeLabels);
+    pushRepeated(ghArgs, "--add-assignee", addAssignees);
+    pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
+    pushRepeated(ghArgs, "--add-reviewer", addReviewers);
+    pushRepeated(ghArgs, "--remove-reviewer", removeReviewers);
+    if (milestone) ghArgs.push("--milestone", milestone);
+    if (base) ghArgs.push("--base", base);
 
   let attachmentError: AttachmentMutationError | undefined;
   try {
@@ -916,7 +919,8 @@ async function prEdit(
       getSuggestions({ domain: "pr", action: "edit", id: num, repo: ctx }),
     ),
   );
-  return renderOutput(blocks);
+    return renderOutput(blocks);
+  });
 }
 
 async function prClose(args: string[], ctx?: RepoContext): Promise<string> {
@@ -1072,34 +1076,36 @@ async function prMerge(args: string[], ctx?: RepoContext): Promise<string> {
     ]);
   }
 
-  const ghArgs = ["pr", "merge", String(num)];
-  if (method) ghArgs.push("--" + method);
-  if (auto) ghArgs.push("--auto");
-  if (admin) ghArgs.push("--admin");
-  if (deleteBranch) ghArgs.push("--delete-branch");
-  if (body !== undefined) ghArgs.push("--body", body);
-  if (subject) ghArgs.push("--subject", subject);
-  if (matchHeadCommit) ghArgs.push("--match-head-commit", matchHeadCommit);
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["pr", "merge", String(num)];
+    if (method) ghArgs.push("--" + method);
+    if (auto) ghArgs.push("--auto");
+    if (admin) ghArgs.push("--admin");
+    if (deleteBranch) ghArgs.push("--delete-branch");
+    ghArgs.push(...bodyArgs);
+    if (subject) ghArgs.push("--subject", subject);
+    if (matchHeadCommit) ghArgs.push("--match-head-commit", matchHeadCommit);
 
-  await ghExec(ghArgs, ctx);
-  const status = await mergeOutcome(num, pr.id, ctx);
+    await ghExec(ghArgs, ctx);
+    const status = await mergeOutcome(num, pr.id, ctx);
 
-  return renderOutput([
-    renderDetail(
-      "merge",
-      { number: num, status, method: method ?? "default", admin },
-      [field("number"), field("status"), field("method"), boolYesNo("admin")],
-    ),
-    renderHelp(
-      getSuggestions({
-        domain: "pr",
-        action: "merge",
-        state: status,
-        id: num,
-        repo: ctx,
-      }),
-    ),
-  ]);
+    return renderOutput([
+      renderDetail(
+        "merge",
+        { number: num, status, method: method ?? "default", admin },
+        [field("number"), field("status"), field("method"), boolYesNo("admin")],
+      ),
+      renderHelp(
+        getSuggestions({
+          domain: "pr",
+          action: "merge",
+          state: status,
+          id: num,
+          repo: ctx,
+        }),
+      ),
+    ]);
+  });
 }
 
 const MERGE_OUTCOME_QUERY =
@@ -1157,38 +1163,40 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
   const commentFlag = takeBoolFlag(args, "--comment");
   const body = takeBody(args);
 
-  if (matchHeadCommit) {
-    await submitReviewOnHead(
-      num,
-      matchHeadCommit,
-      { approve, requestChanges, comment: commentFlag },
-      body,
-      ctx,
-    );
-  } else {
-    const ghArgs = ["pr", "review", String(num)];
-    if (approve) ghArgs.push("--approve");
-    else if (requestChanges) ghArgs.push("--request-changes");
-    else if (commentFlag) ghArgs.push("--comment");
-    if (body !== undefined) ghArgs.push("--body", body);
+  return withBodyArgs(body, async (bodyArgs) => {
+    if (matchHeadCommit) {
+      await submitReviewOnHead(
+        num,
+        matchHeadCommit,
+        { approve, requestChanges, comment: commentFlag },
+        body,
+        ctx,
+      );
+    } else {
+      const ghArgs = ["pr", "review", String(num)];
+      if (approve) ghArgs.push("--approve");
+      else if (requestChanges) ghArgs.push("--request-changes");
+      else if (commentFlag) ghArgs.push("--comment");
+      ghArgs.push(...bodyArgs);
 
-    await ghExec(ghArgs, ctx);
-  }
+      await ghExec(ghArgs, ctx);
+    }
 
-  const action = approve
-    ? "approved"
-    : requestChanges
-      ? "changes_requested"
-      : "commented";
-  return renderOutput([
-    renderDetail("review", { number: num, action }, [
-      field("number"),
-      field("action"),
-    ]),
-    renderHelp(
-      getSuggestions({ domain: "pr", action: "review", id: num, repo: ctx }),
-    ),
-  ]);
+    const action = approve
+      ? "approved"
+      : requestChanges
+        ? "changes_requested"
+        : "commented";
+    return renderOutput([
+      renderDetail("review", { number: num, action }, [
+        field("number"),
+        field("action"),
+      ]),
+      renderHelp(
+        getSuggestions({ domain: "pr", action: "review", id: num, repo: ctx }),
+      ),
+    ]);
+  });
 }
 
 async function submitReviewOnHead(
@@ -1515,9 +1523,9 @@ async function prComment(
   const num = takeNumber(args, "PR");
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
-  const ghArgs = ["pr", "comment", String(num)];
-  if (body !== undefined) ghArgs.push("--body", body);
-  pushAttachments(ghArgs, attachments);
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["pr", "comment", String(num), ...bodyArgs];
+    pushAttachments(ghArgs, attachments);
   let commentOutput: string;
   let attachmentError: AttachmentMutationError | undefined;
   try {
@@ -1562,7 +1570,8 @@ async function prComment(
       getSuggestions({ domain: "pr", action: "comment", id: num, repo: ctx }),
     ),
   );
-  return renderOutput(blocks);
+    return renderOutput(blocks);
+  });
 }
 
 async function prUpdateBranch(

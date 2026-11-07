@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { AxiError } from "./errors.js";
 import { isStdinTTY, readStdinSync } from "./stdin.js";
 
@@ -302,3 +304,37 @@ export function truncateBody(
     ")"
   );
 }
+
+export const LARGE_BODY_THRESHOLD = 30_000;
+
+/**
+ * Execute a callback with arguments for forwarding a body to gh.
+ *
+ * Bodies at or below `LARGE_BODY_THRESHOLD` characters stay on the command
+ * line as `["--body", body]`. Larger bodies are written to a temporary UTF-8
+ * file and forwarded as `["--body-file", path]` so that command-line length
+ * limits (32 KB on Windows, 128 KB on Linux) do not reject the spawned process.
+ * The temporary directory is removed when the callback settles.
+ */
+export async function withBodyArgs<T>(
+  body: string | undefined,
+  fn: (bodyArgs: string[]) => Promise<T>,
+): Promise<T> {
+  if (body === undefined) {
+    return fn([]);
+  }
+  if (body.length > LARGE_BODY_THRESHOLD) {
+    const dir = mkdtempSync(join(tmpdir(), "gh-axi-body-"));
+    const file = join(dir, "body.md");
+    writeFileSync(file, body, "utf-8");
+    try {
+      return await fn(["--body-file", file]);
+    } finally {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+  return fn(["--body", body]);
+}
+

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -10,7 +10,13 @@ vi.mock("../src/stdin.js", () => ({
 }));
 
 import { isStdinTTY, readStdinSync } from "../src/stdin.js";
-import { cleanBody, takeBody, truncateBody } from "../src/body.js";
+import {
+  cleanBody,
+  takeBody,
+  truncateBody,
+  withBodyArgs,
+  LARGE_BODY_THRESHOLD,
+} from "../src/body.js";
 import { AxiError } from "../src/errors.js";
 
 const mockedIsStdinTTY = vi.mocked(isStdinTTY);
@@ -337,5 +343,53 @@ describe("truncateBody", () => {
     const result = truncateBody(body, 100);
     // Exact phrasing: "(cleaned, N chars original - use --full to see original)"
     expect(result).toMatch(/\(cleaned, \d+ chars original/);
+  });
+});
+
+describe("withBodyArgs", () => {
+  it("yields empty arguments when body is undefined", async () => {
+    const received = await withBodyArgs(undefined, async (args) => args);
+    expect(received).toEqual([]);
+  });
+
+  it("yields --body when content is at or under LARGE_BODY_THRESHOLD", async () => {
+    const shortBody = "Short body text";
+    const shortResult = await withBodyArgs(shortBody, async (args) => args);
+    expect(shortResult).toEqual(["--body", shortBody]);
+
+    const thresholdBody = "x".repeat(LARGE_BODY_THRESHOLD);
+    const thresholdResult = await withBodyArgs(thresholdBody, async (args) => args);
+    expect(thresholdResult).toEqual(["--body", thresholdBody]);
+  });
+
+  it("yields --body-file with temp file when content exceeds LARGE_BODY_THRESHOLD and cleans up", async () => {
+    const largeBody = "x".repeat(LARGE_BODY_THRESHOLD + 1);
+    let capturedFile = "";
+
+    const result = await withBodyArgs(largeBody, async (args) => {
+      expect(args[0]).toBe("--body-file");
+      capturedFile = args[1];
+      expect(existsSync(capturedFile)).toBe(true);
+      expect(readFileSync(capturedFile, "utf-8")).toBe(largeBody);
+      return "done";
+    });
+
+    expect(result).toBe("done");
+    expect(existsSync(capturedFile)).toBe(false);
+  });
+
+  it("cleans up temp file even if callback throws", async () => {
+    const largeBody = "x".repeat(LARGE_BODY_THRESHOLD + 1);
+    let capturedFile = "";
+
+    await expect(
+      withBodyArgs(largeBody, async (args) => {
+        capturedFile = args[1];
+        expect(existsSync(capturedFile)).toBe(true);
+        throw new Error("callback failure");
+      }),
+    ).rejects.toThrow("callback failure");
+
+    expect(existsSync(capturedFile)).toBe(false);
   });
 });
