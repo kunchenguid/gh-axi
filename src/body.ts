@@ -326,8 +326,8 @@ export async function withBodyArgs<T>(
   if (body.length > LARGE_BODY_THRESHOLD) {
     const dir = mkdtempSync(join(tmpdir(), "gh-axi-body-"));
     const file = join(dir, "body.md");
-    writeFileSync(file, body, "utf-8");
     try {
+      writeFileSync(file, body, "utf-8");
       return await fn(["--body-file", file]);
     } finally {
       try {

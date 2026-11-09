@@ -1169,7 +1169,7 @@ async function prReview(args: string[], ctx?: RepoContext): Promise<string> {
         num,
         matchHeadCommit,
         { approve, requestChanges, comment: commentFlag },
-        body,
+        bodyArgs,
         ctx,
       );
     } else {
@@ -1203,7 +1203,7 @@ async function submitReviewOnHead(
   num: number,
   expectedHead: string,
   chosen: { approve: boolean; requestChanges: boolean; comment: boolean },
-  body: string | undefined,
+  bodyArgs: string[],
   ctx?: RepoContext,
 ): Promise<void> {
   const picked = [chosen.approve, chosen.requestChanges, chosen.comment];
@@ -1240,7 +1240,14 @@ async function submitReviewOnHead(
     "--raw-field",
     `commit_id=${pr.headRefOid}`,
   ];
-  if (body !== undefined) ghArgs.push("--raw-field", `body=${body}`);
+  const [bodyFlag, bodyValue] = bodyArgs;
+  if (bodyFlag === "--body-file") {
+    // `gh api --field body=@<file>` reads the field from the temporary file
+    // that withBodyArgs wrote, which keeps large bodies off the command line.
+    ghArgs.push("--field", `body=@${bodyValue}`);
+  } else if (bodyFlag === "--body") {
+    ghArgs.push("--raw-field", `body=${bodyValue}`);
+  }
   await ghExec(ghArgs);
 }
 

@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -1433,6 +1439,48 @@ describe("prCommand", () => {
         "--raw-field",
         `commit_id=${head}`,
       ]);
+    });
+
+    it("forwards a large body on the matched head commit through a temporary file", async () => {
+      const largeBody = "x".repeat(35_000);
+      mockedGhJson.mockResolvedValue({ headRefOid: head });
+      let bodyFile = "";
+      let bodyFileContent = "";
+      mockedGhExec.mockImplementation(async (args: string[]) => {
+        bodyFile = args[args.indexOf("--field") + 1].replace("body=@", "");
+        bodyFileContent = readFileSync(bodyFile, "utf-8");
+        return "";
+      });
+
+      await prCommand(
+        [
+          "review",
+          "10",
+          "--comment",
+          "--body",
+          largeBody,
+          "--match-head-commit",
+          head,
+        ],
+        ctx,
+      );
+
+      const ghArgs = mockedGhExec.mock.calls[0][0];
+      expect(ghArgs).toEqual([
+        "api",
+        reviewPath,
+        "--method",
+        "POST",
+        "--raw-field",
+        "event=COMMENT",
+        "--raw-field",
+        `commit_id=${head}`,
+        "--field",
+        `body=@${bodyFile}`,
+      ]);
+      expect(ghArgs.join(" ")).not.toContain(largeBody);
+      expect(bodyFileContent).toBe(largeBody);
+      expect(existsSync(bodyFile)).toBe(false);
     });
 
     it("refuses and names the present head when it differs", async () => {
