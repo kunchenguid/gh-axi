@@ -314,11 +314,13 @@ export const LARGE_BODY_THRESHOLD = 30_000;
  * line as `["--body", body]`. Larger bodies are written to a temporary UTF-8
  * file and forwarded as `["--body-file", path]` so that command-line length
  * limits (32 KB on Windows, 128 KB on Linux) do not reject the spawned process.
- * The temporary directory is removed when the callback settles.
+ * The temporary directory is removed when the callback settles. Commands whose
+ * gh flags differ (for example `--notes`/`--notes-file`) pass their own names.
  */
 export async function withBodyArgs<T>(
   body: string | undefined,
   fn: (bodyArgs: string[]) => Promise<T>,
+  [inlineFlag, fileFlag]: [string, string] = ["--body", "--body-file"],
 ): Promise<T> {
   if (body === undefined) {
     return fn([]);
@@ -328,13 +330,12 @@ export async function withBodyArgs<T>(
     const file = join(dir, "body.md");
     try {
       writeFileSync(file, body, "utf-8");
-      return await fn(["--body-file", file]);
+      return await fn([fileFlag, file]);
     } finally {
       try {
         rmSync(dir, { recursive: true, force: true });
       } catch {}
     }
   }
-  return fn(["--body", body]);
+  return fn([inlineFlag, body]);
 }
-

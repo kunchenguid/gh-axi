@@ -1969,28 +1969,54 @@ describe("prCommand", () => {
       });
     });
 
-    it("forwards large body via temporary file to gh instead of exceeding command-line limits", async () => {
-      const largeBody = "x".repeat(35_000);
-      await withBodyFile(largeBody, async (file) => {
-        mockedGhExec.mockResolvedValue(
-          "https://github.com/octo/repo/pull/123\n",
-        );
+    it.each([
+      [
+        ["create", "--title", "Large PR"],
+        ["pr", "create", "--title", "Large PR"],
+      ],
+      [
+        ["edit", "123"],
+        ["pr", "edit", "123"],
+      ],
+      [
+        ["merge", "123", "--squash"],
+        ["pr", "merge", "123", "--squash"],
+      ],
+      [
+        ["review", "123", "--comment"],
+        ["pr", "review", "123", "--comment"],
+      ],
+      [
+        ["comment", "123"],
+        ["pr", "comment", "123"],
+      ],
+    ])(
+      "forwards a 35000-character body for %j through a temporary file that holds the body and is removed",
+      async (args, prefix) => {
+        const largeBody = "x".repeat(35_000);
+        await withBodyFile(largeBody, async (file) => {
+          mockMerge();
+          let bodyFile = "";
+          let bodyFileContent = "";
+          mockedGhExec.mockImplementation(async (ghArgs: string[]) => {
+            bodyFile = ghArgs[ghArgs.indexOf("--body-file") + 1];
+            bodyFileContent = readFileSync(bodyFile, "utf-8");
+            return "https://github.com/octo/repo/pull/123\n";
+          });
 
-        await prCommand(
-          ["create", "--title", "Large PR", "--body-file", file],
-          ctx,
-        );
+          await prCommand([...args, "--body-file", file], ctx);
 
-        const call = mockedGhExec.mock.calls[0];
-        expect(call[0][0]).toBe("pr");
-        expect(call[0][1]).toBe("create");
-        expect(call[0][2]).toBe("--title");
-        expect(call[0][3]).toBe("Large PR");
-        expect(call[0][4]).toBe("--body-file");
-        expect(call[0][5]).toEqual(expect.any(String));
-        expect(call[0]).not.toContain("--body");
-      });
-    });
+          expect(mockedGhExec.mock.calls[0][0]).toEqual([
+            ...prefix,
+            "--body-file",
+            bodyFile,
+          ]);
+          expect(bodyFile).not.toBe(file);
+          expect(bodyFileContent).toBe(largeBody);
+          expect(existsSync(bodyFile)).toBe(false);
+        });
+      },
+    );
 
     it("rejects --body and --body-file together before calling gh", async () => {
       await withBodyFile(markdownBody, async (file) => {
