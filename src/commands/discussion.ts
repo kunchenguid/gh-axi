@@ -394,7 +394,8 @@ async function commentOnDiscussion(
       ctx,
     );
     const url =
-      stdout.match(/https?:\/\/\S+#discussioncomment-\d+/)?.[0] ?? stdout.trim();
+      stdout.match(/https?:\/\/\S+#discussioncomment-\d+/)?.[0] ??
+      stdout.trim();
 
     const help = getSuggestions({
       domain: "discussion",

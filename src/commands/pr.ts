@@ -762,73 +762,78 @@ async function prCreate(
     if (milestone) ghArgs.push("--milestone", milestone);
     pushRepeated(ghArgs, "--project", projects);
 
-  let stdout: string;
-  let attachmentError: AttachmentMutationError | undefined;
-  try {
-    stdout =
-      attachments.length > 0
-        ? await ghExecWithAttachmentState(ghArgs, ctx)
-        : await ghExec(ghArgs, ctx);
-  } catch (error) {
-    if (!(error instanceof AttachmentMutationError)) throw error;
-    stdout = error.stdout;
-    attachmentError = error;
-  }
-  // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
-  const urlMatch = stdout.match(/\/pull\/(\d+)/);
-  const num = urlMatch ? Number(urlMatch[1]) : undefined;
-  const url = stdout.trim().split("\n").pop()?.trim() ?? "";
-
-  // Report the merge target: omitting --base silently opens against the
-  // default branch, so surface the base (and head) the PR was created with.
-  let baseRef = base;
-  let headRef = head;
-  if (num !== undefined && (!baseRef || !headRef)) {
+    let stdout: string;
+    let attachmentError: AttachmentMutationError | undefined;
     try {
-      const refs = await ghJson<{
-        baseRefName?: string;
-        headRefName?: string;
-      }>(["pr", "view", String(num), "--json", "baseRefName,headRefName"], ctx);
-      baseRef = baseRef ?? refs.baseRefName;
-      headRef = headRef ?? refs.headRefName;
-    } catch {
-      // Best effort only - the PR was created, so never fail the command
-      // because the follow-up ref lookup did not work.
-    }
-  }
-
-  const blocks = [
-    renderDetail(
-      "created",
-      { number: num ?? url, url, base: baseRef, head: headRef },
-      [field("number"), field("url"), field("base"), field("head")],
-    ),
-  ];
-  if (attachments.length > 0 && num !== undefined) {
-    let created: { body?: string };
-    try {
-      created = await preserveAttachMutation(url, () =>
-        ghJson<{ body?: string }>(
-          ["pr", "view", String(num), "--json", "body"],
-          ctx,
-        ),
-      );
+      stdout =
+        attachments.length > 0
+          ? await ghExecWithAttachmentState(ghArgs, ctx)
+          : await ghExec(ghArgs, ctx);
     } catch (error) {
-      if (attachmentError) throw attachmentError.withFollowupError(error);
-      throw error;
+      if (!(error instanceof AttachmentMutationError)) throw error;
+      stdout = error.stdout;
+      attachmentError = error;
     }
-    if (attachmentError) {
-      throw attachmentError.withResults(newAttachmentUrls(created.body, body));
+    // Parse PR number from the emitted URL: https://<host>/OWNER/REPO/pull/123
+    const urlMatch = stdout.match(/\/pull\/(\d+)/);
+    const num = urlMatch ? Number(urlMatch[1]) : undefined;
+    const url = stdout.trim().split("\n").pop()?.trim() ?? "";
+
+    // Report the merge target: omitting --base silently opens against the
+    // default branch, so surface the base (and head) the PR was created with.
+    let baseRef = base;
+    let headRef = head;
+    if (num !== undefined && (!baseRef || !headRef)) {
+      try {
+        const refs = await ghJson<{
+          baseRefName?: string;
+          headRefName?: string;
+        }>(
+          ["pr", "view", String(num), "--json", "baseRefName,headRefName"],
+          ctx,
+        );
+        baseRef = baseRef ?? refs.baseRefName;
+        headRef = headRef ?? refs.headRefName;
+      } catch {
+        // Best effort only - the PR was created, so never fail the command
+        // because the follow-up ref lookup did not work.
+      }
     }
-    const attachOut = renderAttachOutput(attachments, created.body, body);
-    if (attachOut) blocks.push(attachOut);
-  }
-  if (attachmentError) throw attachmentError;
-  blocks.push(
-    renderHelp(
-      getSuggestions({ domain: "pr", action: "create", id: num, repo: ctx }),
-    ),
-  );
+
+    const blocks = [
+      renderDetail(
+        "created",
+        { number: num ?? url, url, base: baseRef, head: headRef },
+        [field("number"), field("url"), field("base"), field("head")],
+      ),
+    ];
+    if (attachments.length > 0 && num !== undefined) {
+      let created: { body?: string };
+      try {
+        created = await preserveAttachMutation(url, () =>
+          ghJson<{ body?: string }>(
+            ["pr", "view", String(num), "--json", "body"],
+            ctx,
+          ),
+        );
+      } catch (error) {
+        if (attachmentError) throw attachmentError.withFollowupError(error);
+        throw error;
+      }
+      if (attachmentError) {
+        throw attachmentError.withResults(
+          newAttachmentUrls(created.body, body),
+        );
+      }
+      const attachOut = renderAttachOutput(attachments, created.body, body);
+      if (attachOut) blocks.push(attachOut);
+    }
+    if (attachmentError) throw attachmentError;
+    blocks.push(
+      renderHelp(
+        getSuggestions({ domain: "pr", action: "create", id: num, repo: ctx }),
+      ),
+    );
     return renderOutput(blocks);
   });
 }
@@ -872,53 +877,53 @@ async function prEdit(
     if (milestone) ghArgs.push("--milestone", milestone);
     if (base) ghArgs.push("--base", base);
 
-  let attachmentError: AttachmentMutationError | undefined;
-  try {
-    if (attachments.length > 0) {
-      await ghExecWithAttachmentState(ghArgs, ctx);
-    } else {
-      await ghExec(ghArgs, ctx);
-    }
-  } catch (error) {
-    if (!(error instanceof AttachmentMutationError)) throw error;
-    attachmentError = error;
-  }
-  const blocks = [
-    renderDetail("edited", { number: num, status: "ok" }, [
-      field("number"),
-      field("status"),
-    ]),
-  ];
-  if (attachments.length > 0) {
-    let edited: { body?: string };
+    let attachmentError: AttachmentMutationError | undefined;
     try {
-      edited = await preserveAttachMutation(`pull request #${num}`, () =>
-        ghJson<{ body?: string }>(
-          ["pr", "view", String(num), "--json", "body"],
-          ctx,
-        ),
-      );
+      if (attachments.length > 0) {
+        await ghExecWithAttachmentState(ghArgs, ctx);
+      } else {
+        await ghExec(ghArgs, ctx);
+      }
     } catch (error) {
-      if (attachmentError) throw attachmentError.withFollowupError(error);
-      throw error;
+      if (!(error instanceof AttachmentMutationError)) throw error;
+      attachmentError = error;
     }
-    if (attachmentError) {
-      throw attachmentError.withResults(
-        newAttachmentUrls(edited.body, attachmentBaseline),
+    const blocks = [
+      renderDetail("edited", { number: num, status: "ok" }, [
+        field("number"),
+        field("status"),
+      ]),
+    ];
+    if (attachments.length > 0) {
+      let edited: { body?: string };
+      try {
+        edited = await preserveAttachMutation(`pull request #${num}`, () =>
+          ghJson<{ body?: string }>(
+            ["pr", "view", String(num), "--json", "body"],
+            ctx,
+          ),
+        );
+      } catch (error) {
+        if (attachmentError) throw attachmentError.withFollowupError(error);
+        throw error;
+      }
+      if (attachmentError) {
+        throw attachmentError.withResults(
+          newAttachmentUrls(edited.body, attachmentBaseline),
+        );
+      }
+      const attachOut = renderAttachOutput(
+        attachments,
+        edited.body,
+        attachmentBaseline,
       );
+      if (attachOut) blocks.push(attachOut);
     }
-    const attachOut = renderAttachOutput(
-      attachments,
-      edited.body,
-      attachmentBaseline,
+    blocks.push(
+      renderHelp(
+        getSuggestions({ domain: "pr", action: "edit", id: num, repo: ctx }),
+      ),
     );
-    if (attachOut) blocks.push(attachOut);
-  }
-  blocks.push(
-    renderHelp(
-      getSuggestions({ domain: "pr", action: "edit", id: num, repo: ctx }),
-    ),
-  );
     return renderOutput(blocks);
   });
 }
@@ -1533,50 +1538,50 @@ async function prComment(
   return withBodyArgs(body, async (bodyArgs) => {
     const ghArgs = ["pr", "comment", String(num), ...bodyArgs];
     pushAttachments(ghArgs, attachments);
-  let commentOutput: string;
-  let attachmentError: AttachmentMutationError | undefined;
-  try {
-    commentOutput =
-      attachments.length > 0
-        ? await ghExecWithAttachmentState(ghArgs, ctx)
-        : await ghExec(ghArgs, ctx);
-  } catch (error) {
-    if (!(error instanceof AttachmentMutationError)) throw error;
-    commentOutput = error.stdout;
-    attachmentError = error;
-  }
-
-  const blocks = [
-    renderDetail("commented", { number: num, status: "ok" }, [
-      field("number"),
-      field("status"),
-    ]),
-  ];
-  if (attachments.length > 0) {
-    let createdComment: Awaited<ReturnType<typeof fetchCreatedComment>>;
+    let commentOutput: string;
+    let attachmentError: AttachmentMutationError | undefined;
     try {
-      createdComment = await fetchCreatedComment(commentOutput, ctx);
+      commentOutput =
+        attachments.length > 0
+          ? await ghExecWithAttachmentState(ghArgs, ctx)
+          : await ghExec(ghArgs, ctx);
     } catch (error) {
-      if (attachmentError) throw attachmentError.withFollowupError(error);
-      throw error;
+      if (!(error instanceof AttachmentMutationError)) throw error;
+      commentOutput = error.stdout;
+      attachmentError = error;
     }
-    if (attachmentError) {
-      throw attachmentError.withResults(
-        newAttachmentUrls(createdComment.body, body),
+
+    const blocks = [
+      renderDetail("commented", { number: num, status: "ok" }, [
+        field("number"),
+        field("status"),
+      ]),
+    ];
+    if (attachments.length > 0) {
+      let createdComment: Awaited<ReturnType<typeof fetchCreatedComment>>;
+      try {
+        createdComment = await fetchCreatedComment(commentOutput, ctx);
+      } catch (error) {
+        if (attachmentError) throw attachmentError.withFollowupError(error);
+        throw error;
+      }
+      if (attachmentError) {
+        throw attachmentError.withResults(
+          newAttachmentUrls(createdComment.body, body),
+        );
+      }
+      const attachOut = renderAttachOutput(
+        attachments,
+        createdComment.body,
+        body,
       );
+      if (attachOut) blocks.push(attachOut);
     }
-    const attachOut = renderAttachOutput(
-      attachments,
-      createdComment.body,
-      body,
+    blocks.push(
+      renderHelp(
+        getSuggestions({ domain: "pr", action: "comment", id: num, repo: ctx }),
+      ),
     );
-    if (attachOut) blocks.push(attachOut);
-  }
-  blocks.push(
-    renderHelp(
-      getSuggestions({ domain: "pr", action: "comment", id: num, repo: ctx }),
-    ),
-  );
     return renderOutput(blocks);
   });
 }

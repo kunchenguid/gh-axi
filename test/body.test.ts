@@ -1,4 +1,10 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -358,7 +364,10 @@ describe("withBodyArgs", () => {
     expect(shortResult).toEqual(["--body", shortBody]);
 
     const thresholdBody = "x".repeat(LARGE_BODY_THRESHOLD);
-    const thresholdResult = await withBodyArgs(thresholdBody, async (args) => args);
+    const thresholdResult = await withBodyArgs(
+      thresholdBody,
+      async (args) => args,
+    );
     expect(thresholdResult).toEqual(["--body", thresholdBody]);
   });
 

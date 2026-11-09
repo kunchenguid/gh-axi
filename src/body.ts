@@ -334,7 +334,9 @@ export async function withBodyArgs<T>(
     } finally {
       try {
         rmSync(dir, { recursive: true, force: true });
-      } catch {}
+      } catch {
+        // Cleanup is best-effort; never mask the callback's result or error.
+      }
     }
   }
   return fn([inlineFlag, body]);
