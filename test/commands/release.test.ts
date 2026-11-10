@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -373,6 +379,77 @@ describe("releaseCommand", () => {
       ).rejects.toThrow("--body requires text");
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
+  });
+
+  describe("large release notes", () => {
+    const largeNotes = "x".repeat(35_000);
+
+    function captureNotesFile() {
+      const captured = { file: "", content: "" };
+      mockedGhExec.mockImplementation(async (ghArgs: string[]) => {
+        captured.file = ghArgs[ghArgs.indexOf("--notes-file") + 1];
+        captured.content = readFileSync(captured.file, "utf-8");
+        return "";
+      });
+      return captured;
+    }
+
+    it.each([
+      [
+        ["create", "v1.0.0"],
+        ["release", "create", "v1.0.0"],
+      ],
+      [
+        ["edit", "v1.0.0"],
+        ["release", "edit", "v1.0.0"],
+      ],
+    ])(
+      "forwards --body-file notes for %j through a temporary --notes-file",
+      async (args, prefix) => {
+        await withBodyFile(largeNotes, async (file) => {
+          const captured = captureNotesFile();
+
+          await releaseCommand([...args, "--body-file", file], ctx);
+
+          expect(mockedGhExec.mock.calls[0][0]).toEqual([
+            ...prefix,
+            "--notes-file",
+            captured.file,
+          ]);
+          expect(captured.file).not.toBe(file);
+          expect(captured.content).toBe(largeNotes);
+          expect(existsSync(captured.file)).toBe(false);
+        });
+      },
+    );
+
+    it.each([
+      [
+        ["create", "v1.0.0"],
+        ["release", "create", "v1.0.0"],
+      ],
+      [
+        ["edit", "v1.0.0"],
+        ["release", "edit", "v1.0.0"],
+      ],
+    ])(
+      "forwards piped --notes-file - notes for %j through a temporary --notes-file",
+      async (args, prefix) => {
+        vi.mocked(isStdinTTY).mockReturnValue(false);
+        vi.mocked(readStdinSync).mockReturnValue(largeNotes);
+        const captured = captureNotesFile();
+
+        await releaseCommand([...args, "--notes-file", "-"], ctx);
+
+        expect(mockedGhExec.mock.calls[0][0]).toEqual([
+          ...prefix,
+          "--notes-file",
+          captured.file,
+        ]);
+        expect(captured.content).toBe(largeNotes);
+        expect(existsSync(captured.file)).toBe(false);
+      },
+    );
   });
 
   describe("notes file from piped stdin", () => {

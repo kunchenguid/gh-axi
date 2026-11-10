@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -1435,6 +1441,48 @@ describe("prCommand", () => {
       ]);
     });
 
+    it("forwards a large body on the matched head commit through a temporary file", async () => {
+      const largeBody = "x".repeat(35_000);
+      mockedGhJson.mockResolvedValue({ headRefOid: head });
+      let bodyFile = "";
+      let bodyFileContent = "";
+      mockedGhExec.mockImplementation(async (args: string[]) => {
+        bodyFile = args[args.indexOf("--field") + 1].replace("body=@", "");
+        bodyFileContent = readFileSync(bodyFile, "utf-8");
+        return "";
+      });
+
+      await prCommand(
+        [
+          "review",
+          "10",
+          "--comment",
+          "--body",
+          largeBody,
+          "--match-head-commit",
+          head,
+        ],
+        ctx,
+      );
+
+      const ghArgs = mockedGhExec.mock.calls[0][0];
+      expect(ghArgs).toEqual([
+        "api",
+        reviewPath,
+        "--method",
+        "POST",
+        "--raw-field",
+        "event=COMMENT",
+        "--raw-field",
+        `commit_id=${head}`,
+        "--field",
+        `body=@${bodyFile}`,
+      ]);
+      expect(ghArgs.join(" ")).not.toContain(largeBody);
+      expect(bodyFileContent).toBe(largeBody);
+      expect(existsSync(bodyFile)).toBe(false);
+    });
+
     it("refuses and names the present head when it differs", async () => {
       const present = "fedcba9876543210fedcba9876543210fedcba98";
       mockedGhJson.mockResolvedValue({ headRefOid: present });
@@ -1920,6 +1968,55 @@ describe("prCommand", () => {
         );
       });
     });
+
+    it.each([
+      [
+        ["create", "--title", "Large PR"],
+        ["pr", "create", "--title", "Large PR"],
+      ],
+      [
+        ["edit", "123"],
+        ["pr", "edit", "123"],
+      ],
+      [
+        ["merge", "123", "--squash"],
+        ["pr", "merge", "123", "--squash"],
+      ],
+      [
+        ["review", "123", "--comment"],
+        ["pr", "review", "123", "--comment"],
+      ],
+      [
+        ["comment", "123"],
+        ["pr", "comment", "123"],
+      ],
+    ])(
+      "forwards a 35000-character body for %j through a temporary file that holds the body and is removed",
+      async (args, prefix) => {
+        const largeBody = "x".repeat(35_000);
+        await withBodyFile(largeBody, async (file) => {
+          mockMerge();
+          let bodyFile = "";
+          let bodyFileContent = "";
+          mockedGhExec.mockImplementation(async (ghArgs: string[]) => {
+            bodyFile = ghArgs[ghArgs.indexOf("--body-file") + 1];
+            bodyFileContent = readFileSync(bodyFile, "utf-8");
+            return "https://github.com/octo/repo/pull/123\n";
+          });
+
+          await prCommand([...args, "--body-file", file], ctx);
+
+          expect(mockedGhExec.mock.calls[0][0]).toEqual([
+            ...prefix,
+            "--body-file",
+            bodyFile,
+          ]);
+          expect(bodyFile).not.toBe(file);
+          expect(bodyFileContent).toBe(largeBody);
+          expect(existsSync(bodyFile)).toBe(false);
+        });
+      },
+    );
 
     it("rejects --body and --body-file together before calling gh", async () => {
       await withBodyFile(markdownBody, async (file) => {

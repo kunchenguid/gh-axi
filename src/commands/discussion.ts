@@ -11,7 +11,7 @@ import {
   takeRequiredFlag,
   rejectUnknownFlags,
 } from "../args.js";
-import { takeBody, truncateBody } from "../body.js";
+import { takeBody, truncateBody, withBodyArgs } from "../body.js";
 import { formatCountLine } from "../format.js";
 import {
   field,
@@ -388,29 +388,32 @@ async function commentOnDiscussion(
   });
   const { target, isComment } = parseTarget(getPositional(args, 1), "comment");
 
-  const stdout = await ghExec(
-    ["discussion", "comment", target, "--body", body],
-    ctx,
-  );
-  const url =
-    stdout.match(/https?:\/\/\S+#discussioncomment-\d+/)?.[0] ?? stdout.trim();
+  return withBodyArgs(body, async (bodyArgs) => {
+    const stdout = await ghExec(
+      ["discussion", "comment", target, ...bodyArgs],
+      ctx,
+    );
+    const url =
+      stdout.match(/https?:\/\/\S+#discussioncomment-\d+/)?.[0] ??
+      stdout.trim();
 
-  const help = getSuggestions({
-    domain: "discussion",
-    action: "comment",
-    id: discussionNumberOf(url) ?? discussionNumberOf(target),
-    repo: repoOfUrl(url, repoOfUrl(target, ctx)),
+    const help = getSuggestions({
+      domain: "discussion",
+      action: "comment",
+      id: discussionNumberOf(url) ?? discussionNumberOf(target),
+      repo: repoOfUrl(url, repoOfUrl(target, ctx)),
+    });
+    return renderOutput([
+      encode({
+        comment: {
+          created: isComment ? "reply" : "comment",
+          target,
+          url,
+        },
+      }),
+      renderHelp(help),
+    ]);
   });
-  return renderOutput([
-    encode({
-      comment: {
-        created: isComment ? "reply" : "comment",
-        target,
-        url,
-      },
-    }),
-    renderHelp(help),
-  ]);
 }
 
 // ---------------------------------------------------------------------------

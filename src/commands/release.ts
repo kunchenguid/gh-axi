@@ -9,7 +9,12 @@ import {
   takeFlag,
   rejectUnknownFlags,
 } from "../args.js";
-import { readBodyStdin, takeBody, truncateBody } from "../body.js";
+import {
+  readBodyStdin,
+  takeBody,
+  truncateBody,
+  withBodyArgs,
+} from "../body.js";
 import {
   field,
   boolYesNo,
@@ -179,24 +184,27 @@ function findProvidedFlags(args: string[], flags: string[]): string[] {
 
 const RELEASE_NOTES_FLAGS = ["--notes", "-n", "--notes-file", "-F"];
 
+const RELEASE_NOTES_ARG_FLAGS: [string, string] = ["--notes", "--notes-file"];
+
 // `--notes-file -` must never reach gh: the child's stdin is an unconnected
-// pipe, so gh would block forever. Read our own stdin and forward it as --notes.
-function appendNotesFileFlag(ghArgs: string[], args: string[]): void {
+// pipe, so gh would block forever. Read our own stdin and return it so the
+// caller forwards it as notes.
+function appendNotesFileFlag(
+  ghArgs: string[],
+  args: string[],
+): string | undefined {
   for (const flag of ["--notes-file", "-F"]) {
     const value = takeFlag(args, flag);
     if (value === undefined) continue;
     if (value === "-") {
-      ghArgs.push(
-        "--notes",
-        readBodyStdin(flag, [
-          'Use --notes "..." for inline release notes, or --notes-file <path> for markdown from a file',
-        ]),
-      );
-    } else {
-      ghArgs.push("--notes-file", value);
+      return readBodyStdin(flag, [
+        'Use --notes "..." for inline release notes, or --notes-file <path> for markdown from a file',
+      ]);
     }
-    return;
+    ghArgs.push("--notes-file", value);
+    return undefined;
   }
+  return undefined;
 }
 
 function takeReleaseBodyAlias(args: string[]): string | undefined {
@@ -288,11 +296,10 @@ async function createRelease(
   const optionArgs: string[] = [];
   const body = takeReleaseBodyAlias(remaining);
   assertNoReleaseNotesConflict(body, remaining, RELEASE_NOTES_FLAGS);
-  if (body !== undefined) optionArgs.push("--notes", body);
 
   appendValueFlag(optionArgs, remaining, "--title", ["--title", "-t"]);
   appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
-  appendNotesFileFlag(optionArgs, remaining);
+  const notes = appendNotesFileFlag(optionArgs, remaining) ?? body;
   appendValueFlag(optionArgs, remaining, "--target");
   appendValueFlag(optionArgs, remaining, "--discussion-category");
   appendValueFlag(optionArgs, remaining, "--notes-start-tag");
@@ -312,15 +319,22 @@ async function createRelease(
       "VALIDATION_ERROR",
     );
 
-  const ghArgs = [
-    "release",
-    "create",
-    tag,
-    ...optionArgs,
-    ...positionals.slice(1),
-  ];
-
-  await ghExec(ghArgs, ctx);
+  await withBodyArgs(
+    notes,
+    (notesArgs) =>
+      ghExec(
+        [
+          "release",
+          "create",
+          tag,
+          ...optionArgs,
+          ...notesArgs,
+          ...positionals.slice(1),
+        ],
+        ctx,
+      ),
+    RELEASE_NOTES_ARG_FLAGS,
+  );
   const suggestions = getSuggestions({
     domain: "release",
     action: "create",
@@ -339,9 +353,8 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
   assertNoReleaseNotesConflict(body, remaining, RELEASE_NOTES_FLAGS);
   const optionArgs: string[] = [];
   appendValueFlag(optionArgs, remaining, "--title");
-  if (body !== undefined) optionArgs.push("--notes", body);
   appendValueFlag(optionArgs, remaining, "--notes", ["--notes", "-n"]);
-  appendNotesFileFlag(optionArgs, remaining);
+  const notes = appendNotesFileFlag(optionArgs, remaining) ?? body;
   // gh accepts --flag=false to unset these; takeBoolFlag would drop that form
   // and the edit would silently no-op (prints the tag, changes nothing).
   appendOptionalValueBoolFlag(optionArgs, remaining, "--draft");
@@ -355,9 +368,12 @@ async function editRelease(args: string[], ctx?: RepoContext): Promise<string> {
       "VALIDATION_ERROR",
     );
 
-  const ghArgs = ["release", "edit", tag, ...optionArgs];
-
-  await ghExec(ghArgs, ctx);
+  await withBodyArgs(
+    notes,
+    (notesArgs) =>
+      ghExec(["release", "edit", tag, ...optionArgs, ...notesArgs], ctx),
+    RELEASE_NOTES_ARG_FLAGS,
+  );
   const suggestions = getSuggestions({
     domain: "release",
     action: "edit",

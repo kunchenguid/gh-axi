@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -454,6 +460,32 @@ describe("discussionCommand", () => {
         ],
         ctx,
       );
+    });
+
+    it("forwards a 35000-character body through a temporary file that holds the body and is removed", async () => {
+      const largeBody = "x".repeat(35_000);
+      let bodyFile = "";
+      let bodyFileContent = "";
+      mockedGhExec.mockImplementation(async (ghArgs: string[]) => {
+        bodyFile = ghArgs[ghArgs.indexOf("--body-file") + 1];
+        bodyFileContent = readFileSync(bodyFile, "utf-8");
+        return `${commentUrl(202)}\n`;
+      });
+
+      await discussionCommand(
+        ["comment", "DC_kwDOabc", "--body", largeBody],
+        ctx,
+      );
+
+      expect(mockedGhExec.mock.calls[0][0]).toEqual([
+        "discussion",
+        "comment",
+        "DC_kwDOabc",
+        "--body-file",
+        bodyFile,
+      ]);
+      expect(bodyFileContent).toBe(largeBody);
+      expect(existsSync(bodyFile)).toBe(false);
     });
 
     it("requires a body and never opens gh's editor", async () => {

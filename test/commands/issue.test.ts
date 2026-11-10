@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -1318,6 +1324,55 @@ describe("issueCommand", () => {
         );
       });
     });
+
+    it.each([
+      [
+        ["create", "--title", "Large issue"],
+        ["issue", "create", "--title", "Large issue"],
+      ],
+      [
+        ["edit", "99"],
+        ["issue", "edit", "99"],
+      ],
+      [
+        ["comment", "99"],
+        ["issue", "comment", "99"],
+      ],
+    ])(
+      "forwards a 35000-character body for %j through a temporary file that holds the body and is removed",
+      async (args, prefix) => {
+        const largeBody = "x".repeat(35_000);
+        await withBodyFile(largeBody, async (file) => {
+          let bodyFile = "";
+          let bodyFileContent = "";
+          mockedGhExec.mockImplementation(async (ghArgs: string[]) => {
+            bodyFile = ghArgs[ghArgs.indexOf("--body-file") + 1];
+            bodyFileContent = readFileSync(bodyFile, "utf-8");
+            return "https://github.com/octo/repo/issues/99\n";
+          });
+          mockedGhJson.mockResolvedValue({
+            number: 99,
+            title: "Large issue",
+            state: "OPEN",
+            url: "https://github.com/octo/repo/issues/99",
+            labels: [],
+            assignees: [],
+            comments: [],
+          });
+
+          await issueCommand([...args, "--body-file", file], ctx);
+
+          expect(mockedGhExec.mock.calls[0][0]).toEqual([
+            ...prefix,
+            "--body-file",
+            bodyFile,
+          ]);
+          expect(bodyFile).not.toBe(file);
+          expect(bodyFileContent).toBe(largeBody);
+          expect(existsSync(bodyFile)).toBe(false);
+        });
+      },
+    );
   });
 
   describe("close", () => {

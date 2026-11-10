@@ -36,7 +36,7 @@ import {
   pushAttachments,
   renderAttachOutput,
 } from "../attach.js";
-import { takeBody, truncateBody } from "../body.js";
+import { takeBody, truncateBody, withBodyArgs } from "../body.js";
 import { fetchCreatedComment } from "../comment.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
 import { formatCountLine } from "../format.js";
@@ -640,113 +640,115 @@ async function createIssue(
     resolvedType = await resolveIssueType(typeName, ctx);
   }
 
-  const ghArgs = ["issue", "create", "--title", title];
-  if (body !== undefined || attachments.length > 0) {
-    ghArgs.push("--body", body ?? "");
-  }
-  pushAttachments(ghArgs, attachments);
-  pushRepeated(ghArgs, "--assignee", assignees);
-  pushRepeated(ghArgs, "--label", labels);
-  if (milestone) ghArgs.push("--milestone", milestone);
-  pushRepeated(ghArgs, "--project", projects);
+  const bodyToForward =
+    body !== undefined || attachments.length > 0 ? (body ?? "") : undefined;
 
-  // gh issue create outputs the URL; use --json to get structured data
-  // Unfortunately gh issue create doesn't support --json, so we parse the URL
-  let output: string;
-  let attachmentError: AttachmentMutationError | undefined;
-  try {
-    output =
+  return withBodyArgs(bodyToForward, async (bodyArgs) => {
+    const ghArgs = ["issue", "create", "--title", title, ...bodyArgs];
+    pushAttachments(ghArgs, attachments);
+    pushRepeated(ghArgs, "--assignee", assignees);
+    pushRepeated(ghArgs, "--label", labels);
+    if (milestone) ghArgs.push("--milestone", milestone);
+    pushRepeated(ghArgs, "--project", projects);
+
+    // gh issue create outputs the URL; use --json to get structured data
+    // Unfortunately gh issue create doesn't support --json, so we parse the URL
+    let output: string;
+    let attachmentError: AttachmentMutationError | undefined;
+    try {
+      output =
+        attachments.length > 0
+          ? await ghExecWithAttachmentState(ghArgs, ctx)
+          : await ghExec(ghArgs, ctx);
+    } catch (error) {
+      if (!(error instanceof AttachmentMutationError)) throw error;
+      output = error.stdout;
+      attachmentError = error;
+    }
+    const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/);
+    const url = urlMatch ? urlMatch[0] : output.trim();
+    const numMatch = url.match(/\/issues\/(\d+)/);
+    const num = numMatch ? parseInt(numMatch[1], 10) : 0;
+
+    // Fetch the created issue for structured output; include id for type mutation
+    const createJsonFields =
       attachments.length > 0
-        ? await ghExecWithAttachmentState(ghArgs, ctx)
-        : await ghExec(ghArgs, ctx);
-  } catch (error) {
-    if (!(error instanceof AttachmentMutationError)) throw error;
-    output = error.stdout;
-    attachmentError = error;
-  }
-  const urlMatch = output.match(/https:\/\/github\.com\/[^\s]+/);
-  const url = urlMatch ? urlMatch[0] : output.trim();
-  const numMatch = url.match(/\/issues\/(\d+)/);
-  const num = numMatch ? parseInt(numMatch[1], 10) : 0;
-
-  // Fetch the created issue for structured output; include id for type mutation
-  const createJsonFields =
-    attachments.length > 0
-      ? "number,title,state,url,id,body"
-      : "number,title,state,url,id";
-  let item: Record<string, unknown>;
-  try {
-    item = await ghJson<Record<string, unknown>>(
-      ["issue", "view", String(num), "--json", createJsonFields],
-      ctx,
-    );
-  } catch (error) {
-    if (attachmentError && resolvedType) {
-      throw issueEditOperationsError(
-        attachmentError,
-        error,
-        `set to ${resolvedType.name}`,
+        ? "number,title,state,url,id,body"
+        : "number,title,state,url,id";
+    let item: Record<string, unknown>;
+    try {
+      item = await ghJson<Record<string, unknown>>(
+        ["issue", "view", String(num), "--json", createJsonFields],
+        ctx,
       );
-    }
-    if (attachmentError) throw attachmentError.withFollowupError(error);
-    if (attachments.length > 0) {
-      throw MutationFollowupError.from(url, error);
-    }
-    throw error;
-  }
-
-  let typeFailure: unknown;
-  if (resolvedType) {
-    const issueNodeId = item.id;
-    if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
-      if (attachments.length > 0) {
-        try {
-          await applyIssueType(issueNodeId, resolvedType.id);
-        } catch (error) {
-          typeFailure = error;
-        }
-      } else {
-        await applyIssueType(issueNodeId, resolvedType.id);
+    } catch (error) {
+      if (attachmentError && resolvedType) {
+        throw issueEditOperationsError(
+          attachmentError,
+          error,
+          `set to ${resolvedType.name}`,
+        );
       }
+      if (attachmentError) throw attachmentError.withFollowupError(error);
+      if (attachments.length > 0) {
+        throw MutationFollowupError.from(url, error);
+      }
+      throw error;
     }
-    item.issueType = { name: resolvedType.name };
-  }
 
-  if (attachmentError || typeFailure) {
-    const assetUrls = newAttachmentUrls(
+    let typeFailure: unknown;
+    if (resolvedType) {
+      const issueNodeId = item.id;
+      if (typeof issueNodeId === "string" && issueNodeId.length > 0) {
+        if (attachments.length > 0) {
+          try {
+            await applyIssueType(issueNodeId, resolvedType.id);
+          } catch (error) {
+            typeFailure = error;
+          }
+        } else {
+          await applyIssueType(issueNodeId, resolvedType.id);
+        }
+      }
+      item.issueType = { name: resolvedType.name };
+    }
+
+    if (attachmentError || typeFailure) {
+      const assetUrls = newAttachmentUrls(
+        typeof item.body === "string" ? item.body : undefined,
+        body,
+      );
+      if (resolvedType) {
+        throw issueEditOperationsError(
+          attachmentError,
+          typeFailure,
+          `set to ${resolvedType.name}`,
+          assetUrls,
+        );
+      }
+      throw attachmentError!.withResults(assetUrls);
+    }
+
+    const schema = resolvedType
+      ? [...createResultSchema, issueTypeField]
+      : createResultSchema;
+    const blocks: string[] = [renderDetail("issue", item, schema)];
+    const attachOut = renderAttachOutput(
+      attachments,
       typeof item.body === "string" ? item.body : undefined,
       body,
     );
-    if (resolvedType) {
-      throw issueEditOperationsError(
-        attachmentError,
-        typeFailure,
-        `set to ${resolvedType.name}`,
-        assetUrls,
-      );
-    }
-    throw attachmentError!.withResults(assetUrls);
-  }
+    if (attachOut) blocks.push(attachOut);
+    const help = getSuggestions({
+      domain: "issue",
+      action: "create",
+      id: num,
+      repo: ctx,
+    });
+    blocks.push(renderHelp(help));
 
-  const schema = resolvedType
-    ? [...createResultSchema, issueTypeField]
-    : createResultSchema;
-  const blocks: string[] = [renderDetail("issue", item, schema)];
-  const attachOut = renderAttachOutput(
-    attachments,
-    typeof item.body === "string" ? item.body : undefined,
-    body,
-  );
-  if (attachOut) blocks.push(attachOut);
-  const help = getSuggestions({
-    domain: "issue",
-    action: "create",
-    id: num,
-    repo: ctx,
+    return renderOutput(blocks);
   });
-  blocks.push(renderHelp(help));
-
-  return renderOutput(blocks);
 }
 
 async function editIssue(
@@ -791,151 +793,156 @@ async function editIssue(
     issueNodeId = current.id;
   }
 
-  const ghArgs = ["issue", "edit", String(num)];
-  if (title) ghArgs.push("--title", title);
-  if (body !== undefined) ghArgs.push("--body", body);
-  pushAttachments(ghArgs, attachments);
-  pushRepeated(ghArgs, "--add-label", addLabels);
-  pushRepeated(ghArgs, "--remove-label", removeLabels);
-  pushRepeated(ghArgs, "--add-assignee", addAssignees);
-  pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
-  if (milestone) ghArgs.push("--milestone", milestone);
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["issue", "edit", String(num)];
+    if (title) ghArgs.push("--title", title);
+    ghArgs.push(...bodyArgs);
+    pushAttachments(ghArgs, attachments);
+    pushRepeated(ghArgs, "--add-label", addLabels);
+    pushRepeated(ghArgs, "--remove-label", removeLabels);
+    pushRepeated(ghArgs, "--add-assignee", addAssignees);
+    pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
+    if (milestone) ghArgs.push("--milestone", milestone);
 
-  // Only call `gh issue edit` if there is a non-type field to update; otherwise
-  // calling with just the issue number errors out.
-  let attachmentError: AttachmentMutationError | undefined;
-  let attachFailure: unknown;
-  if (ghArgs.length > 3) {
+    // Only call `gh issue edit` if there is a non-type field to update; otherwise
+    // calling with just the issue number errors out.
+    let attachmentError: AttachmentMutationError | undefined;
+    let attachFailure: unknown;
+    if (ghArgs.length > 3) {
+      try {
+        if (attachments.length > 0) {
+          await ghExecWithAttachmentState(ghArgs, ctx);
+        } else {
+          await ghExec(ghArgs, ctx);
+        }
+      } catch (error) {
+        if (error instanceof AttachmentMutationError) {
+          attachFailure = error;
+          attachmentError = error;
+        } else if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
+          attachFailure = error;
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    let typeFailure: unknown;
+    if (
+      attachments.length > 0 &&
+      (resolvedType || clearTypeFlag) &&
+      issueNodeId
+    ) {
+      try {
+        await applyIssueType(
+          issueNodeId,
+          resolvedType ? resolvedType.id : null,
+        );
+      } catch (error) {
+        typeFailure = error;
+      }
+    }
+
+    if (attachmentError && (resolvedType || clearTypeFlag)) {
+      const typeResult = typeFailure
+        ? `failed (${typeFailure instanceof Error ? typeFailure.message : String(typeFailure)})`
+        : `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`;
+      attachmentError = attachmentError.withResults([], {
+        attachment_operation: "failed",
+        issue_type_edit: typeResult,
+      });
+    }
+
+    // Fetch updated issue (include id for type mutation)
+    const editJsonFields =
+      attachments.length > 0
+        ? "number,title,state,labels,assignees,id,body"
+        : "number,title,state,labels,assignees,id";
+    let item: Record<string, unknown>;
     try {
+      item = await ghJson<Record<string, unknown>>(
+        ["issue", "view", String(num), "--json", editJsonFields],
+        ctx,
+      );
+    } catch (error) {
+      if (resolvedType || clearTypeFlag) {
+        throw issueEditOperationsError(
+          attachFailure,
+          typeFailure,
+          resolvedType ? `set to ${resolvedType.name}` : "cleared",
+          [],
+          error,
+        );
+      }
+      if (attachmentError) throw attachmentError.withFollowupError(error);
       if (attachments.length > 0) {
-        await ghExecWithAttachmentState(ghArgs, ctx);
-      } else {
-        await ghExec(ghArgs, ctx);
+        throw MutationFollowupError.from(`issue #${num}`, error);
       }
-    } catch (error) {
-      if (error instanceof AttachmentMutationError) {
-        attachFailure = error;
-        attachmentError = error;
-      } else if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
-        attachFailure = error;
-      } else {
-        throw error;
-      }
+      throw error;
     }
-  }
 
-  let typeFailure: unknown;
-  if (
-    attachments.length > 0 &&
-    (resolvedType || clearTypeFlag) &&
-    issueNodeId
-  ) {
-    try {
-      await applyIssueType(issueNodeId, resolvedType ? resolvedType.id : null);
-    } catch (error) {
-      typeFailure = error;
-    }
-  }
-
-  if (attachmentError && (resolvedType || clearTypeFlag)) {
-    const typeResult = typeFailure
-      ? `failed (${typeFailure instanceof Error ? typeFailure.message : String(typeFailure)})`
-      : `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`;
-    attachmentError = attachmentError.withResults([], {
-      attachment_operation: "failed",
-      issue_type_edit: typeResult,
-    });
-  }
-
-  // Fetch updated issue (include id for type mutation)
-  const editJsonFields =
-    attachments.length > 0
-      ? "number,title,state,labels,assignees,id,body"
-      : "number,title,state,labels,assignees,id";
-  let item: Record<string, unknown>;
-  try {
-    item = await ghJson<Record<string, unknown>>(
-      ["issue", "view", String(num), "--json", editJsonFields],
-      ctx,
-    );
-  } catch (error) {
     if (resolvedType || clearTypeFlag) {
+      if (attachments.length === 0) {
+        const postEditNodeId = item.id;
+        if (typeof postEditNodeId === "string" && postEditNodeId.length > 0) {
+          await applyIssueType(
+            postEditNodeId,
+            resolvedType ? resolvedType.id : null,
+          );
+        }
+      }
+      item.issueType = resolvedType ? { name: resolvedType.name } : null;
+    }
+
+    if (attachFailure || typeFailure) {
+      const assetUrls = newAttachmentUrls(
+        typeof item.body === "string" ? item.body : undefined,
+        attachmentBaseline,
+      );
+      if (!resolvedType && !clearTypeFlag && attachmentError) {
+        throw attachmentError.withResults(assetUrls);
+      }
       throw issueEditOperationsError(
         attachFailure,
         typeFailure,
         resolvedType ? `set to ${resolvedType.name}` : "cleared",
-        [],
-        error,
+        assetUrls,
       );
     }
-    if (attachmentError) throw attachmentError.withFollowupError(error);
-    if (attachments.length > 0) {
-      throw MutationFollowupError.from(`issue #${num}`, error);
-    }
-    throw error;
-  }
 
-  if (resolvedType || clearTypeFlag) {
-    if (attachments.length === 0) {
-      const postEditNodeId = item.id;
-      if (typeof postEditNodeId === "string" && postEditNodeId.length > 0) {
-        await applyIssueType(
-          postEditNodeId,
-          resolvedType ? resolvedType.id : null,
-        );
-      }
+    const schema =
+      resolvedType || clearTypeFlag
+        ? [...editResultSchema, issueTypeField]
+        : editResultSchema;
+    const blocks: string[] = [renderDetail("issue", item, schema)];
+    if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
+      blocks.push(
+        renderDetail(
+          "operations",
+          {
+            attachment_operation: "succeeded",
+            issue_type_edit: `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`,
+          },
+          [field("attachment_operation"), field("issue_type_edit")],
+        ),
+      );
     }
-    item.issueType = resolvedType ? { name: resolvedType.name } : null;
-  }
-
-  if (attachFailure || typeFailure) {
-    const assetUrls = newAttachmentUrls(
+    const attachOut = renderAttachOutput(
+      attachments,
       typeof item.body === "string" ? item.body : undefined,
       attachmentBaseline,
     );
-    if (!resolvedType && !clearTypeFlag && attachmentError) {
-      throw attachmentError.withResults(assetUrls);
-    }
-    throw issueEditOperationsError(
-      attachFailure,
-      typeFailure,
-      resolvedType ? `set to ${resolvedType.name}` : "cleared",
-      assetUrls,
-    );
-  }
+    if (attachOut) blocks.push(attachOut);
+    const help = getSuggestions({
+      domain: "issue",
+      action: "edit",
+      id: num,
+      repo: ctx,
+    });
+    blocks.push(renderHelp(help));
 
-  const schema =
-    resolvedType || clearTypeFlag
-      ? [...editResultSchema, issueTypeField]
-      : editResultSchema;
-  const blocks: string[] = [renderDetail("issue", item, schema)];
-  if (attachments.length > 0 && (resolvedType || clearTypeFlag)) {
-    blocks.push(
-      renderDetail(
-        "operations",
-        {
-          attachment_operation: "succeeded",
-          issue_type_edit: `succeeded (${resolvedType ? `set to ${resolvedType.name}` : "cleared"})`,
-        },
-        [field("attachment_operation"), field("issue_type_edit")],
-      ),
-    );
-  }
-  const attachOut = renderAttachOutput(
-    attachments,
-    typeof item.body === "string" ? item.body : undefined,
-    attachmentBaseline,
-  );
-  if (attachOut) blocks.push(attachOut);
-  const help = getSuggestions({
-    domain: "issue",
-    action: "edit",
-    id: num,
-    repo: ctx,
+    return renderOutput(blocks);
   });
-  blocks.push(renderHelp(help));
-
-  return renderOutput(blocks);
 }
 
 const CLOSE_VALUE_FLAGS = ["--reason", "--comment", "--duplicate-of"] as const;
@@ -1169,63 +1176,66 @@ async function commentOnIssue(
   const num = requireNumber(getPositional(args, 1), "issue");
   const body = takeBody(args, attachBodyOptions(attachments.length === 0));
 
-  const ghArgs = ["issue", "comment", String(num)];
-  if (body !== undefined) ghArgs.push("--body", body);
-  pushAttachments(ghArgs, attachments);
-  let commentOutput: string;
-  let attachmentError: AttachmentMutationError | undefined;
-  try {
-    commentOutput =
-      attachments.length > 0
-        ? await ghExecWithAttachmentState(ghArgs, ctx)
-        : await ghExec(ghArgs, ctx);
-  } catch (error) {
-    if (!(error instanceof AttachmentMutationError)) throw error;
-    commentOutput = error.stdout;
-    attachmentError = error;
-  }
-
-  let createdComment: IssueComment | undefined;
-  if (attachments.length > 0) {
+  return withBodyArgs(body, async (bodyArgs) => {
+    const ghArgs = ["issue", "comment", String(num), ...bodyArgs];
+    pushAttachments(ghArgs, attachments);
+    let commentOutput: string;
+    let attachmentError: AttachmentMutationError | undefined;
     try {
-      createdComment = await fetchCreatedComment(commentOutput, ctx);
+      commentOutput =
+        attachments.length > 0
+          ? await ghExecWithAttachmentState(ghArgs, ctx)
+          : await ghExec(ghArgs, ctx);
     } catch (error) {
-      if (attachmentError) throw attachmentError.withFollowupError(error);
-      throw error;
+      if (!(error instanceof AttachmentMutationError)) throw error;
+      commentOutput = error.stdout;
+      attachmentError = error;
     }
-  } else {
-    const issue = await ghJson<{ comments: IssueComment[] }>(
-      ["issue", "view", String(num), "--json", "comments"],
-      ctx,
-    );
-    createdComment = issue.comments[issue.comments.length - 1];
-  }
-  if (attachmentError) {
-    throw attachmentError.withResults(
-      newAttachmentUrls(createdComment?.body, body),
-    );
-  }
 
-  const commentItem = { ...createdComment, number: num };
+    let createdComment: IssueComment | undefined;
+    if (attachments.length > 0) {
+      try {
+        createdComment = await fetchCreatedComment(commentOutput, ctx);
+      } catch (error) {
+        if (attachmentError) throw attachmentError.withFollowupError(error);
+        throw error;
+      }
+    } else {
+      const issue = await ghJson<{ comments: IssueComment[] }>(
+        ["issue", "view", String(num), "--json", "comments"],
+        ctx,
+      );
+      createdComment = issue.comments[issue.comments.length - 1];
+    }
+    if (attachmentError) {
+      throw attachmentError.withResults(
+        newAttachmentUrls(createdComment?.body, body),
+      );
+    }
 
-  const blocks: string[] = [
-    renderDetail("comment", commentItem, commentResultSchema),
-  ];
-  const attachOut = renderAttachOutput(
-    attachments,
-    typeof createdComment?.body === "string" ? createdComment.body : undefined,
-    body,
-  );
-  if (attachOut) blocks.push(attachOut);
-  const help = getSuggestions({
-    domain: "issue",
-    action: "comment",
-    id: num,
-    repo: ctx,
+    const commentItem = { ...createdComment, number: num };
+
+    const blocks: string[] = [
+      renderDetail("comment", commentItem, commentResultSchema),
+    ];
+    const attachOut = renderAttachOutput(
+      attachments,
+      typeof createdComment?.body === "string"
+        ? createdComment.body
+        : undefined,
+      body,
+    );
+    if (attachOut) blocks.push(attachOut);
+    const help = getSuggestions({
+      domain: "issue",
+      action: "comment",
+      id: num,
+      repo: ctx,
+    });
+    blocks.push(renderHelp(help));
+
+    return renderOutput(blocks);
   });
-  blocks.push(renderHelp(help));
-
-  return renderOutput(blocks);
 }
 
 async function deleteIssue(args: string[], ctx?: RepoContext): Promise<string> {
