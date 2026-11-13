@@ -1850,6 +1850,19 @@ describe("issueCommand", () => {
       });
     });
 
+    it("returns a selected body longer than the default truncation limit in full", async () => {
+      const body = "line of issue body text\n".repeat(60);
+      expect(body.length).toBeGreaterThan(500);
+      mockedGhJson.mockResolvedValue({ body });
+
+      const result = await issueCommand(
+        ["view", "42", "--fields", "body"],
+        ctx,
+      );
+
+      expect(decode(result)).toEqual({ issue: { body } });
+    });
+
     it.each([
       [["--fields=notAField"]],
       [["--fields=title,"]],
