@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { decode } from "@toon-format/toon";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 vi.mock("../../src/gh.js", () => ({
@@ -1818,6 +1819,53 @@ describe("issueCommand", () => {
           process.env.GH_HOST = originalHost;
         }
       }
+    });
+  });
+
+  describe("view --fields", () => {
+    it("selects blockedBy and blocking as TOON with complete values", async () => {
+      mockedGhJson.mockResolvedValue({
+        blockedBy: [{ number: 7, title: "Upstream fix", state: "OPEN" }],
+        blocking: [],
+      });
+
+      const result = await issueCommand(
+        ["view", "42", "--fields", " blockedBy,blocking,blockedBy "],
+        ctx,
+      );
+
+      expect(mockedGhJson).toHaveBeenCalledTimes(1);
+      expect(mockedGhJson.mock.calls[0][0]).toEqual([
+        "issue",
+        "view",
+        "42",
+        "--json",
+        "blockedBy,blocking",
+      ]);
+      expect(decode(result)).toEqual({
+        issue: {
+          blockedBy: [{ number: 7, title: "Upstream fix", state: "OPEN" }],
+          blocking: [],
+        },
+      });
+    });
+
+    it.each([
+      [["--fields=notAField"]],
+      [["--fields=title,"]],
+      [["--fields=title", "--fields=number"]],
+      [["--fields=title", "--comments"]],
+      [["--fields=title", "--full"]],
+    ])("refuses %j locally", async (flags) => {
+      await expect(
+        issueCommand(["view", "42", ...flags], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("lists the selectable fields in help", async () => {
+      expect(ISSUE_HELP).toContain("--fields <a,b,c>");
+      expect(ISSUE_HELP).toMatch(/fields\{view\}:\n.*blockedBy, blocking/);
     });
   });
 

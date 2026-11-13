@@ -1,3 +1,4 @@
+import { encode } from "@toon-format/toon";
 import type { RepoContext } from "../context.js";
 import { resolveHost } from "../host.js";
 import {
@@ -25,6 +26,7 @@ import {
   requireNumber,
   takeFlag,
   takeBoolFlag,
+  takeSingleRequiredFlag,
   rejectUnknownFlags,
 } from "../args.js";
 import {
@@ -86,13 +88,26 @@ interface IssueComment {
 // Help
 // ---------------------------------------------------------------------------
 
+// gh issue view --json fields. Kept apart from the default view schema so
+// opt-in fields retain their original names and nested metadata.
+const ISSUE_VIEW_FIELDS = new Set(
+  (
+    "assignees,author,blockedBy,blocking,body,closed,closedAt," +
+    "closedByPullRequestsReferences,comments,createdAt,id,isPinned,issueType," +
+    "labels,milestone,number,parent,projectCards,projectItems,reactionGroups," +
+    "state,stateReason,subIssues,subIssuesSummary,title,updatedAt,url"
+  ).split(","),
+);
+
 export const ISSUE_HELP = `usage: gh-axi issue <subcommand> [flags]
 subcommands[14]:
   list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>, subissue <add|remove|list>
 flags{list}:
   --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --full (show the complete issue body and comment bodies without truncation)
+  --comments, --full (show the complete issue body and comment bodies without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments or --full)
+fields{view}:
+  ${[...ISSUE_VIEW_FIELDS].join(", ")}
 flags{create}:
   --title <text> (required), --body <text> or --body-file <path> (one required unless --attach is given), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
 flags{edit}:
@@ -108,6 +123,7 @@ subissue:
 examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
+  gh-axi issue view 42 --fields blockedBy,blocking
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
   gh-axi issue create --title "UI bug" --attach './repro.png#Login error'
   gh-axi issue comment 42 --body-file comment.md
@@ -145,7 +161,7 @@ export const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--full"],
+  view: ["--comments", "--full", "--fields"],
   create: [
     "--title",
     "--body",
@@ -389,9 +405,20 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
+  const fieldsArg = takeSingleRequiredFlag(args, "--fields");
   const num = requireNumber(getPositional(args, 1), "issue");
   const withComments = hasFlag(args, "--comments");
   const full = hasFlag(args, "--full");
+
+  if (fieldsArg !== undefined) {
+    if (withComments || full) {
+      throw new AxiError(
+        "--fields cannot combine with --comments or --full",
+        "VALIDATION_ERROR",
+      );
+    }
+    return viewIssueFields(num, fieldsArg, ctx);
+  }
 
   const baseFields =
     "number,title,state,author,createdAt,body" +
@@ -467,6 +494,32 @@ async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   }
 
   return renderOutput(blocks);
+}
+
+async function viewIssueFields(
+  num: number,
+  fieldsArg: string,
+  ctx?: RepoContext,
+): Promise<string> {
+  const fields = [...new Set(fieldsArg.split(",").map((name) => name.trim()))];
+  if (fields.some((name) => name === "")) {
+    throw new AxiError(
+      "--fields requires nonblank comma-separated field names",
+      "VALIDATION_ERROR",
+    );
+  }
+  const unknown = fields.filter((name) => !ISSUE_VIEW_FIELDS.has(name));
+  if (unknown.length > 0) {
+    throw new AxiError(
+      `Unknown field(s): ${unknown.join(", ")}. Available: ${[...ISSUE_VIEW_FIELDS].join(", ")}`,
+      "VALIDATION_ERROR",
+    );
+  }
+  const issue = await ghJson<Record<string, unknown>>(
+    ["issue", "view", String(num), "--json", fields.join(",")],
+    ctx,
+  );
+  return encode({ issue });
 }
 
 interface ResolvedIssueType {
