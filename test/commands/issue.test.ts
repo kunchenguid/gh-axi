@@ -780,6 +780,60 @@ describe("issueCommand", () => {
       expect(mockedGhExec).not.toHaveBeenCalled();
     });
 
+    it("forwards --blocked-by and --blocking to gh issue create", async () => {
+      mockedGhExec.mockResolvedValue(
+        "https://github.com/octo/repo/issues/99\n",
+      );
+      mockedGhJson.mockResolvedValue({
+        number: 99,
+        title: "Blocked issue",
+        state: "OPEN",
+        url: "https://github.com/octo/repo/issues/99",
+      });
+
+      await issueCommand(
+        [
+          "create",
+          "--title",
+          "Blocked issue",
+          "--body",
+          "b",
+          "--blocked-by",
+          "200",
+          "--blocked-by",
+          "https://github.com/octo/repo/issues/201",
+          "--blocking",
+          "300,301",
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExec.mock.calls[0][0]).toEqual([
+        "issue",
+        "create",
+        "--title",
+        "Blocked issue",
+        "--body",
+        "b",
+        "--blocked-by",
+        "200",
+        "--blocked-by",
+        "https://github.com/octo/repo/issues/201",
+        "--blocking",
+        "300,301",
+      ]);
+    });
+
+    it("rejects a dangling --blocked-by on create", async () => {
+      await expect(
+        issueCommand(
+          ["create", "--title", "X", "--body", "b", "--blocked-by"],
+          ctx,
+        ),
+      ).rejects.toThrow("--blocked-by requires a value");
+      expect(mockedGhExec).not.toHaveBeenCalled();
+    });
+
     it("passes all repeated --label flags to gh issue create (two labels)", async () => {
       mockedGhExec.mockResolvedValue(
         "https://github.com/octo/repo/issues/99\n",
@@ -1012,6 +1066,44 @@ describe("issueCommand", () => {
         "bug",
         "--add-label",
         "ready-for-agent",
+      ]);
+    });
+
+    it("forwards the blocked-by and blocking add/remove flags to gh issue edit", async () => {
+      mockEditedIssue();
+
+      await issueCommand(
+        [
+          "edit",
+          "276",
+          "--add-blocked-by",
+          "200",
+          "--add-blocked-by",
+          "201",
+          "--remove-blocked-by",
+          "202",
+          "--add-blocking",
+          "300",
+          "--remove-blocking",
+          "https://github.com/octo/repo/issues/301",
+        ],
+        ctx,
+      );
+
+      expect(mockedGhExec.mock.calls[0][0]).toEqual([
+        "issue",
+        "edit",
+        "276",
+        "--add-blocked-by",
+        "200",
+        "--add-blocked-by",
+        "201",
+        "--remove-blocked-by",
+        "202",
+        "--add-blocking",
+        "300",
+        "--remove-blocking",
+        "https://github.com/octo/repo/issues/301",
       ]);
     });
 

@@ -109,9 +109,9 @@ flags{view}:
 fields{view}:
   ${[...ISSUE_VIEW_FIELDS].join(", ")}
 flags{create}:
-  --title <text> (required), --body <text> or --body-file <path> (one required unless --attach is given), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>
+  --title <text> (required), --body <text> or --body-file <path> (one required unless --attach is given), --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --assignee <login> (repeatable), --label <name> (repeatable), --milestone <name>, --project <name> (repeatable), --type <name>, --blocked-by <number|url> (repeatable), --blocking <number|url> (repeatable)
 flags{edit}:
-  --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type
+  --title, --body <text> or --body-file <path>, --attach <path[#alt]> (repeatable; image/video; requires gh >= 2.99.0), --add-label <name> (repeatable), --remove-label <name> (repeatable), --add-assignee <login> (repeatable), --remove-assignee <login> (repeatable), --milestone, --type <name>, --no-type, --add-blocked-by <number|url> (repeatable), --remove-blocked-by <number|url> (repeatable), --add-blocking <number|url> (repeatable), --remove-blocking <number|url> (repeatable)
 flags{close}:
   --reason <completed|not_planned|duplicate>, --duplicate-of <number|url> (implies --reason duplicate; requires gh >= 2.88.0), --comment <text>
 flags{comment}:
@@ -172,6 +172,8 @@ export const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--milestone",
     "--project",
     "--type",
+    "--blocked-by",
+    "--blocking",
   ],
   edit: [
     "--title",
@@ -185,6 +187,10 @@ export const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--milestone",
     "--no-type",
     "--type",
+    "--add-blocked-by",
+    "--remove-blocked-by",
+    "--add-blocking",
+    "--remove-blocking",
   ],
   close: ["--reason", "--duplicate-of", "--comment"],
   reopen: [],
@@ -685,6 +691,8 @@ async function createIssue(
   const labels = getAllFlags(args, "--label");
   const milestone = getFlag(args, "--milestone");
   const projects = getAllFlags(args, "--project");
+  const blockedBy = getAllFlags(args, "--blocked-by");
+  const blocking = getAllFlags(args, "--blocking");
   const typeName = getOptionalRequiredFlag(args, "--type");
 
   // Resolve type up front so an invalid value fails before creating the issue.
@@ -703,6 +711,8 @@ async function createIssue(
     pushRepeated(ghArgs, "--label", labels);
     if (milestone) ghArgs.push("--milestone", milestone);
     pushRepeated(ghArgs, "--project", projects);
+    pushRepeated(ghArgs, "--blocked-by", blockedBy);
+    pushRepeated(ghArgs, "--blocking", blocking);
 
     // gh issue create outputs the URL; use --json to get structured data
     // Unfortunately gh issue create doesn't support --json, so we parse the URL
@@ -817,6 +827,10 @@ async function editIssue(
   const removeLabels = getAllFlags(args, "--remove-label");
   const addAssignees = getAllFlags(args, "--add-assignee");
   const removeAssignees = getAllFlags(args, "--remove-assignee");
+  const addBlockedBy = getAllFlags(args, "--add-blocked-by");
+  const removeBlockedBy = getAllFlags(args, "--remove-blocked-by");
+  const addBlocking = getAllFlags(args, "--add-blocking");
+  const removeBlocking = getAllFlags(args, "--remove-blocking");
   const milestone = getFlag(args, "--milestone");
   const clearType = takeBoolFlag(args, "--no-type");
   const typeName = getOptionalRequiredFlag(args, "--type");
@@ -855,6 +869,10 @@ async function editIssue(
     pushRepeated(ghArgs, "--remove-label", removeLabels);
     pushRepeated(ghArgs, "--add-assignee", addAssignees);
     pushRepeated(ghArgs, "--remove-assignee", removeAssignees);
+    pushRepeated(ghArgs, "--add-blocked-by", addBlockedBy);
+    pushRepeated(ghArgs, "--remove-blocked-by", removeBlockedBy);
+    pushRepeated(ghArgs, "--add-blocking", addBlocking);
+    pushRepeated(ghArgs, "--remove-blocking", removeBlocking);
     if (milestone) ghArgs.push("--milestone", milestone);
 
     // Only call `gh issue edit` if there is a non-type field to update; otherwise
