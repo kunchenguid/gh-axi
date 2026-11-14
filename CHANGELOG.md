@@ -18,6 +18,20 @@
 - **errors:** classify mixed-case generic `not found` gh errors as `NOT_FOUND`
   instead of falling back to `UNKNOWN`
 
+## [0.1.52](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.51...gh-axi-v0.1.52) (2026-11-14)
+
+
+### Features
+
+* **issue:** forward blocked-by and blocking relationships on create and edit ([#262](https://github.com/kunchenguid/gh-axi/issues/262)) ([a1c6935](https://github.com/kunchenguid/gh-axi/commit/a1c69359a277a36e1246aab9fa047a92cf27ca48))
+* **issue:** select gh JSON fields on issue view with --fields ([#263](https://github.com/kunchenguid/gh-axi/issues/263)) ([81313b3](https://github.com/kunchenguid/gh-axi/commit/81313b35be24ccbd2f92867628b8cd6571c271ab))
+
+
+### Bug Fixes
+
+* forward large bodies to gh via temporary file to avoid argv limits ([#259](https://github.com/kunchenguid/gh-axi/issues/259)) ([d84efb5](https://github.com/kunchenguid/gh-axi/commit/d84efb529bd986afb4b963b4f675a5dd2f6eab85))
+* **search:** say when the current repo narrowed an unscoped search ([#261](https://github.com/kunchenguid/gh-axi/issues/261)) ([2d9aa61](https://github.com/kunchenguid/gh-axi/commit/2d9aa6142609b8ba148ffbfad0a5355ccd068a19))
+
 ## [0.1.51](https://github.com/kunchenguid/gh-axi/compare/gh-axi-v0.1.50...gh-axi-v0.1.51) (2026-11-07)
 
 
