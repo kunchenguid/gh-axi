@@ -17,6 +17,7 @@ import {
   renderError,
   type FieldDef,
 } from "../toon.js";
+import { encode } from "@toon-format/toon";
 import { formatCountLine } from "../format.js";
 import { getSuggestions } from "../suggestions.js";
 import { parseFields, type ExtraFieldSpec } from "../fields.js";
@@ -350,6 +351,22 @@ function getSearchRepo(
   return ctx?.nwo;
 }
 
+// When only the ambient repo narrowed the search, say so. Without this line an
+// empty result reads as "nothing matches anywhere" (#246).
+function ambientScopeLine(
+  args: string[],
+  repo: string | undefined,
+  ctx?: RepoContext,
+): string {
+  if (!repo || !ctx || ctx.source === "flag") return "";
+  if (getFlag(args, "--repo") !== undefined) return "";
+  const from =
+    ctx.source === "env" ? "GH_REPO" : "the current directory's git remote";
+  return encode({
+    scope: `${repo} (default from ${from}; pass --owner <owner>, --repo <owner/repo>, or an org:/user:/repo: qualifier to search elsewhere)`,
+  });
+}
+
 const COMMON_FILTER_FLAGS = [
   "--repo",
   "--owner",
@@ -423,6 +440,7 @@ async function searchIssues(
   });
   return renderOutput([
     countLine,
+    ambientScopeLine(args, repo, ctx),
     renderList("issues", displayed, [...issueSchema, ...extraDefs]),
     renderHelp(suggestions),
   ]);
@@ -486,6 +504,7 @@ async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   });
   return renderOutput([
     countLine,
+    ambientScopeLine(args, repo, ctx),
     renderList("prs", displayed, [...prSchema, ...extraDefs]),
     renderHelp(suggestions),
   ]);
@@ -578,6 +597,7 @@ async function searchCommits(
   });
   return renderOutput([
     countLine,
+    ambientScopeLine(args, repo, ctx),
     renderList("commits", displayed, commitSchema),
     renderHelp(suggestions),
   ]);
@@ -628,6 +648,7 @@ async function searchCode(args: string[], ctx?: RepoContext): Promise<string> {
   });
   return renderOutput([
     countLine,
+    ambientScopeLine(args, repo, ctx),
     renderList("results", displayed, codeSchema),
     renderHelp(suggestions),
   ]);

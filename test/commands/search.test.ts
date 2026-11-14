@@ -519,6 +519,38 @@ describe("searchCommand", () => {
       expect(ghArgs).toEqual(expect.arrayContaining(["--repo", "octo/repo"]));
     });
 
+    it.each(types)(
+      "%s: says when the cwd repo narrowed the search",
+      async (type) => {
+        mockedGhJson.mockResolvedValue([]);
+        const result = await searchCommand([type, "is:open"], gitCtx);
+        expect(result).toContain(
+          `scope: "octo/repo (default from the current directory's git remote`,
+        );
+      },
+    );
+
+    it("says when GH_REPO narrowed the search", async () => {
+      mockedGhJson.mockResolvedValue([]);
+      const result = await searchCommand(["prs", "author:@me"], envCtx);
+      expect(result).toContain(`scope: "octo/repo (default from GH_REPO`);
+    });
+
+    it("prints no scope line for an explicit or widened scope", async () => {
+      mockedGhJson.mockResolvedValue([]);
+      const cases: [string[], RepoContext | undefined][] = [
+        [["prs", "x"], ctx],
+        [["prs", "--repo", "a/b", "x"], gitCtx],
+        [["prs", "--owner", "cli", "x"], gitCtx],
+        [["prs", "org:cli", "x"], gitCtx],
+        [["prs", "x"], undefined],
+      ];
+      for (const [args, repoCtx] of cases) {
+        const result = await searchCommand(args, repoCtx);
+        expect(result).not.toContain("scope:");
+      }
+    });
+
     it("keeps an explicit -R or --repo next to --owner", async () => {
       expect(await forwarded(["prs", "--owner", "cli", "x"], ctx)).toEqual(
         expect.arrayContaining(["--repo", "octo/repo", "--owner", "cli"]),
