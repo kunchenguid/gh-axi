@@ -24,6 +24,7 @@ import { getSuggestions } from "../suggestions.js";
 export const RUN_FLAGS: Record<string, readonly string[]> = {
   list: [
     "--fields",
+    "--json",
     "--limit",
     "--workflow",
     "--branch",
@@ -53,7 +54,7 @@ subcommands[7]:
 note:
   manages existing runs; to trigger (dispatch) a workflow, use \`gh-axi workflow run <name> --ref <ref>\`
 flags{list}:
-  --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c>
+  --workflow, --branch, --status, --event, --user, --commit, --limit (default 10), --fields <a,b,c> (or --json <a,b,c>)
 flags{view}:
   --job <job-id>, --attempt <n> (select a historical run attempt; output names the run, attempt and head sha, and a mismatch fails), --log (or --verbose), --log-failed, --conclusion <success|failure|cancelled|skipped> (filter jobs by conclusion)
   long --log/--log-failed output keeps the tail and may include full_log for grep searches
@@ -327,7 +328,15 @@ async function resolveLogEnvelopeRunId(
 }
 
 async function listRuns(args: string[], ctx?: RepoContext): Promise<string> {
-  const fieldsArg = takeFlag(args, "--fields");
+  const fieldsFlag = takeFlag(args, "--fields");
+  const jsonFlag = takeFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  const fieldsArg = fieldsFlag ?? jsonFlag;
   const { extraDefs, extraJsonKeys } = parseFields(
     fieldsArg,
     RUN_LIST_EXTRA_FIELDS,

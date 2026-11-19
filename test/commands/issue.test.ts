@@ -206,6 +206,41 @@ describe("issueCommand", () => {
       expect(result).toContain("bug");
     });
 
+    it("accepts --json as an alias for --fields on issue list and issue view", async () => {
+      mockedGhJson.mockResolvedValueOnce([
+        {
+          number: 1,
+          title: "Bug",
+          state: "OPEN",
+          author: { login: "alice" },
+          createdAt: "2024-01-01T00:00:00Z",
+          body: "list details",
+        },
+      ]);
+
+      const listResult = await issueCommand(["list", "--json", "body"], ctx);
+      expect(listResult).toContain("list details");
+
+      mockedGhJson.mockResolvedValueOnce({ number: 42, body: "view details" });
+      const viewResult = await issueCommand(
+        ["view", "42", "--json", "number,body"],
+        ctx,
+      );
+      expect(decode(viewResult)).toEqual({
+        issue: { number: 42, body: "view details" },
+      });
+
+      await expect(
+        issueCommand(["list", "--fields", "body", "--json", "url"], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      await expect(
+        issueCommand(
+          ["view", "42", "--fields", "number", "--json", "body"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    });
+
     it("counts only filtered issues when --label is applied", async () => {
       mockedGhJson.mockResolvedValue([
         { number: 1, title: "A", state: "OPEN" },

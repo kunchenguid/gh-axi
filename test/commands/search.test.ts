@@ -209,6 +209,25 @@ describe("searchCommand", () => {
       expect(ghArgs.slice(-2)).toEqual(["--", "bug"]);
     });
 
+    it("accepts --json as an alias for --fields without treating its value as query text", async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await searchCommand(["prs", "--json", "url,isDraft", "bug"], ctx);
+
+      const ghArgs = mockedGhJson.mock.calls[0][0];
+      expect(ghArgs[ghArgs.indexOf("--json") + 1]).toBe(
+        "number,title,repository,state,author,createdAt,url,isDraft",
+      );
+      expect(ghArgs.slice(-2)).toEqual(["--", "bug"]);
+
+      await expect(
+        searchCommand(
+          ["issues", "bug", "--fields", "url", "--json", "body"],
+          ctx,
+        ),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    });
+
     it("shows closed_at as none for an open item's zero-time closedAt", async () => {
       mockedGhJson.mockResolvedValue([
         { ...prItem, number: 1, closedAt: "0001-01-01T00:00:00Z" },

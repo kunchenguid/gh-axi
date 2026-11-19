@@ -369,6 +369,47 @@ describe("prCommand", () => {
         expect((e as AxiError).message).toContain("fakeField");
       }
     });
+
+    it("accepts --json as an alias for --fields on pr list and rejects combining both", async () => {
+      mockedGhJson.mockResolvedValue([
+        {
+          number: 1,
+          title: "Fix",
+          state: "OPEN",
+          author: { login: "alice" },
+          isDraft: false,
+          reviewDecision: "APPROVED",
+          body: "PR body via --json",
+        },
+      ]);
+
+      const result = await prCommand(["list", "--json", "body"], ctx);
+      const callArgs = mockedGhJson.mock.calls[0][0] as string[];
+      expect(callArgs[callArgs.indexOf("--json") + 1]).toContain("body");
+      expect(result).toContain("PR body via --json");
+
+      await expect(
+        prCommand(["list", "--fields", "body", "--json", "url"], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    });
+
+    it("accepts --json as an alias for --fields on pr view and rejects combining both", async () => {
+      mockedGhJson.mockResolvedValue({ number: 42, body: "Selected PR body" });
+
+      const result = await prCommand(
+        ["view", "42", "--json", "number,body"],
+        ctx,
+      );
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["pr", "view", "42", "--json", "number,body"],
+        ctx,
+      );
+      expect(result).toContain("Selected PR body");
+
+      await expect(
+        prCommand(["view", "42", "--fields", "number", "--json", "body"], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    });
   });
 
   describe("view", () => {

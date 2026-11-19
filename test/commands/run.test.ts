@@ -121,6 +121,29 @@ describe("runCommand", () => {
       expect(result).toContain("abc123");
     });
 
+    it("accepts --json as an alias for --fields", async () => {
+      mockedGhJson.mockResolvedValue([
+        {
+          databaseId: 100,
+          displayTitle: "CI Build",
+          status: "completed",
+          conclusion: "success",
+          workflowName: "CI",
+          headBranch: "main",
+          event: "push",
+          createdAt: "2024-01-01T00:00:00Z",
+          headSha: "def456",
+        },
+      ]);
+
+      const result = await runCommand(["list", "--json", "headSha"], ctx);
+      expect(result).toContain("def456");
+
+      await expect(
+        runCommand(["list", "--fields", "headSha", "--json", "number"], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    });
+
     it("throws VALIDATION_ERROR for unknown --fields", async () => {
       await expect(
         runCommand(["list", "--fields", "bogusField"], ctx),

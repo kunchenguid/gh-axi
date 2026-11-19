@@ -37,6 +37,7 @@ const SEARCH_VALUE_FLAGS = new Set([
   "--language",
   "--stars",
   "--fields",
+  "--json",
 ]);
 
 // GitHub's search-family qualifier names, not arbitrary colon-prefixed text.
@@ -158,6 +159,7 @@ export const SEARCH_FLAGS: Record<string, readonly string[]> = {
     "--sort",
     "--limit",
     "--fields",
+    "--json",
   ],
   prs: [
     "--repo",
@@ -171,6 +173,7 @@ export const SEARCH_FLAGS: Record<string, readonly string[]> = {
     "--draft",
     "--review",
     "--fields",
+    "--json",
   ],
   repos: ["--repo", "--owner", "--language", "--stars", "--sort", "--limit"],
   commits: ["--repo", "--owner", "--author", "--sort", "--limit"],
@@ -186,9 +189,9 @@ query:
 flags{common}:
   --repo, --owner, --state, --label, --assignee, --author, --sort, --limit <n> (default 1000)
 flags{issues}:
-  --fields <a,b,c> (extra columns: assignees, authorAssociation, body, closedAt, commentsCount, isLocked, updatedAt, url)
+  --fields <a,b,c> / --json <a,b,c> (extra columns: assignees, authorAssociation, body, closedAt, commentsCount, isLocked, updatedAt, url)
 flags{prs}:
-  --draft, --review, --fields <a,b,c> (extra columns: the issues set plus isDraft, labels)
+  --draft, --review, --fields <a,b,c> / --json <a,b,c> (extra columns: the issues set plus isDraft, labels)
 flags{repos}:
   --language, --stars (e.g. ">100")
 flags{code}:
@@ -382,12 +385,24 @@ function hasSearchFilters(args: string[], extraFlags: string[] = []): boolean {
   );
 }
 
+function getFieldsOrJsonFlag(args: string[]): string | undefined {
+  const fieldsFlag = getFlag(args, "--fields");
+  const jsonFlag = getFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  return fieldsFlag ?? jsonFlag;
+}
+
 async function searchIssues(
   args: string[],
   ctx?: RepoContext,
 ): Promise<string> {
   const { extraDefs, extraJsonKeys } = parseFields(
-    getFlag(args, "--fields"),
+    getFieldsOrJsonFlag(args),
     SEARCH_ISSUE_EXTRA_FIELDS,
   );
   const query = extractQuery(args);
@@ -448,7 +463,7 @@ async function searchIssues(
 
 async function searchPrs(args: string[], ctx?: RepoContext): Promise<string> {
   const { extraDefs, extraJsonKeys } = parseFields(
-    getFlag(args, "--fields"),
+    getFieldsOrJsonFlag(args),
     SEARCH_PR_EXTRA_FIELDS,
   );
   const query = extractQuery(args);
