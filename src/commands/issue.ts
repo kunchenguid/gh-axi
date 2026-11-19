@@ -103,9 +103,9 @@ export const ISSUE_HELP = `usage: gh-axi issue <subcommand> [flags]
 subcommands[14]:
   list, view <number>, create, edit <number>, close <number>, reopen <number>, comment <number>, delete <number>, lock <number>, unlock <number>, pin <number>, unpin <number>, transfer <number>, subissue <add|remove|list>
 flags{list}:
-  --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
+  --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c> (or --json <a,b,c>)
 flags{view}:
-  --comments, --full (show the complete issue body and comment bodies without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments or --full)
+  --comments, --full (show the complete issue body and comment bodies without truncation), --fields <a,b,c> / --json <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments or --full)
 fields{view}:
   ${[...ISSUE_VIEW_FIELDS].join(", ")}
 flags{create}:
@@ -152,6 +152,7 @@ examples:
 export const ISSUE_FLAGS: Record<string, readonly string[]> = {
   list: [
     "--fields",
+    "--json",
     "--state",
     "--label",
     "--assignee",
@@ -161,7 +162,7 @@ export const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--full", "--fields"],
+  view: ["--comments", "--full", "--fields", "--json"],
   create: [
     "--title",
     "--body",
@@ -338,7 +339,15 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
       "VALIDATION_ERROR",
     );
   }
-  const fieldsArg = takeFlag(args, "--fields");
+  const fieldsFlag = takeFlag(args, "--fields");
+  const jsonFlag = takeFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  const fieldsArg = fieldsFlag ?? jsonFlag;
   const { extraDefs, extraJsonKeys } = parseFields(
     fieldsArg,
     ISSUE_LIST_EXTRA_FIELDS,
@@ -411,7 +420,15 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
-  const fieldsArg = takeSingleRequiredFlag(args, "--fields");
+  const fieldsFlag = takeSingleRequiredFlag(args, "--fields");
+  const jsonFlag = takeSingleRequiredFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  const fieldsArg = fieldsFlag ?? jsonFlag;
   const num = requireNumber(getPositional(args, 1), "issue");
   const withComments = hasFlag(args, "--comments");
   const full = hasFlag(args, "--full");

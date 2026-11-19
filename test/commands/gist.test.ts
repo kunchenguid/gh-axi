@@ -783,6 +783,21 @@ describe("gistCommand", () => {
       expect(header).toContain("owner");
     });
 
+    it("accepts --json as an alias for --fields on gist list", async () => {
+      mockedGhJson.mockResolvedValue([gist()]);
+      const result = await gistCommand(["list", "--json", "url,owner"]);
+      const header = result
+        .split("\n")
+        .find((l) => l.includes("gists[") && l.includes("{"));
+      expect(header).toBeDefined();
+      expect(header).toContain("url");
+      expect(header).toContain("owner");
+
+      await expect(
+        gistCommand(["list", "--fields", "url", "--json", "owner"]),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+    });
+
     it("rejects unknown --fields values", async () => {
       mockedGhJson.mockResolvedValue([gist()]);
       await expect(gistCommand(["list", "--fields", "nope"])).rejects.toThrow(

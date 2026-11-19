@@ -24,7 +24,7 @@ export const GIST_HELP = `usage: gh-axi gist <subcommand> [flags]
 subcommands[7]:
   list, view <id|url>, edit <id|url>, rename <id|url> <old> <new>, create, delete <id|url>, clone <id|url>
 flags{list}:
-  --limit <n> (default 100), --public, --secret, --fields <field,...>
+  --limit <n> (default 100), --public, --secret, --fields <field,...> (or --json <field,...>)
 flags{view}:
   --files (file names only), -f/--filename <name> (single file), --full (no truncation), -r/--raw (no-op), -w/--web (rejected)
 flags{edit}:
@@ -338,7 +338,15 @@ async function listGists(args: string[]): Promise<string> {
 
   // Let parseFields throw AxiError on unknown fields so the process exits
   // non-zero — matching every sibling command family (issue.ts:226, run.ts:207).
-  const fieldsArg = takeFlag(args, "--fields");
+  const fieldsFlag = takeFlag(args, "--fields");
+  const jsonFlag = takeFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  const fieldsArg = fieldsFlag ?? jsonFlag;
   const { extraDefs } = parseFields(fieldsArg, EXTRA_FIELDS);
 
   // Validate --limit before use; parseInt("abc") = NaN and slice(0, NaN) = []

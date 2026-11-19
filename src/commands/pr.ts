@@ -402,6 +402,7 @@ function withMergeState(
 export const PR_FLAGS: Record<string, readonly string[]> = {
   list: [
     "--fields",
+    "--json",
     "--state",
     "--label",
     "--assignee",
@@ -412,7 +413,7 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--reviews", "--checks", "--full", "--fields"],
+  view: ["--comments", "--reviews", "--checks", "--full", "--fields", "--json"],
   create: [
     "--title",
     "--body",
@@ -477,9 +478,9 @@ export const PR_HELP = `usage: gh-axi pr <subcommand> [flags]
 subcommands[15]:
   list, view <number>, create, edit <number>, close <number>, merge <number>, review <number>, checks <number>, diff <number>, checkout <number>, ready <number>, reopen <number>, comment <number>, update-branch <number>, revert <number>
 flags{list}:
-  --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
+  --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c> (or --json <a,b,c>)
 flags{view}:
-  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments, --reviews, --checks or --full)
+  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation), --fields <a,b,c> / --json <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments, --reviews, --checks or --full)
 fields{view}:
   ${[...PR_VIEW_FIELDS].join(", ")}
 flags{create}:
@@ -522,7 +523,15 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
       "VALIDATION_ERROR",
     );
   }
-  const fieldsArg = takeFlag(args, "--fields");
+  const fieldsFlag = takeFlag(args, "--fields");
+  const jsonFlag = takeFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  const fieldsArg = fieldsFlag ?? jsonFlag;
   const { extraDefs, extraJsonKeys } = parseFields(
     fieldsArg,
     PR_LIST_EXTRA_FIELDS,
@@ -594,7 +603,15 @@ async function prList(args: string[], ctx?: RepoContext): Promise<string> {
 }
 
 async function prView(args: string[], ctx?: RepoContext): Promise<string> {
-  const fieldsArg = takeSingleRequiredFlag(args, "--fields");
+  const fieldsFlag = takeSingleRequiredFlag(args, "--fields");
+  const jsonFlag = takeSingleRequiredFlag(args, "--json");
+  if (fieldsFlag !== undefined && jsonFlag !== undefined) {
+    throw new AxiError(
+      "Cannot combine --fields and --json; pass one",
+      "VALIDATION_ERROR",
+    );
+  }
+  const fieldsArg = fieldsFlag ?? jsonFlag;
   const includeComments = takeBoolFlag(args, "--comments");
   const includeReviews = takeBoolFlag(args, "--reviews");
   const includeChecks = takeBoolFlag(args, "--checks");
