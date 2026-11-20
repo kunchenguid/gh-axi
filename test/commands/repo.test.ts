@@ -474,6 +474,67 @@ describe('repoCommand', () => {
 
       expect(result).toContain('showing first 10');
     });
+
+    it('does not treat --limit value as the owner positional', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await repoCommand(['list', '--limit', '50'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo',
+        'list',
+        '--json',
+        'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
+        '--limit',
+        '50',
+      ]);
+    });
+
+    it('does not treat --visibility or --language values as the owner positional', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await repoCommand(
+        ['list', '--visibility', 'public', '--language', 'TypeScript', '--archived'],
+        ctx,
+      );
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo',
+        'list',
+        '--json',
+        'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
+        '--limit',
+        '30',
+        '--visibility',
+        'public',
+        '--language',
+        'TypeScript',
+        '--archived',
+      ]);
+    });
+
+    it('passes an explicit owner positional through regardless of flag order', async () => {
+      mockedGhJson.mockResolvedValue([]);
+
+      await repoCommand(['list', '--limit', '10', 'octocat'], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith([
+        'repo',
+        'list',
+        'octocat',
+        '--json',
+        'name,description,visibility,primaryLanguage,stargazerCount,updatedAt',
+        '--limit',
+        '10',
+      ]);
+    });
+
+    it('rejects a dangling --limit before another flag instead of leaking into owner', async () => {
+      await expect(
+        repoCommand(['list', '--limit', '--visibility', 'public'], ctx),
+      ).rejects.toThrow(AxiError);
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
   });
 
   describe('clone', () => {
