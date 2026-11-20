@@ -308,10 +308,45 @@ export function truncateBody(
 export const LARGE_BODY_THRESHOLD = 30_000;
 
 /**
+ * Compute the character length of an argument after Windows CreateProcessW /
+ * libuv command-line quoting: `"` becomes `\"`, backslashes immediately
+ * preceding `"` or the closing quote are doubled, and arguments with spaces,
+ * tabs, quotes, or empty length are wrapped in outer double quotes.
+ */
+function windowsEscapedLength(arg: string): number {
+  let extra = 0;
+  let backslashes = 0;
+  let needsQuotes = arg.length === 0;
+
+  for (let i = 0; i < arg.length; i++) {
+    const ch = arg.charCodeAt(i);
+    if (ch === 34 /* " */) {
+      needsQuotes = true;
+      extra += backslashes + 1;
+      backslashes = 0;
+    } else if (ch === 92 /* \ */) {
+      backslashes++;
+    } else {
+      if (ch === 32 /* space */ || ch === 9 /* tab */) {
+        needsQuotes = true;
+      }
+      backslashes = 0;
+    }
+  }
+
+  if (needsQuotes) {
+    extra += backslashes + 2;
+  }
+
+  return arg.length + extra;
+}
+
+/**
  * Execute a callback with arguments for forwarding a body to gh.
  *
- * Bodies at or below `LARGE_BODY_THRESHOLD` characters stay on the command
- * line as `["--body", body]`. Larger bodies are written to a temporary UTF-8
+ * Bodies whose Windows-escaped command-line length is at or below
+ * `LARGE_BODY_THRESHOLD` characters stay on the command line as
+ * `["--body", body]`. Larger bodies are written to a temporary UTF-8
  * file and forwarded as `["--body-file", path]` so that command-line length
  * limits (32 KB on Windows, 128 KB on Linux) do not reject the spawned process.
  * The temporary directory is removed when the callback settles. Commands whose
@@ -325,7 +360,7 @@ export async function withBodyArgs<T>(
   if (body === undefined) {
     return fn([]);
   }
-  if (body.length > LARGE_BODY_THRESHOLD) {
+  if (windowsEscapedLength(body) > LARGE_BODY_THRESHOLD) {
     const dir = mkdtempSync(join(tmpdir(), "gh-axi-body-"));
     const file = join(dir, "body.md");
     try {

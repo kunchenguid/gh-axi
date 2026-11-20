@@ -369,6 +369,43 @@ describe("withBodyArgs", () => {
       async (args) => args,
     );
     expect(thresholdResult).toEqual(["--body", thresholdBody]);
+
+    const smallQuotedBody = '"'.repeat(100) + "x".repeat(100);
+    const smallQuotedResult = await withBodyArgs(
+      smallQuotedBody,
+      async (args) => args,
+    );
+    expect(smallQuotedResult).toEqual(["--body", smallQuotedBody]);
+  });
+
+  it("yields --body-file when Windows command-line escaping pushes length past LARGE_BODY_THRESHOLD", async () => {
+    const quotedBody = '"'.repeat(3_000) + "x".repeat(26_999);
+    expect(quotedBody.length).toBe(29_999);
+
+    let capturedFile = "";
+    const quotedResult = await withBodyArgs(quotedBody, async (args) => {
+      expect(args[0]).toBe("--body-file");
+      capturedFile = args[1];
+      expect(readFileSync(capturedFile, "utf-8")).toBe(quotedBody);
+      return args;
+    });
+    expect(quotedResult[0]).toBe("--body-file");
+    expect(existsSync(capturedFile)).toBe(false);
+
+    const backslashQuotedBody = '\\"'.repeat(1_400) + "x".repeat(27_199);
+    expect(backslashQuotedBody.length).toBe(29_999);
+
+    const backslashResult = await withBodyArgs(
+      backslashQuotedBody,
+      async (args) => {
+        expect(args[0]).toBe("--body-file");
+        capturedFile = args[1];
+        expect(readFileSync(capturedFile, "utf-8")).toBe(backslashQuotedBody);
+        return args;
+      },
+    );
+    expect(backslashResult[0]).toBe("--body-file");
+    expect(existsSync(capturedFile)).toBe(false);
   });
 
   it("yields --body-file with temp file when content exceeds LARGE_BODY_THRESHOLD and cleans up", async () => {
