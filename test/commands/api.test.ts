@@ -293,27 +293,45 @@ describe("apiCommand", () => {
     const tail = "-TAIL".repeat(20);
     mockedGhExec.mockResolvedValue(head + "x".repeat(4500) + tail + "\n");
 
-    const result = await apiCommand(["/repos/octo/repo", "--jq", ".big"]);
+    const stderrSpy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    try {
+      const result = await apiCommand(["/repos/octo/repo", "--jq", ".big"]);
 
-    expect(result).toHaveLength(4000 + "... (truncated)".length);
-    expect(result.endsWith("... (truncated)")).toBe(true);
-    expect(result.startsWith(head)).toBe(true);
-    expect(result).not.toContain("TAIL");
+      expect(result).toHaveLength(4000 + "... (truncated)".length);
+      expect(result.endsWith("... (truncated)")).toBe(true);
+      expect(result.startsWith(head)).toBe(true);
+      expect(result).not.toContain("TAIL");
+      expect(stderrSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/truncated: true.*--full/),
+      );
+    } finally {
+      stderrSpy.mockRestore();
+    }
   });
 
   it("does not truncate or mark a bare --jq selection when --full is given", async () => {
     const big = "y".repeat(4500);
     mockedGhExec.mockResolvedValue(big + "\n");
 
-    const result = await apiCommand([
-      "/repos/octo/repo",
-      "--jq",
-      ".big",
-      "--full",
-    ]);
+    const stderrSpy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
+    try {
+      const result = await apiCommand([
+        "/repos/octo/repo",
+        "--jq",
+        ".big",
+        "--full",
+      ]);
 
-    expect(result).toBe(big);
-    expect(result).not.toContain("(truncated)");
+      expect(result).toBe(big);
+      expect(result).not.toContain("(truncated)");
+      expect(stderrSpy).not.toHaveBeenCalled();
+    } finally {
+      stderrSpy.mockRestore();
+    }
   });
 
   it("keeps the envelope for non-JSON output when the caller did not shape it", async () => {
