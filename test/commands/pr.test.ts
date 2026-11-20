@@ -372,6 +372,41 @@ describe("prCommand", () => {
   });
 
   describe("view", () => {
+    it("prints the body verbatim with --body-only", async () => {
+      const body = '## Summary\n\n<img src="https://example.com/a.png" />\n';
+      mockedGhJson.mockResolvedValue({ body });
+
+      const result = await prCommand(["view", "42", "--body-only"], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["pr", "view", "42", "--json", "body"],
+        ctx,
+      );
+      expect(result).toBe(body);
+    });
+
+    it("returns an empty string when --body-only sees a null body", async () => {
+      mockedGhJson.mockResolvedValue({ body: null });
+
+      const result = await prCommand(["view", "42", "--body-only"], ctx);
+
+      expect(result).toBe("");
+    });
+
+    it.each([
+      [["--body-only=true"]],
+      [["--body-only", "--fields=title"]],
+      [["--body-only", "--comments"]],
+      [["--body-only", "--reviews"]],
+      [["--body-only", "--checks"]],
+      [["--body-only", "--full"]],
+    ])("refuses --body-only combination %j", async (flags) => {
+      await expect(
+        prCommand(["view", "42", ...flags], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
     it("returns detail with schema fields", async () => {
       mockedGhJson.mockResolvedValue({
         number: 42,

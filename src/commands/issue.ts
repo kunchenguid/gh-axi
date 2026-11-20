@@ -105,7 +105,7 @@ subcommands[14]:
 flags{list}:
   --state <open|closed|all>, --label <name> (repeatable), --assignee <login>, --author <login>, --milestone <name>, --sort <created|updated|comments>, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --full (show the complete issue body and comment bodies without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments or --full)
+  --comments, --full (show the complete issue body and comment bodies without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments or --full), --body-only (print the body verbatim as raw Markdown, so it can be passed back to --body-file; cannot combine with other view flags)
 fields{view}:
   ${[...ISSUE_VIEW_FIELDS].join(", ")}
 flags{create}:
@@ -124,6 +124,7 @@ examples:
   gh-axi issue list --state closed --label bug
   gh-axi issue view 42 --comments
   gh-axi issue view 42 --fields blockedBy,blocking
+  gh-axi issue view 42 --body-only > body.md
   gh-axi issue create --title "Fix login" --body "Steps to reproduce..."
   gh-axi issue create --title "UI bug" --attach './repro.png#Login error'
   gh-axi issue comment 42 --body-file comment.md
@@ -161,7 +162,7 @@ export const ISSUE_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--full", "--fields"],
+  view: ["--comments", "--full", "--fields", "--body-only"],
   create: [
     "--title",
     "--body",
@@ -412,9 +413,24 @@ async function listIssues(args: string[], ctx?: RepoContext): Promise<string> {
 
 async function viewIssue(args: string[], ctx?: RepoContext): Promise<string> {
   const fieldsArg = takeSingleRequiredFlag(args, "--fields");
+  const bodyOnly = takeBoolFlag(args, "--body-only");
   const num = requireNumber(getPositional(args, 1), "issue");
   const withComments = hasFlag(args, "--comments");
   const full = hasFlag(args, "--full");
+
+  if (bodyOnly) {
+    if (fieldsArg !== undefined || withComments || full) {
+      throw new AxiError(
+        "--body-only cannot combine with --fields, --comments or --full",
+        "VALIDATION_ERROR",
+      );
+    }
+    const item = await ghJson<{ body?: string | null }>(
+      ["issue", "view", String(num), "--json", "body"],
+      ctx,
+    );
+    return item.body ?? "";
+  }
 
   if (fieldsArg !== undefined) {
     if (withComments || full) {
