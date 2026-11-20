@@ -212,6 +212,52 @@ function resolveHostContext(
   return { value: resolveHost(hostFlag), source: "flag" };
 }
 
+const URL_TARGET_PATTERNS: Record<string, RegExp> = {
+  pr: /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)(?:[/?#].*)?$/,
+  issue:
+    /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/issues\/(\d+)(?:[/?#].*)?$/,
+};
+
+/**
+ * Like `gh`, accept a pull request or issue URL wherever a number is taken.
+ * The URL is replaced in place by its number and its repository becomes the
+ * repository context. A URL that disagrees with an explicit -R/--repo (or with
+ * another URL) is rejected rather than silently picking one. Only tokens that
+ * are not the value of a preceding flag are rewritten, so a URL passed as
+ * `--body <url>` is left alone.
+ */
+export function resolveUrlTargets(
+  command: string | undefined,
+  args: string[],
+  repoFlag: string | undefined,
+): string | undefined {
+  const pattern = command ? URL_TARGET_PATTERNS[command] : undefined;
+  if (!pattern) {
+    return repoFlag;
+  }
+
+  let repo = repoFlag;
+  for (let index = 1; index < args.length; index++) {
+    if (index > 1 && args[index - 1].startsWith("-")) {
+      continue;
+    }
+    const match = pattern.exec(args[index]);
+    if (!match) {
+      continue;
+    }
+    const urlRepo = `${match[1]}/${match[2]}`;
+    if (repo !== undefined && repo.toLowerCase() !== urlRepo.toLowerCase()) {
+      throw new AxiError(
+        `${args[index]} is in ${urlRepo}, which conflicts with the repository ${repo}`,
+        "VALIDATION_ERROR",
+      );
+    }
+    repo ??= urlRepo;
+    args[index] = match[3];
+  }
+  return repo;
+}
+
 /**
  * Preserve a supplied merge-head condition or reject it if context stripping
  * consumes it as a repository/hostname value; handler-only validation is too late.
@@ -292,6 +338,8 @@ function parseRepoContextArgs(
 
     stripped.push(arg);
   }
+
+  repoFlag = resolveUrlTargets(command, stripped, repoFlag);
 
   if (
     command === "pr" &&
