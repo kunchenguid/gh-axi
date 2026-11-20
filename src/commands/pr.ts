@@ -412,7 +412,14 @@ export const PR_FLAGS: Record<string, readonly string[]> = {
     "--limit",
     "--search",
   ],
-  view: ["--comments", "--reviews", "--checks", "--full", "--fields"],
+  view: [
+    "--comments",
+    "--reviews",
+    "--checks",
+    "--full",
+    "--fields",
+    "--body-only",
+  ],
   create: [
     "--title",
     "--body",
@@ -479,7 +486,7 @@ subcommands[15]:
 flags{list}:
   --state <open|closed|all>, --label (repeatable), --assignee, --author, --base, --head, --draft, --limit <n> (default 30), --fields <a,b,c>
 flags{view}:
-  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments, --reviews, --checks or --full)
+  --comments, --reviews (show review submissions and inline review comments), --checks (show the detailed check rollup), --full (show complete body without truncation), --fields <a,b,c> (select gh JSON fields as TOON, with complete values; cannot combine with --comments, --reviews, --checks or --full), --body-only (print the body verbatim as raw Markdown, so it can be passed back to --body-file; cannot combine with other view flags)
 fields{view}:
   ${[...PR_VIEW_FIELDS].join(", ")}
 flags{create}:
@@ -505,6 +512,7 @@ examples:
   gh-axi pr view 42 --comments
   gh-axi pr view 42 --reviews
   gh-axi pr view 42 --fields number,title,headRefOid,reviews
+  gh-axi pr view 42 --body-only > body.md
   gh-axi pr checks 42 --watch --fail-fast
   gh-axi pr create --title "Fix login" --attach './before.png#Before'
   gh-axi pr comment 42 --body-file review.md
@@ -599,7 +607,28 @@ async function prView(args: string[], ctx?: RepoContext): Promise<string> {
   const includeReviews = takeBoolFlag(args, "--reviews");
   const includeChecks = takeBoolFlag(args, "--checks");
   const full = takeBoolFlag(args, "--full");
+  const bodyOnly = takeBoolFlag(args, "--body-only");
   const num = takeNumber(args, "PR");
+
+  if (bodyOnly) {
+    if (
+      fieldsArg !== undefined ||
+      includeComments ||
+      includeReviews ||
+      includeChecks ||
+      full
+    ) {
+      throw new AxiError(
+        "--body-only cannot combine with --fields, --comments, --reviews, --checks or --full",
+        "VALIDATION_ERROR",
+      );
+    }
+    const pr = await ghJson<{ body?: string | null }>(
+      ["pr", "view", String(num), "--json", "body"],
+      ctx,
+    );
+    return pr.body ?? "";
+  }
 
   if (fieldsArg !== undefined) {
     if (includeComments || includeReviews || includeChecks || full) {

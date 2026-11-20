@@ -1974,6 +1974,46 @@ describe("issueCommand", () => {
     });
   });
 
+  describe("view --body-only", () => {
+    it("prints the body verbatim as raw Markdown without TOON wrapping", async () => {
+      const body =
+        '## Summary\n\nLine 1\n\n<img src="https://example.com/a.png" />\n';
+      mockedGhJson.mockResolvedValue({ body });
+
+      const result = await issueCommand(["view", "42", "--body-only"], ctx);
+
+      expect(mockedGhJson).toHaveBeenCalledWith(
+        ["issue", "view", "42", "--json", "body"],
+        ctx,
+      );
+      expect(result).toBe(body);
+    });
+
+    it("returns an empty string when the issue body is null", async () => {
+      mockedGhJson.mockResolvedValue({ body: null });
+
+      const result = await issueCommand(["view", "42", "--body-only"], ctx);
+
+      expect(result).toBe("");
+    });
+
+    it.each([
+      [["--body-only=true"]],
+      [["--body-only", "--fields=title"]],
+      [["--body-only", "--comments"]],
+      [["--body-only", "--full"]],
+    ])("refuses %j locally", async (flags) => {
+      await expect(
+        issueCommand(["view", "42", ...flags], ctx),
+      ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+      expect(mockedGhJson).not.toHaveBeenCalled();
+    });
+
+    it("documents --body-only in help", () => {
+      expect(ISSUE_HELP).toContain("--body-only");
+    });
+  });
+
   describe("view with sub-issue relationships", () => {
     it("includes parent and subissues when the GraphQL augmentation returns data", async () => {
       mockedGhJson.mockImplementation(async (args: string[]) => {
